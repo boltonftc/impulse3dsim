@@ -3842,7 +3842,8 @@
         const appDir = location.pathname.replace(/[^/]*$/, '').replace(/^\/+/, '');
         const cp = ['app.jar', 'ecj.jar', 'pedro-core.jar']
           .map(j => '/app/' + appDir + j).join(':');
-        cheerpjRunMain('sim.OpModeHost', cp)
+        // appDir arg lets the Java host build its ECJ bootclasspath/classpath under the same subpath
+        cheerpjRunMain('sim.OpModeHost', cp, appDir)
           .then(rc => console.log('runner exit = ' + rc));
         armInit(sim, sim.loaded);   // prewarm the compiler in the background; does NOT select or start an opmode
       } catch (e) {
