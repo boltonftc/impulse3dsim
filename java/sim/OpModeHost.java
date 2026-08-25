@@ -53,7 +53,16 @@ public class OpModeHost {
     static final double SHOOTER_MAXV = 30.0;   // rad/s that maps to a full-speed flywheel visual
     static final int SLOTS = 2;                // alliance slots: 0 = red, 1 = blue
 
+    // /app/ maps to the web-server origin root; when hosted under a subpath the jars live in a
+    // subdirectory, so the browser passes that prefix (e.g. "impulse3dsim/") as the first arg.
+    static String APP = "/app/";
+
     public static void main(String[] args) throws Exception {
+        if (args.length > 0 && !args[0].isEmpty()) {
+            String p = args[0];
+            if (!p.endsWith("/")) p += "/";
+            APP = "/app/" + p;
+        }
         Runner[] runners = new Runner[SLOTS];
         for (int i = 0; i < SLOTS; i++) runners[i] = new Runner(i);
         System.out.println("RUNNER_READY slots=" + SLOTS);
@@ -136,7 +145,7 @@ public class OpModeHost {
             new File(outDir).mkdirs();
             String[] fixed = {
                 "-source", "1.8", "-target", "1.8",
-                "-bootclasspath", "/app/jdk-base.jar", "-classpath", "/app/shim.jar:/app/pedro-core.jar",
+                "-bootclasspath", APP + "jdk-base.jar", "-classpath", APP + "shim.jar:" + APP + "pedro-core.jar",
                 "-proc:none", "-nowarn", "-d", outDir };
             String[] a = new String[fixed.length + srcFiles.length];
             System.arraycopy(fixed, 0, a, 0, fixed.length);
