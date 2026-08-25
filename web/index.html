@@ -3834,7 +3834,15 @@
         try { cheerpjCreateDisplay(1,1); } catch(e){}
         booted = true;
         // long-lived: keeps ECJ warm; never resolves
-        cheerpjRunMain('sim.OpModeHost', '/app/app.jar:/app/ecj.jar:/app/pedro-core.jar')
+        // CheerpJ's /app/ mount maps to the web-server ORIGIN ROOT, so /app/app.jar
+        // resolves to <origin>/app.jar. When the site is hosted under a subpath
+        // (e.g. GitHub Pages project sites at /impulse3dsim/), the jars live in that
+        // subdirectory, not at the origin root. Derive the page's directory from the
+        // URL so the classpath works both locally ("") and under a subpath.
+        const appDir = location.pathname.replace(/[^/]*$/, '').replace(/^\/+/, '');
+        const cp = ['app.jar', 'ecj.jar', 'pedro-core.jar']
+          .map(j => '/app/' + appDir + j).join(':');
+        cheerpjRunMain('sim.OpModeHost', cp)
           .then(rc => console.log('runner exit = ' + rc));
         armInit(sim, sim.loaded);   // prewarm the compiler in the background; does NOT select or start an opmode
       } catch (e) {
