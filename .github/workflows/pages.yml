@@ -38,3 +38,19 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      # Warm the Fastly cache with Range requests for the large CheerpJ jars. On a cold
+      # cache miss Fastly serves a full 200 without Range support, which CheerpJ rejects
+      # ("HTTP server does not support the 'Range' header"). Priming them here means the
+      # first real visitor gets a Range-capable (206) cached object.
+      - name: Warm CheerpJ jar cache
+        run: |
+          base="${{ steps.deployment.outputs.page_url }}"
+          for jar in app.jar ecj.jar pedro-core.jar shim.jar jdk-base.jar; do
+            for attempt in 1 2 3 4 5; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-99' "${base}${jar}")
+              echo "${jar} attempt ${attempt}: ${code}"
+              [ "$code" = "206" ] && break
+              sleep 3
+            done
+          done
