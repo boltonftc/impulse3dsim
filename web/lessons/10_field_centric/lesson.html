@@ -1,0 +1,51 @@
+<h1>Field-Centric Driving</h1>
+
+<p>Your robot drives &mdash; but "forward" on the stick means "the way the robot is pointing." Once the
+robot spins around, forward looks backward to the driver, and steering gets confusing fast.</p>
+
+<p><strong>Field-centric</strong> driving fixes that. "Forward" on the stick always means "away from the
+driver," no matter which way the robot faces. To do it, we rotate the driver's request by the
+robot's current heading before mixing the wheels.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Rotate, then mix</div>
+  <p>If the robot is turned by some <code>heading</code>, we spin the stick vector back by that same angle.
+  Then the same mecanum mix from the last lesson does the rest &mdash; now relative to the field.</p>
+</div>
+
+<p>Open <code>Drivebase.java</code> and find the spot just before the mecanum mix, where <code>forward</code> and
+<code>right</code> are set from the raw sticks.</p>
+
+<span class="act" data-action="open_file" data-arg="Drivebase.java|Drivebase : Loop">&#9656; Drivebase.java : Drivebase : Loop</span>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li>Add the rotation below <em>above</em> the mecanum mix, where the comment marks it.</li>
+    <li><strong>Build &amp; Init</strong>, <strong>Start</strong>, spin the robot, then push the stick away from yourself.</li>
+    <li>It should drive away from <em>you</em> every time, even facing sideways.</li>
+  </ul>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this code</span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>double cos = Math.cos(-headingRadians);
+double sin = Math.sin(-headingRadians);
+right   = strafe * cos - drive * sin;
+forward = strafe * sin + drive * cos;</code></pre>
+</div>
+
+<p>The <code>headingRadians</code> value is handed in every loop &mdash; it comes straight from the
+<code>IMU</code> you set up last lesson. Because the sensor is already reporting a real heading, this rotation
+takes effect the moment you add it: turn the robot and "forward" stays pointed away from you.</p>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Hint</div>
+  <p>Remember the right bumper resets the heading to <code>0</code> &mdash; it re-zeros "forward" to whichever
+  way the robot is currently facing. Press it at the start of a match with the robot pointed downfield.</p>
+</div>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

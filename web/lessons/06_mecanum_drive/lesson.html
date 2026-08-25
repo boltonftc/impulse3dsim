@@ -1,0 +1,177 @@
+<h1>Mecanum Drive</h1>
+
+<p>Tank drive got you moving &mdash; forward, backward, and spin. But watch the robot carefully: it
+<strong>cannot move sideways</strong>. To scoot a few inches left to line up with a target, you have to
+turn, drive, and turn back. Slow and clumsy. In this lesson you'll replace tank drive with full
+<strong>mecanum drive</strong> so the robot can slide in any direction.</p>
+
+<img src="images/macanum_top_down.jpg" alt="Top-down view of a mecanum drivetrain">
+
+<div class="blk blk-key">
+  <div class="blk-head">Key idea</div>
+  <p><strong>Mecanum wheels</strong> let a robot move in any direction &mdash; forward, backward, sideways, and
+  diagonally &mdash; while also rotating, without turning first. That freedom of motion is called a
+  <strong>holonomic</strong> drivetrain, and it's what most competitive FTC teams use.</p>
+</div>
+
+<h2>Why mecanum wheels are special</h2>
+
+<p>A normal wheel can only push the way it rolls. A mecanum wheel has a ring of rubber rollers mounted at
+a <strong>45-degree angle</strong> around the outside. When the wheel spins, those angled rollers let it
+slide sideways while still pushing forward. That sideways slip is the magic ingredient.</p>
+
+<img src="images/mecanum_hweel.jpg" alt="Close-up of a mecanum wheel showing 45-degree rollers">
+
+<p>Because each wheel pushes at an angle, the four wheels must be mounted in an <strong>X pattern</strong>
+(rollers pointing toward the center). Mounted the wrong way &mdash; an O pattern &mdash; strafing fails and the
+robot drives unpredictably.</p>
+
+<img src="images/mecanum_x_pattern.jpg" alt="Mecanum wheels mounted in an X pattern viewed from above">
+
+<h2>Strafing</h2>
+
+<p>Strafing means moving straight sideways without rotating. If you spin the four wheels the right way, the
+forward/backward forces cancel and the sideways forces add up &mdash; pure sideways motion.</p>
+
+<img src="images/strafe_right.jpg" alt="Wheel spin pattern that produces a strafe to the right">
+
+<p>For a strafe to the <strong>right</strong>: front-left and back-right spin forward, front-right and
+back-left spin backward. Strafe left is the exact reverse.</p>
+
+<img src="images/mecanum_motion.png" alt="The directions a mecanum robot can move">
+
+<h2>See it in action</h2>
+
+<p>Before the math, watch these two short videos. The first shows why mecanum wheels are so cool in
+general; the second explains the mechanics the way they matter for an FTC robot. Watch how the angled
+rollers turn wheel spin into sideways motion.</p>
+
+<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;margin:.5em 0">
+  <iframe credentialless style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;border-radius:6px"
+    src="https://www.youtube-nocookie.com/embed/AlsCUzCCc-k" title="The Mecanum Wheel Is So Weird, It Is Genius. How It Works"
+    loading="lazy" referrerpolicy="strict-origin-when-cross-origin"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowfullscreen></iframe>
+</div>
+<p style="font-size:.85em;opacity:.75;margin-top:-.2em">Video: &ldquo;<a href="https://www.youtube.com/watch?v=AlsCUzCCc-k" target="_blank" rel="noopener">The Mecanum Wheel Is So Weird, It Is Genius. How It Works</a>&rdquo; by
+<a href="https://www.youtube.com/@Jeremy_Fielding" target="_blank" rel="noopener">Jeremy Fielding</a>.</p>
+
+<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;margin:.5em 0">
+  <iframe credentialless style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;border-radius:6px"
+    src="https://www.youtube-nocookie.com/embed/0k-Ey9bS9lE" title="The Simple Mechanics of Mecanum Wheels"
+    loading="lazy" referrerpolicy="strict-origin-when-cross-origin"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowfullscreen></iframe>
+</div>
+<p style="font-size:.85em;opacity:.75;margin-top:-.2em">Video: &ldquo;<a href="https://www.youtube.com/watch?v=0k-Ey9bS9lE" target="_blank" rel="noopener">The Simple Mechanics of Mecanum Wheels</a>&rdquo; by
+<a href="https://www.youtube.com/@BroganMPratt" target="_blank" rel="noopener">Brogan M. Pratt</a>.</p>
+
+<h2>The mecanum math</h2>
+
+<p>Tank drive had two inputs. Mecanum has <strong>three</strong>:</p>
+<ul>
+  <li><code>drive</code> &mdash; left stick Y, forward/back.</li>
+  <li><code>strafe</code> &mdash; left stick X, sideways.</li>
+  <li><code>turn</code> &mdash; the triggers, rotation.</li>
+</ul>
+
+<p>Each of the four motors gets its own power by adding the three components with a specific sign pattern:</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">The sign pattern</div>
+<pre><code>frontLeft  =  strafe + drive + turn
+backLeft   = -strafe + drive + turn
+frontRight = -strafe + drive - turn
+backRight  =  strafe + drive - turn</code></pre>
+  <p><strong>drive</strong> is <code>+</code> on every wheel (all spin forward together). <strong>strafe</strong>
+  alternates sign to make the diagonal pattern. <strong>turn</strong> is <code>+</code> on the left, <code>-</code>
+  on the right &mdash; exactly like tank spin.</p>
+</div>
+
+<p>Quick check &mdash; push straight up (<code>drive=1</code>, others <code>0</code>): every wheel gets
+<code>+1</code>, robot drives straight. Push right (<code>strafe=1</code>): FL and BR go forward, FR and BL go
+backward &mdash; a strafe. Squeeze the right trigger (<code>turn=1</code>): left side forward, right side
+backward &mdash; a spin. The formula combines all three at once.</p>
+
+<h2>One problem: powers over 1.0</h2>
+
+<p>Push up <em>and</em> right at the same time (<code>drive=0.7</code>, <code>strafe=0.7</code>): the front-left
+power comes out to <code>1.4</code>. But a motor only accepts <code>-1.0</code> to <code>1.0</code> &mdash; send
+<code>1.4</code> and it gets clamped, wrecking the ratios between wheels.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Normalization</div>
+  <p>After computing all four powers, find the largest absolute value. If it's over <code>1.0</code>, divide
+  <em>all four</em> by that value. Everything scales down together, so the direction is preserved and nothing
+  exceeds the valid range.</p>
+</div>
+
+<h2>Replace tank drive with mecanum</h2>
+
+<p>Time to code. Open <code>MecanumDrive.java</code> and jump to your tank-drive code inside the loop:</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Drive : Loop">&#9656; Go to <code>Drive : Loop</code></span>
+
+<p><strong>Delete your tank-drive lines</strong> (the <code>drive</code>/<code>spin</code>/<code>leftPower</code>/
+<code>rightPower</code> block and its four <code>setPower</code> calls) and type this mecanum code in their
+place. The motor setup in INIT stays exactly as it is &mdash; mecanum uses the same four motors.</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this code</span><span class="copybtn">&#10697; Copy</span></div>
+<pre><code>double drive  = -gamepad1.left_stick_y;
+double strafe =  gamepad1.left_stick_x;
+double turn   =  gamepad1.right_trigger - gamepad1.left_trigger;
+double powFL =  strafe + drive + turn;
+double powBL = -strafe + drive + turn;
+double powFR = -strafe + drive - turn;
+double powBR =  strafe + drive - turn;
+double max = Math.max(Math.abs(powFL), Math.abs(powBL));
+max = Math.max(max, Math.abs(powFR));
+max = Math.max(max, Math.abs(powBR));
+if (max > 1.0) {
+    powFL /= max;
+    powBL /= max;
+    powFR /= max;
+    powBR /= max;
+}
+frontLeft.setPower(powFL);
+backLeft.setPower(powBL);
+frontRight.setPower(powFR);
+backRight.setPower(powBR);</code></pre>
+</div>
+
+<p>The <code>turn</code> line uses the <strong>triggers</strong>: right trigger rotates clockwise (positive),
+left trigger counter-clockwise (negative). Triggers are analog (<code>0.0</code> to <code>1.0</code>), so a
+light squeeze gives a gentle spin &mdash; the same layout the competition code uses.</p>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li>Press <strong>Build &amp; Init</strong>, then <strong>Start</strong>.</li>
+    <li><strong>Forward:</strong> push the left stick up &mdash; all four wheels spin forward.</li>
+    <li><strong>Strafe:</strong> push the stick right &mdash; FL and BR go forward, FR and BL go backward.</li>
+    <li><strong>Rotate:</strong> squeeze the right trigger &mdash; left side forward, right side backward.</li>
+    <li><strong>Diagonal:</strong> push up-and-right &mdash; two wheels spin, two nearly stop; the robot slides
+    at 45&deg;.</li>
+  </ul>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Hint</div>
+  <p>If strafing spins the robot instead of sliding it, double-check the signs on <code>strafe</code> in the
+  four <code>pow</code> lines &mdash; they must alternate <code>+ &minus; &minus; +</code> (FL, BL, FR, BR). If
+  the robot pulls to one side when driving straight, the wheels may be in an O pattern instead of an X.</p>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Notice how crowded the loop is getting</div>
+  <p>Reading inputs, four power formulas, a normalization block, four <code>setPower</code> calls &mdash; that's
+  a lot of driving code stuffed into the middle of your OpMode, and it will only grow. Wouldn't it be nice to
+  replace all of it with a single line like <code>drive(...)</code>? Hold that thought &mdash; in Lesson 9
+  you'll move this whole mess into its own <code>Drivebase</code> class and call it in one line.</p>
+</div>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

@@ -1,0 +1,14 @@
+// @begin(09_drivebase)
+package org.firstinspires.ftc.teamcode;
+
+// Every mechanism on the robot promises one thing: it can "update" itself once per loop.
+// Robot's scheduler (Robot.update()) calls update() on every subsystem, once per cycle, so all
+// mechanisms make progress "at the same time" on a single thread -- no multithreading needed.
+//
+// THE ONE RULE: update() must NEVER block (no sleep()). It reads a timer or sensor, nudges its
+// state forward by one small slice, and returns immediately. That is what keeps the robot
+// responsive while several mechanisms run at once.
+public interface Subsystem {
+    void update();
+}
+// @end(09_drivebase)

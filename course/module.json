@@ -1,0 +1,27 @@
+{
+  "course": "BIOBUZZ OOP Starter Course",
+  "description": "From your first line of telemetry to a full subsystem-based robot: build the Drivebase, Intake, Dumper, and Localization one lesson at a time, on one cooperative scheduler.",
+  "capstone": "dumper_oop",
+  "lessons": [
+    { "id": "00_welcome",       "title": "Welcome to the Pit",      "tier": "easier",       "code": false, "html": true, "folder": "00_welcome",
+      "description": "A quick tour of the PIT training station and how everything works." },
+    { "id": "01_robot_basics",  "title": "FTC Robot Basics",        "tier": "easier",       "code": false, "html": true, "folder": "01_robot_basics",
+      "description": "What is inside an FTC robot, how matches work, and where you fit in as the programmer." },
+    { "id": "02_code_package",  "title": "Your Code Package",       "tier": "easier",       "code": true,  "html": true, "active": "MecanumDrive.java", "folder": "02_code_package",
+      "description": "Meet your one starter file and the three parts of every OpMode: init, start, and the run loop." },
+    { "id": "03_hello_telemetry", "title": "Hello, Telemetry",        "tier": "easier",       "code": true,  "html": true, "active": "MecanumDrive.java", "folder": "03_hello_telemetry",
+      "description": "Show messages on the Driver Hub and watch the run loop tick, live." },
+    { "id": "04_reading_gamepad", "title": "Reading the Gamepad",      "tier": "easier",       "code": true,  "html": true, "active": "MecanumDrive.java", "folder": "04_reading_gamepad",
+      "description": "Store a stick axis and a button in variables, then watch the live values change as you move the controller." },
+    { "id": "05_tank_drive",    "title": "Tank Drive",               "tier": "easier",       "code": true,  "html": true, "active": "MecanumDrive.java", "folder": "05_tank_drive",
+      "description": "Turn the left stick into left and right wheel power and make the robot drive like a tank." },
+    { "id": "06_mecanum_drive", "title": "Mecanum Drive",            "tier": "easier",       "code": true,  "html": true, "active": "MecanumDrive.java", "folder": "06_mecanum_drive",
+      "description": "Replace tank drive with full mecanum: strafe sideways and rotate, then normalize the wheel powers." },
+    { "id": "08_imu",           "title": "IMU Heading",              "tier": "easier",       "code": true,  "html": true, "active": "MecanumDrive.java", "folder": "08_imu",
+      "description": "Add the Control Hub's IMU, read the robot's heading, show it live, and re-zero it with the right bumper." },
+    { "id": "09_drivebase",     "title": "From Messy Loop to Clean Class",  "tier": "easier",       "code": true,  "html": true, "active": "Drivebase.java", "folder": "09_drivebase",
+      "description": "Move the crowded inline drive code into its own Drivebase class, then collapse the OpMode loop down to two clean calls. Your first object-oriented refactor." },
+    { "id": "10_field_centric", "title": "Field-Centric Driving",    "tier": "intermediate", "code": true,  "html": true, "active": "Drivebase.java", "folder": "10_field_centric",
+      "description": "Make \"forward\" always mean away from the driver, no matter which way the robot faces." }
+  ]
+}

@@ -1,0 +1,82 @@
+<h1>Hello, Telemetry</h1>
+
+<p>Your program runs&hellip; but it's silent. You can't see anything it's doing. In this lesson you'll fix
+that with <strong>telemetry</strong> &mdash; the messages a robot sends back to the Driver Hub screen. It's the
+single most useful tool you have for understanding what your code is <em>really</em> doing.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Init runs once. The loop runs forever.</div>
+  <p>You already met the two halves of an OpMode. Telemetry makes the difference easy to <em>see</em>:</p>
+  <ul>
+    <li>The <code>"Initialized. Press START."</code> line is in <strong>init</strong>, so it prints one time.</li>
+    <li>Anything you put in the <strong>run loop</strong> prints again and again, dozens of times a second.</li>
+  </ul>
+  <p>To prove it, you'll add a counter that ticks up by one every loop. Watching that number race
+  upward is your first real window into the heartbeat of the robot.</p>
+</div>
+
+<h2>Step 1 &mdash; Add a counter</h2>
+
+<p>Just before the run loop begins, you need a variable to count with. Find the labeled spot and add
+one line:</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Telemetry : Loop Counter">&#9656; Go to <code>Telemetry : Loop Counter</code></span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this code</span><span class="copybtn">&#10697; Copy</span></div>
+<pre><code>int loops = 0;</code></pre>
+</div>
+
+<p>This runs once, in init, so the count always starts fresh at zero. <code>int</code> means it holds a whole
+number.</p>
+
+<h2>Step 2 &mdash; Say something every loop</h2>
+
+<p>Now go inside the run loop, to the second labeled spot, and add three lines: one message, one to
+bump the counter, and one to show the count.</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Telemetry : Status">&#9656; Go to <code>Telemetry : Status</code></span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this code</span><span class="copybtn">&#10697; Copy</span></div>
+<pre><code>telemetry.addData("Status", "Hello, Robot!");
+loops += 1;
+telemetry.addData("Loops", loops);</code></pre>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">How telemetry works</div>
+  <ul>
+    <li><code>telemetry.addData("label", value)</code> queues up one line: a label on the left, a value on
+    the right.</li>
+    <li><code>loops += 1;</code> is shorthand for "add one to <code>loops</code>." It happens every pass through
+    the loop.</li>
+    <li>The queued lines don't actually appear until <code>telemetry.update()</code> sends them &mdash; and
+    that call is already written at the bottom of the loop for you. Think of <code>addData</code> as
+    writing lines on a notepad, and <code>update()</code> as holding the notepad up to the driver.</li>
+  </ul>
+</div>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li>Press <strong>Build &amp; Init</strong>. You should see <code>Initialized. Press START.</code></li>
+    <li>Press <strong>Start</strong>.</li>
+    <li>Watch <code>Status</code> hold steady at <code>Hello, Robot!</code> while <code>Loops</code> climbs fast.</li>
+  </ul>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Hint</div>
+  <p>If <code>Loops</code> shows up but never changes, the counter line is probably above the loop instead
+  of inside it. Only code between the <code>while (opModeIsActive())</code> braces repeats. If the build
+  fails, check that each line ends with a semicolon <code>;</code> and your quotes come in pairs.</p>
+</div>
+
+<p>That climbing number is the same loop that will soon read your gamepad and drive the wheels. You've
+just made the invisible visible &mdash; and you'll lean on telemetry in every lesson from here on.</p>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>
