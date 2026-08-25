@@ -1,0 +1,280 @@
+// @begin(02_code_package)
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+// @begin(05_tank_drive)
+import com.qualcomm.robotcore.hardware.DcMotor;
+// @end(05_tank_drive)
+// @begin(08_imu)
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import com.qualcomm.robotcore.hardware.IMU;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+// @end(08_imu)
+
+/*
+ * ============================================================================
+ *  MecanumDrive  --  your TeleOp (the program a driver runs)
+ * ============================================================================
+ *
+ *  Every FTC program is called an "OpMode". This one is a LinearOpMode: it
+ *  runs top-to-bottom like a story. Notice the THREE parts you will see in
+ *  every OpMode you ever write:
+ *
+ *     1. INIT  -- setup that runs ONCE, right after you press the INIT button.
+ *     2. START -- the single moment the driver presses the play button.
+ *                 waitForStart() pauses the program there until they do.
+ *     3. LOOP  -- code that repeats about 50 times every second, from START
+ *                 until the match ends.
+ *
+ *  Right now this program does almost nothing. You will grow it, one lesson at
+ *  a time, until it drives a full robot.
+ * ============================================================================
+ */
+@TeleOp(name = "MecanumDrive", group = "BIOBUZZ")
+public class MecanumDrive extends LinearOpMode {
+
+    // @begin(09_drivebase)
+    // Edge-detection memory for the buttons (added in the subsystem lessons).
+    // @begin(11_intake)
+    // ===============================================
+    // Intake : Variables
+    // Do not remove this comment
+    // Add your intake button-edge variables below
+    // ===============================================
+    // @fill(11_intake)
+    private boolean previousA = false;
+    private boolean previousB = false;
+    // @end(11_intake)
+    // @end(11_intake)
+
+    // @begin(12_dumper)
+    // ===============================================
+    // Dumper : Variables
+    // Do not remove this comment
+    // Add your dumper button-edge variable below
+    // ===============================================
+    // @fill(12_dumper)
+    private boolean previousY = false;
+    // @end(12_dumper)
+    // @end(12_dumper)
+    // @end(09_drivebase)
+
+    @Override
+    public void runOpMode() {
+
+        // @begin(05_tank_drive)
+        // ===============================================
+        // Drive : Setup
+        // Do not remove this comment
+        // Your four drive motors are created here, in INIT.
+        // ===============================================
+        // @end(05_tank_drive)
+        // @fill(09_drivebase, supersedes=05_tank_drive)
+        // Build the whole robot. Every subsystem's constructor runs here (finding its motors and
+        // servos), so it must happen during INIT, before the match starts.
+        Robot robot = new Robot(hardwareMap);
+        // @end(09_drivebase)
+        // @fill(05_tank_drive)
+        DcMotor frontLeft  = hardwareMap.get(DcMotor.class, "front_left_motor");
+        DcMotor frontRight = hardwareMap.get(DcMotor.class, "front_right_motor");
+        DcMotor backLeft   = hardwareMap.get(DcMotor.class, "back_left_motor");
+        DcMotor backRight  = hardwareMap.get(DcMotor.class, "back_right_motor");
+        frontLeft.setDirection(DcMotor.Direction.REVERSE);
+        backLeft.setDirection(DcMotor.Direction.REVERSE);
+        // @end(05_tank_drive)
+
+        // @begin(08_imu)
+        // ===============================================
+        // IMU : Setup
+        // Do not remove this comment
+        // Get the IMU from the hardware map and initialize it below
+        // ===============================================
+        // @fill(08_imu)
+        IMU imu = hardwareMap.get(IMU.class, "imu");
+        imu.initialize(new IMU.Parameters(
+            new RevHubOrientationOnRobot(
+                RevHubOrientationOnRobot.LogoFacingDirection.UP,
+                RevHubOrientationOnRobot.UsbFacingDirection.FORWARD)));
+        // @end(08_imu)
+        // @end(08_imu)
+
+        // ─── INIT ──────────────────────────────────────────────────────
+        // Everything here runs ONCE, after you press INIT. Show a message so the driver knows
+        // the robot is ready.
+        telemetry.addLine("Initialized. Press START.");
+        telemetry.update();
+
+        // START: pause here until the driver presses the play button.
+        waitForStart();
+
+        // ===============================================
+        // Telemetry : Loop Counter
+        // Do not remove this comment
+        // Type your loop-counter variable below
+        // ===============================================
+        // @fill(03_hello_telemetry)
+        int loops = 0;
+        // @end(03_hello_telemetry)
+
+        // ─── THE RUN LOOP ──────────────────────────────────────────────
+        // Repeats about 50 times a second until the match ends. Everything a driver does happens
+        // in here, over and over.
+        while (opModeIsActive()) {
+
+            // @begin(08_imu)
+            // ===============================================
+            // IMU : Heading
+            // Do not remove this comment
+            // Read the heading, show it, and reset it on the right bumper
+            // ===============================================
+            // @fill(08_imu)
+            double heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+            telemetry.addData("Heading (deg)", Math.toDegrees(heading));
+            telemetry.addData("Heading (rad)", heading);
+            if (gamepad1.right_bumper) {
+                imu.resetYaw();
+            }
+            // @end(08_imu)
+            // @end(08_imu)
+
+            // @begin(05_tank_drive)
+            // ===============================================
+            // Drive : Loop
+            // Do not remove this comment
+            // Your drive code runs here, every time through the loop.
+            // ===============================================
+            // @end(05_tank_drive)
+            // @fill(09_drivebase, supersedes=06_mecanum_drive)
+            // 1) SCHEDULER: give every mechanism a turn to advance its own work.
+            robot.update();
+
+            // 2) DRIVE: hand the gamepad and the IMU heading to the drivebase.
+            robot.drive.driveFieldCentric(gamepad1, heading);
+
+            // 3) READ THE BUTTONS (with edge detection).
+            // @begin(11_intake)
+            // ===============================================
+            // Intake : Loop
+            // Do not remove this comment
+            // Add your intake button code below
+            // ===============================================
+            // @fill(11_intake)
+            boolean pressedA = gamepad1.a && !previousA;
+            boolean pressedB = gamepad1.b && !previousB;
+            if (pressedA) {
+                if (robot.intake.getState() == Intake.State.FORWARD) robot.intake.off();
+                else robot.intake.forward();
+            }
+            if (pressedB) {
+                if (robot.intake.getState() == Intake.State.REVERSE) robot.intake.off();
+                else robot.intake.reverse();
+            }
+            previousA = gamepad1.a;
+            previousB = gamepad1.b;
+            // @end(11_intake)
+            // @end(11_intake)
+
+            // @begin(12_dumper)
+            // ===============================================
+            // Dumper : Loop
+            // Do not remove this comment
+            // Add your dumper button code below
+            // ===============================================
+            // @fill(12_dumper)
+            boolean pressedY = gamepad1.y && !previousY;
+            if (pressedY) {
+                robot.dumper.dump();
+            }
+            previousY = gamepad1.y;
+            // @end(12_dumper)
+            // @end(12_dumper)
+            // @end(09_drivebase)
+
+            // @fill(06_mecanum_drive, supersedes=05_tank_drive)
+            double drive  = -gamepad1.left_stick_y;
+            double strafe =  gamepad1.left_stick_x;
+            double turn   =  gamepad1.right_trigger - gamepad1.left_trigger;
+            double powFL =  strafe + drive + turn;
+            double powBL = -strafe + drive + turn;
+            double powFR = -strafe + drive - turn;
+            double powBR =  strafe + drive - turn;
+            double max = Math.max(Math.abs(powFL), Math.abs(powBL));
+            max = Math.max(max, Math.abs(powFR));
+            max = Math.max(max, Math.abs(powBR));
+            if (max > 1.0) {
+                powFL /= max;
+                powBL /= max;
+                powFR /= max;
+                powBR /= max;
+            }
+            frontLeft.setPower(powFL);
+            backLeft.setPower(powBL);
+            frontRight.setPower(powFR);
+            backRight.setPower(powBR);
+            // @end(06_mecanum_drive)
+
+            // @fill(05_tank_drive)
+            double drive = -gamepad1.left_stick_y;
+            double spin  =  gamepad1.left_stick_x;
+            double leftPower  = (drive + spin) * 0.5;
+            double rightPower = (drive - spin) * 0.5;
+            backLeft.setPower(leftPower);
+            frontLeft.setPower(leftPower);
+            frontRight.setPower(rightPower);
+            backRight.setPower(rightPower);
+            // @end(05_tank_drive)
+
+            // ===============================================
+            // Gamepad : Read
+            // Do not remove this comment
+            // Read both sticks and the face buttons, then show them live
+            // ===============================================
+            // @fill(04_reading_gamepad)
+            double leftStickX = gamepad1.left_stick_x;
+            double leftStickY = gamepad1.left_stick_y;
+            double rightStickX = gamepad1.right_stick_x;
+            double rightStickY = gamepad1.right_stick_y;
+            boolean aHeld = gamepad1.a;
+            boolean bHeld = gamepad1.b;
+            boolean xHeld = gamepad1.x;
+            boolean yHeld = gamepad1.y;
+            telemetry.addData("Left Stick X", leftStickX);
+            telemetry.addData("Left Stick Y", leftStickY);
+            telemetry.addData("Right Stick X", rightStickX);
+            telemetry.addData("Right Stick Y", rightStickY);
+            telemetry.addData("A", aHeld);
+            telemetry.addData("B", bHeld);
+            telemetry.addData("X", xHeld);
+            telemetry.addData("Y", yHeld);
+            // @end(04_reading_gamepad)
+
+            // ===============================================
+            // Telemetry : Status
+            // Do not remove this comment
+            // Type your telemetry lines below
+            // ===============================================
+            // @fill(03_hello_telemetry)
+            telemetry.addData("Status", "Hello, Robot!");
+            loops += 1;
+            telemetry.addData("Loops", loops);
+            // @end(03_hello_telemetry)
+
+            // @fill(09_drivebase)
+            // @begin(11_intake)
+            // @fill(11_intake)
+            telemetry.addData("Intake", robot.intake.getState());
+            // @end(11_intake)
+            // @end(11_intake)
+            // @begin(12_dumper)
+            // @fill(12_dumper)
+            telemetry.addData("Dumper", robot.dumper.getState());
+            // @end(12_dumper)
+            // @end(12_dumper)
+            // @end(09_drivebase)
+
+            telemetry.update();
+        }
+    }
+}
+// @end(02_code_package)

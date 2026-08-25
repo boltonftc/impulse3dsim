@@ -1,0 +1,20 @@
+General Summary:
+Impulse 3D simulator is intended to be a FTC centric robot teaching tool which leans on fun gameplay and the ability to upgrade your robot by adding code.  It features a simulation gameplay mode which follows the FTC 2:30 match (30 seconds auto, pause, 2:00 tele-op).  The simulator supports both 1 and 2 players simulataneously, each with their own compiled code packages.  It also supports 2 different kinds of robots, a "dumper" and a "shooter" bot.  The simulation engine has a "FMS" (Field Management System) which keeps track of game stages, keeps track of score, maintains high scores, etc.   The simulator supports driver station view, FPV view, topdown view, chase view.
+
+main_simulator_screen.jpg
+The game launches into this main screen which shows the game field.  In this picture, it is in 1-player mode with a single robot.  The game supports a red team and a blue team, in this case (1UP), only the red team is on field.  There is a red goal and right goal where the game balls can be scored.  In the center is the ball respawner. When balls are scored into the goal, the spawn into the center spawner which has a tornado like force field, the balls swirl around and drop out randomly.  There are bonus 3PT balls in vertical tubes which can be released when 5 balls are scored quickly together (in a short time window).  The scoreboard in the back maintains the score and time for the match.
+
+driver_hub_popout_tab.jpg
+The REV Robotics driver hub functionality is emulated with a similar look and feel.  there is a drop down for tele and a drop down for auto.  in the center is the REV style "init" button which when pressed then turns into the run button.  The black space below is the telemetry section.  All red team telemetry gets printed into here.  The compile button is on the driverhub.
+
+driverhub_dropdown.jpg
+This shows the driverhub tele program selection.  This could have more options depending on the students code work.
+
+menu_popout_tab.jpg
+This is how to reach the "pit mode" and also configure the simulator view and start the game using the FMS.  Other functions as well.
+
+pit_mode.jpg
+This is where the FTC students will go through their lessons and have access to the IDE.  The driverhub is here too allowing for students to select and compile.  There was a notion of a code package which started the students with a blank framework of code with many comments.  The code package had a .json file associated with it which kept track of the students progress through the lesson plan.
+
+lesson_cross_links_into_ide.jpg
+Useful feature.  In the lesson the student can click on a link which then brings up the appropriate file and location and flashes the line of code where new code should be inserted.  There was intentionally support for students to highlight where the code should go, then click "copy this code block" and paste it into the IDE.

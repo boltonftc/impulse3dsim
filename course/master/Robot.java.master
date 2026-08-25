@@ -1,0 +1,110 @@
+// @begin(09_drivebase)
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.hardware.HardwareMap;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/*
+ * ============================================================================
+ *  Robot  --  the container that owns every subsystem
+ * ============================================================================
+ *
+ *  Instead of every OpMode building the drive, intake, and dumper separately,
+ *  we build them ONCE here. An OpMode just writes:
+ *
+ *        Robot robot = new Robot(hardwareMap);
+ *
+ *  ...and instantly has the whole robot. TeleOp and Autonomous share the exact
+ *  same subsystems, so a mechanism a student writes works everywhere.
+ *
+ *  THE SCHEDULER LIVES HERE. Robot holds a List of every Subsystem. Its
+ *  update() walks that list and calls update() on each one. The main loop
+ *  calls robot.update() once per cycle, so every mechanism advances its own
+ *  state by one small slice -- on ONE thread, no multithreading required.
+ * ============================================================================
+ */
+public class Robot {
+
+    // The subsystems. `public` so an OpMode can call e.g. robot.drive.driveFieldCentric(...).
+    // `final` means once built in the constructor, the reference never changes.
+    public final Drivebase drive;
+
+    // ===============================================
+    // Intake : Field
+    // Do not remove this comment
+    // A later lesson builds the Intake subsystem here
+    // ===============================================
+    // @fill(11_intake)
+    public final Intake intake;
+    // @end(11_intake)
+
+    // ===============================================
+    // Dumper : Field
+    // Do not remove this comment
+    // A later lesson builds the Dumper subsystem here
+    // ===============================================
+    // @fill(12_dumper)
+    public final Dumper dumper;
+    // @end(12_dumper)
+
+    // ===============================================
+    // Localization : Field
+    // Do not remove this comment
+    // A later lesson adds the Localization subsystem here
+    // ===============================================
+
+    // The scheduler's to-do list: every subsystem that needs update() called each loop.
+    private final List<Subsystem> subsystems = new ArrayList<>();
+
+    /*
+     * CONSTRUCTOR -- runs once when you write `new Robot(hardwareMap)`. It builds every
+     * subsystem (handing each the hardwareMap so it can find its motors/servos) and adds
+     * them all to the scheduler list. hardwareMap is the robot's "phone book": ask it for a
+     * device by name (the same name shown in the Driver Hub configuration) and it hands back
+     * that motor, servo, or sensor.
+     */
+    public Robot(HardwareMap hardwareMap) {
+        drive = new Drivebase(hardwareMap);
+        subsystems.add(drive);
+
+        // ===============================================
+        // Intake : Setup
+        // Do not remove this comment
+        // Add your Intake construction below
+        // ===============================================
+        // @fill(11_intake)
+        intake = new Intake(hardwareMap);
+        subsystems.add(intake);
+        // @end(11_intake)
+
+        // ===============================================
+        // Dumper : Setup
+        // Do not remove this comment
+        // Add your Dumper construction below
+        // ===============================================
+        // @fill(12_dumper)
+        dumper = new Dumper(hardwareMap);
+        subsystems.add(dumper);
+        // @end(12_dumper)
+
+        // ===============================================
+        // Localization : Setup
+        // Do not remove this comment
+        // A later lesson wires up the Localization subsystem here
+        // ===============================================
+    }
+
+    /*
+     * update()  --  THE SCHEDULER. Call this ONCE at the top of every loop. It gives every
+     * subsystem a turn to do its small slice of work. Because each update() returns quickly
+     * (no waiting), all mechanisms make progress "at the same time" on one thread.
+     */
+    public void update() {
+        for (Subsystem subsystem : subsystems) {
+            subsystem.update();
+        }
+    }
+}
+// @end(09_drivebase)

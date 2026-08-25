@@ -1,0 +1,93 @@
+<h1>Reading the Gamepad</h1>
+
+<p>Telemetry lets your robot <em>talk</em>. Now it needs to <em>listen</em>. Every button press and stick nudge a
+driver makes shows up in one place: <code>gamepad1</code>. In this lesson you'll read two of those inputs,
+park them in <strong>variables</strong>, and watch the numbers move as you touch the controller.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">A variable is a labeled box</div>
+  <p>A variable is a named box that holds one value. Before you use a box, you say what <em>kind</em> of value
+  goes in it &mdash; its <strong>type</strong>:</p>
+  <ul>
+    <li><code>double</code> holds a number with a decimal point. A stick axis is a <code>double</code>: it slides
+    smoothly from <code>-1.0</code> to <code>1.0</code>. Each stick has <em>two</em> axes &mdash; an
+    <code>x</code> (left/right) and a <code>y</code> (up/down).</li>
+    <li><code>boolean</code> holds just <code>true</code> or <code>false</code>. A button is a <code>boolean</code>:
+    it's either pressed or it isn't.</li>
+  </ul>
+</div>
+
+<h2>Step 1 &mdash; Read both sticks and the buttons</h2>
+
+<p>Inside the run loop there's a labeled spot for this. Go to it and read every input you'll need later:
+both sticks (X and Y) and all four face buttons, then show them on telemetry. You'll reuse these lines
+as you start driving, so grab them all now.</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Gamepad : Read">&#9656; Go to <code>Gamepad : Read</code></span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this code</span><span class="copybtn">&#10697; Copy</span></div>
+<pre><code>double leftStickX = gamepad1.left_stick_x;
+double leftStickY = gamepad1.left_stick_y;
+double rightStickX = gamepad1.right_stick_x;
+double rightStickY = gamepad1.right_stick_y;
+boolean aHeld = gamepad1.a;
+boolean bHeld = gamepad1.b;
+boolean xHeld = gamepad1.x;
+boolean yHeld = gamepad1.y;
+telemetry.addData("Left Stick X", leftStickX);
+telemetry.addData("Left Stick Y", leftStickY);
+telemetry.addData("Right Stick X", rightStickX);
+telemetry.addData("Right Stick Y", rightStickY);
+telemetry.addData("A", aHeld);
+telemetry.addData("B", bHeld);
+telemetry.addData("X", xHeld);
+telemetry.addData("Y", yHeld);</code></pre>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">What each line does</div>
+  <ul>
+    <li><code>gamepad1.left_stick_x</code> / <code>left_stick_y</code> are the left stick's left-right and
+    up-down positions, read fresh every loop. The right stick works the same way. Each goes into its own
+    <code>double</code> box.</li>
+    <li><code>gamepad1.a</code> (and <code>b</code>, <code>x</code>, <code>y</code>) is <code>true</code> while
+    that face button is held. Each goes into its own <code>boolean</code> box.</li>
+    <li>The <code>addData</code> lines show every box on the Driver Hub, right next to the
+    <code>Status</code> and <code>Loops</code> lines from last lesson.</li>
+  </ul>
+</div>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li>Press <strong>Build &amp; Init</strong>, then <strong>Start</strong>.</li>
+    <li>Move <strong>both sticks</strong> around and watch all four axis values change.</li>
+    <li>Tap <strong>A, B, X, and Y</strong> and watch each flip between <code>true</code> and
+    <code>false</code>.</li>
+  </ul>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Notice: up is negative</div>
+  <p>Push the left stick <em>up</em> and <code>Left Stick Y</code> goes <em>negative</em>. That surprises
+  everyone. On a gamepad, forward on a stick reads as a negative number &mdash; that's just how the
+  hardware reports it. Remember it: when you start driving next lesson, you'll flip that sign so
+  "stick up" means "drive forward."</p>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Hint</div>
+  <p>If the build fails, check that each line ends with a semicolon <code>;</code>, and that the types match:
+  a stick goes in a <code>double</code>, a button goes in a <code>boolean</code>. If the values never change,
+  make sure your lines are <em>inside</em> the <code>while (opModeIsActive())</code> braces so they run
+  every loop.</p>
+</div>
+
+<p>You can now read the driver. A stick is just a number and a button is just true-or-false &mdash; and
+next lesson those numbers become motor power, and the robot finally moves.</p>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

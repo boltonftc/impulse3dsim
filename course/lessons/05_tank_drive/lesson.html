@@ -1,0 +1,136 @@
+<h1>Tank Drive</h1>
+
+<p>Time to make the robot <em>move</em>. You've printed telemetry and read the gamepad &mdash; now you'll turn
+those stick values into motor power. We'll start with the simplest kind of driving: <strong>tank drive</strong>.</p>
+
+<h2>What is tank drive?</h2>
+
+<p>Think about how a bulldozer or a military tank turns. It has no steering wheel &mdash; just two tracks,
+one on the left and one on the right. To go straight, both tracks move at the same speed. To turn, one
+side moves faster than the other. To spin in place, the two sides move in opposite directions.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Key idea</div>
+  <p><strong>Tank drive</strong> steers by running the left and right sides at different speeds. Same speed =
+  straight. Different speeds = turn. Opposite = spin.</p>
+</div>
+
+<p>Our robot has four mecanum wheels, but for now we'll ignore the fancy sideways stuff and drive it
+like a tank: the left stick controls everything &mdash; push forward to go forward, push sideways to spin.</p>
+
+<h2>Step 1 &mdash; Set up the four motors</h2>
+
+<p>The robot has four motors, one at each corner: <code>frontLeft</code> and <code>backLeft</code> on the left
+side, <code>frontRight</code> and <code>backRight</code> on the right. For tank drive, both left motors always
+get the same power and both right motors get the same power &mdash; the two sides act like a tank's two
+tracks.</p>
+
+<p>The <strong>hardware map</strong> connects a code name to a physical motor. Each motor has a configured name
+like <code>"front_left_motor"</code> that matches the robot's wiring.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why reverse the left side?</div>
+  <p>The left motors are mounted as a mirror image of the right ones. Without reversing, sending positive
+  power would spin the left side backward and the right side forward &mdash; the robot would spin instead of
+  driving straight. Reversing the left side makes positive power mean "forward" for every wheel.</p>
+  <img src="images/drivebase_mirror_image.jpg" alt="The left motors are a mirror image of the right, so they must be reversed">
+</div>
+
+<p>Go to the <code>Drive : Setup</code> spot in <strong>INIT</strong> and create the four motors:</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Drive : Setup">&#9656; Go to <code>Drive : Setup</code></span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this code</span><span class="copybtn">&#10697; Copy</span></div>
+<pre><code>DcMotor frontLeft  = hardwareMap.get(DcMotor.class, "front_left_motor");
+DcMotor frontRight = hardwareMap.get(DcMotor.class, "front_right_motor");
+DcMotor backLeft   = hardwareMap.get(DcMotor.class, "back_left_motor");
+DcMotor backRight  = hardwareMap.get(DcMotor.class, "back_right_motor");
+frontLeft.setDirection(DcMotor.Direction.REVERSE);
+backLeft.setDirection(DcMotor.Direction.REVERSE);</code></pre>
+</div>
+
+<h2>Step 2 &mdash; Read the joystick</h2>
+
+<p>The left stick gives us two values we care about:</p>
+<ul>
+  <li><strong>Y axis</strong> (up/down) &mdash; how much forward or backward.</li>
+  <li><strong>X axis</strong> (left/right) &mdash; how much spinning.</li>
+</ul>
+
+<p>These are <code>double</code>s from <code>-1.0</code> to <code>1.0</code>. A gentle push might give <code>0.2</code>;
+letting go gives <code>0.0</code>. That's <strong>proportional control</strong> &mdash; the further you push, the
+faster the wheels go.</p>
+
+<img src="images/controller_x_y_axis.jpg" alt="The left stick reports an X axis (left-right) and a Y axis (up-down)">
+
+<div class="blk blk-key">
+  <div class="blk-head">Remember: up is negative</div>
+  <p>Just like last lesson, pushing the stick <em>up</em> reports a <em>negative</em> Y. That feels backward, so
+  we negate it with a minus sign so that "stick up" means "drive forward."</p>
+</div>
+
+<h2>Step 3 &mdash; The tank math, then power</h2>
+
+<p>We combine <code>drive</code> and <code>spin</code> into a power for each side:</p>
+<ul>
+  <li>Left power = <code>drive + spin</code></li>
+  <li>Right power = <code>drive - spin</code></li>
+</ul>
+
+<p>Walk through it. Straight forward: <code>drive = 1.0</code>, <code>spin = 0</code> &rarr; left <code>1.0</code>,
+right <code>1.0</code> &rarr; both sides equal, robot goes straight. Spin right: <code>drive = 0</code>,
+<code>spin = 1.0</code> &rarr; left <code>1.0</code>, right <code>-1.0</code> &rarr; left forward, right backward,
+robot spins. We also multiply by <code>0.5</code> to stay at half speed while learning &mdash; bump it to
+<code>1.0</code> once you're comfortable.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Key idea</div>
+  <p><code>setPower()</code> sets a motor's speed, from <code>-1.0</code> (full reverse) to <code>1.0</code> (full
+  forward); <code>0</code> stops. Both left motors get <code>leftPower</code>, both right motors get
+  <code>rightPower</code> &mdash; that's what makes it tank drive.</p>
+</div>
+
+<p>Go to the <code>Drive : Loop</code> spot inside the run loop and add the math and the four
+<code>setPower</code> calls:</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Drive : Loop">&#9656; Go to <code>Drive : Loop</code></span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this code</span><span class="copybtn">&#10697; Copy</span></div>
+<pre><code>double drive = -gamepad1.left_stick_y;
+double spin  =  gamepad1.left_stick_x;
+double leftPower  = (drive + spin) * 0.5;
+double rightPower = (drive - spin) * 0.5;
+backLeft.setPower(leftPower);
+frontLeft.setPower(leftPower);
+frontRight.setPower(rightPower);
+backRight.setPower(rightPower);</code></pre>
+</div>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li>Press <strong>Build &amp; Init</strong>, then <strong>Start</strong>.</li>
+    <li>Push the left stick <strong>forward</strong> &mdash; all four wheels spin to drive straight.</li>
+    <li>Push it <strong>sideways</strong> &mdash; the left and right wheels spin opposite ways (a tank spin).</li>
+    <li>Push it <strong>diagonally</strong> &mdash; one side spins faster and the robot curves.</li>
+  </ul>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Hint</div>
+  <p>If the robot spins when you push straight forward, you probably didn't reverse the left motors &mdash;
+  check the two <code>setDirection(DcMotor.Direction.REVERSE)</code> lines. If nothing moves, make sure your
+  <code>setPower</code> lines are <em>inside</em> the <code>while (opModeIsActive())</code> braces, and that each
+  line ends with a semicolon.</p>
+</div>
+
+<p>That's real driving. Right now the robot can only go forward, backward, and spin &mdash; it can't strafe
+sideways yet, even with mecanum wheels. A later lesson unlocks that by driving all four wheels
+independently instead of pairing them as left and right.</p>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

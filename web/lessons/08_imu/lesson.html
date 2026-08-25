@@ -1,0 +1,99 @@
+<h1>IMU Heading</h1>
+
+<p>Your robot has a tiny sensor called an <strong>IMU</strong> &mdash; an Inertial Measurement Unit. Inside
+is a gyroscope that tracks how far the robot has rotated. Its most useful output is <strong>heading</strong>:
+the direction the robot is currently facing, like a compass.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Key idea</div>
+  <p>An <strong>IMU</strong> measures rotation. When the robot starts, its heading is <code>0</code>. Spin
+  counter-clockwise (to the left) and heading grows toward <code>+&pi;</code>; spin clockwise and it drops
+  toward <code>-&pi;</code>. FTC code reads it in <em>radians</em> because <code>Math.cos</code> and
+  <code>Math.sin</code> expect radians.</p>
+</div>
+
+<p>Why do we care? Without a heading, "forward" on the stick means "whatever way the robot is pointed."
+The moment the robot spins around, forward looks backward to the driver. In the next lesson we will use this
+heading to make forward always mean <em>away from the driver</em> &mdash; <strong>field-centric</strong>
+driving. First we need the heading itself.</p>
+
+<h2>1 &mdash; Initialize the IMU</h2>
+
+<p>Just like a motor, you fetch the IMU from the hardware map by name (<code>"imu"</code>) during INIT, then
+initialize it. Open <code>MecanumDrive.java</code> and jump to the setup spot:</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|IMU : Setup">&#9656; MecanumDrive.java : IMU : Setup</span>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li>Add the setup code below the <code>IMU : Setup</code> comment, in INIT.</li>
+  </ul>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this code</span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>IMU imu = hardwareMap.get(IMU.class, "imu");
+imu.initialize(new IMU.Parameters(
+    new RevHubOrientationOnRobot(
+        RevHubOrientationOnRobot.LogoFacingDirection.UP,
+        RevHubOrientationOnRobot.UsbFacingDirection.FORWARD)));</code></pre>
+</div>
+
+<p><code>RevHubOrientationOnRobot</code> tells the IMU how the Control Hub is mounted &mdash; logo facing
+<strong>UP</strong>, USB ports facing <strong>FORWARD</strong>. That matches our robot (and the most common
+real mounting). The imports for <code>IMU</code>, <code>RevHubOrientationOnRobot</code>, and
+<code>AngleUnit</code> are already added for you at the top of the file.</p>
+
+<h2>2 &mdash; Read the heading every loop</h2>
+
+<p>Now read the heading inside the run loop, show it on the Driver Hub in both radians and degrees, and let
+the driver re-zero it with the right bumper. Jump to the loop spot:</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|IMU : Heading">&#9656; MecanumDrive.java : IMU : Heading</span>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li>Add the code below the <code>IMU : Heading</code> comment, at the top of the loop.</li>
+    <li><strong>Build &amp; Init</strong>, <strong>Start</strong>, then squeeze the triggers to spin the robot in
+    place and watch <code>Heading</code> change on the Driver Hub.</li>
+    <li>Press the <strong>right bumper</strong> and watch the heading snap back to <code>0</code>.</li>
+  </ul>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this code</span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>double heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+telemetry.addData("Heading (deg)", Math.toDegrees(heading));
+telemetry.addData("Heading (rad)", heading);
+if (gamepad1.right_bumper) {
+    imu.resetYaw();
+}</code></pre>
+</div>
+
+<p>That chain reads simply: <code>getRobotYawPitchRollAngles()</code> hands back all three orientation
+angles, and <code>.getYaw(AngleUnit.RADIANS)</code> pulls out just the one we want &mdash; heading &mdash; in
+radians.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">What reset does</div>
+  <p><code>imu.resetYaw()</code> does <strong>not</strong> move the robot. It tells the IMU "whichever way I am
+  pointing right now is the new <code>0</code>." Drivers use it at the start of a match so the robot's
+  current facing becomes forward, no matter how it was placed on the field.</p>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Hint</div>
+  <p>The heading number only changes when the robot <em>rotates</em>. Driving straight or strafing leaves it
+  alone &mdash; that is exactly what you want. Notice it stays between <code>-&pi;</code> and
+  <code>+&pi;</code> (about <code>&plusmn;3.14</code>), never counting past a half turn.</p>
+</div>
+
+<p>The heading is now flowing into the drivebase every loop &mdash; but the drive code still ignores it, so the
+robot drives the same as before. Next lesson we put this heading to work.</p>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Pedro-in-CheerpJ spike — compile + run against the real Pedro core JAR</title>
+  <script src="/cj/loader.js"></script>
+  <style>
+    body { font-family: monospace; margin: 1rem; background:#0b0e14; color:#cbd5e1; }
+    #status { font-size: 1.2rem; font-weight: bold; padding:.4rem .6rem; border-radius:6px; display:inline-block; }
+    .pending { background:#334155; color:#e2e8f0; }
+    .pass { background:#166534; color:#dcfce7; }
+    .fail { background:#7f1d1d; color:#fee2e2; }
+    pre { background:#111827; padding:.75rem; border-radius:6px; white-space:pre-wrap; word-break:break-word; }
+    h1 { font-size:1.1rem; }
+  </style>
+</head>
+<body>
+  <h1>Pedro-in-CheerpJ spike — does the real <code>pedro-core.jar</code> compile &amp; run in-browser?</h1>
+  <div id="status" class="pending">STATUS: initializing…</div>
+  <h2>Steps</h2>
+  <pre id="steps"></pre>
+  <h2>Captured console / Java output</h2>
+  <pre id="log"></pre>
+
+  <script>
+    // Automation markers:
+    //   window.__SPIKE_DONE   = true when finished
+    //   window.__SPIKE_RESULT = "PASS" | "FAIL"
+    window.__SPIKE_DONE = false;
+    window.__SPIKE_RESULT = null;
+
+    const stepsEl  = document.getElementById('steps');
+    const logEl    = document.getElementById('log');
+    const statusEl = document.getElementById('status');
+    const step = m => { stepsEl.textContent += m + "\n"; };
+    const logline = m => { logEl.textContent += m + "\n"; };
+    ['log','info','warn','error'].forEach(fn => {
+      const orig = console[fn].bind(console);
+      console[fn] = (...a) => { try { logline(a.join(' ')); } catch(e){} orig(...a); };
+    });
+    function finish(pass, summary) {
+      window.__SPIKE_RESULT = pass ? "PASS" : "FAIL";
+      window.__SPIKE_DONE = true;
+      statusEl.className = pass ? "pass" : "fail";
+      statusEl.textContent = "STATUS: " + (pass ? "PASS — " : "FAIL — ") + summary;
+    }
+
+    // Student-style Java that touches the REAL Pedro core API:
+    //  - Pose + BezierLine  -> class loading + real path math
+    //  - HeadingInterpolator.constant(...) + .offset(...) -> forces LambdaMetafactory
+    //    bootstrap of an invokedynamic site (the one true CheerpJ risk)
+    const JAVA_SRC = [
+      'import com.pedropathing.geometry.Pose;',
+      'import com.pedropathing.geometry.BezierLine;',
+      'import com.pedropathing.paths.HeadingInterpolator;',
+      '',
+      'public class Main {',
+      '  public static void main(String[] args) {',
+      '    Pose a = new Pose(0, 0, 0);',
+      '    Pose b = new Pose(24, 12, Math.PI/2);',
+      '    BezierLine line = new BezierLine(a, b);',
+      '    double len = line.approximateLength();',
+      '    Pose mid = line.getPose(0.5);',
+      '    System.out.println("PEDRO_LEN=" + Math.round(len*1000)/1000.0);',
+      '    System.out.println("PEDRO_MID=" + Math.round(mid.getX()*1000)/1000.0 + "," + Math.round(mid.getY()*1000)/1000.0);',
+      '    // Force a lambda (invokedynamic / LambdaMetafactory) to bootstrap under CheerpJ:',
+      '    HeadingInterpolator hi = HeadingInterpolator.constant(1.5707963);',
+      '    HeadingInterpolator hi2 = hi.offset(0.25);',
+      '    System.out.println("PEDRO_LAMBDA_OK cls=" + hi.getClass().getName() + " off=" + (hi2 != null));',
+      '    System.out.println("PEDRO_SPIKE_DONE_OK");',
+      '  }',
+      '}',
+      ''
+    ].join('\n');
+
+    (async function () {
+      try {
+        step("1) cheerpjInit({version:17}) …");
+        await cheerpjInit({ version: 17, status: "none" });
+        step("   init OK");
+        try { cheerpjCreateDisplay(1, 1); } catch (e) { step("   (no display: " + e + ")"); }
+
+        step("2) stage /str/Main.java (imports com.pedropathing.*) …");
+        cheerpjAddStringFile("/str/Main.java", JAVA_SRC);
+        step("   source staged");
+
+        step("3) ECJ compile  -classpath /app/pedro-core.jar  (target Java 8) …");
+        let compileExit;
+        try {
+          compileExit = await cheerpjRunMain(
+            "org.eclipse.jdt.internal.compiler.batch.Main",
+            "/app/ecj.jar",
+            "-source", "1.8",
+            "-target", "1.8",
+            "-bootclasspath", "/app/jdk-base.jar",
+            "-classpath", "/app/pedro-core.jar",
+            "-proc:none",
+            "-nowarn",
+            "-d", "/files/",
+            "/str/Main.java"
+          );
+        } catch (e) {
+          step("   ECJ threw: " + e);
+          finish(false, "compile step threw: " + e);
+          return;
+        }
+        step("   ECJ exit code = " + compileExit);
+        if (compileExit !== 0) { finish(false, "ECJ could not compile against pedro-core.jar (exit " + compileExit + ")"); return; }
+
+        step("4) run Main  (runtime cp = /files/:/app/pedro-core.jar) …");
+        const runExit = await cheerpjRunMain("Main", "/files/:/app/pedro-core.jar");
+        step("   Main exit code = " + runExit);
+
+        const out = logEl.textContent;
+        const ran = out.includes("PEDRO_SPIKE_DONE_OK");
+        const lambda = out.includes("PEDRO_LAMBDA_OK");
+        if (runExit === 0 && ran && lambda) {
+          finish(true, "real Pedro compiled + ran in-browser, incl. lambda/invokedynamic");
+        } else if (runExit === 0 && ran) {
+          finish(true, "Pedro ran but lambda token missing — check output");
+        } else {
+          finish(false, "Pedro compiled but runtime failed (exit " + runExit + ", token=" + ran + ", lambda=" + lambda + ")");
+        }
+      } catch (err) {
+        step("UNEXPECTED ERROR: " + (err && err.stack ? err.stack : err));
+        finish(false, "unexpected error: " + err);
+      }
+    })();
+  </script>
+</body>
+</html>

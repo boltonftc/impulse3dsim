@@ -1,0 +1,182 @@
+<h1>From Messy Loop to Clean Class</h1>
+
+<p>Your robot already drives. You taught it to strafe and spin back in the mecanum lesson, and last
+lesson you added the IMU so it knows which way it's pointing. So this lesson is <em>not</em> about making
+it move &mdash; it's about making your code <strong>clean</strong> enough to keep growing.</p>
+
+<p>Open <code>MecanumDrive.java</code> and look at the run loop. Read it slowly. In those few lines, the
+loop is already juggling <strong>three completely different jobs</strong> at once:</p>
+
+<ul>
+  <li>reading the <strong>IMU</strong> heading (and re-zeroing it on the bumper),</li>
+  <li>doing all the <strong>drive math</strong> &mdash; four wheel powers, then normalizing them,</li>
+  <li>reading the gamepad and printing <strong>telemetry</strong>.</li>
+</ul>
+
+<p>Right now that's about 25 lines crammed together. But a real competition robot also has an intake, a
+shooter, an arm, a climber&hellip; If <em>every</em> mechanism dumped its code into this one loop, you'd end up
+with 300+ lines of tangled math. Nobody &mdash; not even you &mdash; could read it, and one tiny typo could break
+everything.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">The big idea: a class is a room</div>
+  <p>Think of your program as a <strong>house</strong>. Right now everything happens in one crowded room. The fix
+  is to give each job <strong>its own room</strong> with a label on the door.</p>
+  <p>In Java, a room like that is called a <strong>class</strong>. The <code>Drivebase</code> class is the room where
+  <em>everything about driving</em> lives &mdash; the four motors <em>and</em> the math that powers them. Nothing outside
+  that room needs to know <em>how</em> driving works. They just knock on the door and say &ldquo;drive!&rdquo;</p>
+</div>
+
+<p>A class is made of two kinds of things:</p>
+
+<ul>
+  <li><strong>Fields</strong> &mdash; the stuff the room <em>owns</em>. For <code>Drivebase</code>, that's the four motors.</li>
+  <li><strong>Methods</strong> &mdash; the things the room can <em>do</em>. For <code>Drivebase</code>, that's <code>driveFieldCentric(&hellip;)</code>
+  and <code>stop()</code>.</li>
+</ul>
+
+<p>There's also one special method called the <strong>constructor</strong>. It runs <em>once</em>, the moment you build
+the object &mdash; like unpacking a new appliance and plugging it in. <code>Drivebase</code>'s constructor is where it
+finds its four motors in the <code>hardwareMap</code> and gets them ready.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why <code>public</code> and <code>private</code>?</div>
+  <p>Look at the motors in <code>Drivebase</code>: they're marked <code>private</code>. The drive method is marked
+  <code>public</code>. That's on purpose.</p>
+  <ul>
+    <li><strong><code>public</code></strong> = the <em>door</em> everyone is allowed to use. Your OpMode calls
+    <code>driveFieldCentric(&hellip;)</code> through this door.</li>
+    <li><strong><code>private</code></strong> = the <em>wiring inside the wall</em>. Only <code>Drivebase</code> is allowed to touch
+    its own motors.</li>
+  </ul>
+  <p>Why hide the motors? Because if <em>any</em> part of your program could reach in and set a motor power,
+  a bug could come from <em>anywhere</em>, and you'd have no idea where to look. By locking the motors inside,
+  the <strong>only</strong> way to drive is through the one door you control &mdash; so if driving misbehaves, you know
+  exactly where the problem is.</p>
+</div>
+
+<p>And here's the payoff, the reason pro teams write code this way:</p>
+
+<ul>
+  <li><strong>Teamwork.</strong> Once driving lives in its own room, one teammate can improve the drive while
+  another builds the intake &mdash; in different files, without stepping on each other.</li>
+  <li><strong>Reuse.</strong> Both your TeleOp <em>and</em> your Autonomous can say
+  <code>robot.drive.driveFieldCentric(&hellip;)</code>. Write it once, use it everywhere.</li>
+  <li><strong>Easy to fix.</strong> Drive acting weird? You already know which room to walk into.</li>
+</ul>
+
+<hr>
+
+<h2>The three new files</h2>
+
+<p>Notice that a few new files just appeared in your project. Peek at each &mdash; you don't have to change them
+yet, just get a feel for them:</p>
+
+<ul>
+  <li><code>Drivebase.java</code> &mdash; the drive room. You'll finish it in a minute.</li>
+  <li><code>Robot.java</code> &mdash; think of it as the whole <em>building</em>. It builds each room (subsystem) for you,
+  so your OpMode can just say <code>new Robot(hardwareMap)</code> once and get everything.</li>
+  <li><code>Subsystem.java</code> &mdash; a shared rule every room agrees to follow (we'll dig into what an
+  &ldquo;interface&rdquo; is a couple lessons from now).</li>
+</ul>
+
+<hr>
+
+<h2>Part A &mdash; Give the drive math its permanent home</h2>
+
+<p>Open <code>Drivebase.java</code> and find the drive method. The sticks are already read for you into three
+numbers &mdash; this is the <em>same</em> mecanum math you wrote inline before, except now it's moving into the room
+where it belongs.</p>
+
+<span class="act" data-action="open_file" data-arg="Drivebase.java|Drivebase : Loop">&#9656; Drivebase.java : Drivebase : Loop</span>
+
+<ul>
+  <li><code>drive</code> &mdash; forward / backward (left stick up/down)</li>
+  <li><code>strafe</code> &mdash; sideways (left stick left/right)</li>
+  <li><code>turn</code> &mdash; spin (the triggers)</li>
+</ul>
+
+<p>Each wheel is just <code>forward &plusmn; strafe &plusmn; turn</code>. Adding three numbers can push a wheel past
+<code>1.0</code> (full power), so we find the largest and divide them all by it &mdash; that keeps every wheel's
+<em>ratio</em> (and the robot's direction) intact.</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Drivebase.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>double fl = forward + right + turn;
+double fr = forward - right - turn;
+double bl = forward - right + turn;
+double br = forward + right - turn;
+double max = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)),
+                                    Math.max(Math.abs(bl), Math.abs(br))));
+frontLeft.setPower(fl / max * DRIVE_SPEED_SCALE);
+frontRight.setPower(fr / max * DRIVE_SPEED_SCALE);
+backLeft.setPower(bl / max * DRIVE_SPEED_SCALE);
+backRight.setPower(br / max * DRIVE_SPEED_SCALE);</code></pre>
+</div>
+
+<p>The room is finished &mdash; but nobody has knocked on its door yet. If you built and drove right now,
+nothing would change, because your OpMode is still doing the old inline math. Let's fix that.</p>
+
+<hr>
+
+<h2>Part B &mdash; Knock on the door (watch the loop collapse)</h2>
+
+<p>This is the satisfying part. Go back to <code>MecanumDrive.java</code> and replace the crowded code with
+calls to your new room. Two small swaps.</p>
+
+<h3>1. In INIT: build the robot instead of four loose motors</h3>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Drive : Setup">&#9656; MecanumDrive.java : Drive : Setup</span>
+
+<p>Under the <code>Drive : Setup</code> comment you'll see four <code>DcMotor</code> lines plus two
+<code>setDirection</code> lines. <strong>Delete all six</strong> &mdash; the <code>Drivebase</code> room owns the motors now &mdash; and
+replace them with a single line that builds the whole robot:</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Replace the six motor lines with this</span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>// Build the whole robot. Every subsystem's constructor runs here (finding its motors and
+// servos), so it must happen during INIT, before the match starts.
+Robot robot = new Robot(hardwareMap);</code></pre>
+</div>
+
+<h3>2. In the loop: hand the driving off to the drivebase</h3>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Drive : Loop">&#9656; MecanumDrive.java : Drive : Loop</span>
+
+<p>Under the <code>Drive : Loop</code> comment is the whole block of drive math &mdash; the <code>drive</code>/<code>strafe</code>/<code>turn</code>
+lines, the four wheel powers, the normalize step, and the four <code>setPower</code> calls. <strong>Delete that entire
+block</strong> and replace it with just two calls:</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Replace the whole drive block with this</span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>// 1) SCHEDULER: give every mechanism a turn to advance its own work.
+robot.update();
+
+// 2) DRIVE: hand the gamepad and the IMU heading to the drivebase.
+robot.drive.driveFieldCentric(gamepad1, heading);</code></pre>
+</div>
+
+<p>Look at what just happened: about 25 lines of math shrank to <strong>two clean sentences</strong>. The loop
+now <em>reads</em> like what it does &mdash; &ldquo;update everything, then drive&rdquo; &mdash; and the messy details are tucked
+safely inside the <code>Drivebase</code> room. <strong>That's OOP.</strong> That's the whole point.</p>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li><strong>Part A:</strong> fill in the mecanum mix inside <code>Drivebase.java</code>.</li>
+    <li><strong>Part B:</strong> in <code>MecanumDrive.java</code>, swap the six motor lines for
+    <code>Robot robot = new Robot(hardwareMap);</code>, then swap the whole drive block for the two
+    <code>robot.&hellip;</code> calls.</li>
+    <li><strong>Build &amp; Init</strong>, <strong>Start</strong>, and drive. It should feel <em>exactly</em> the same as
+    before &mdash; because it is. You changed how the code is <em>organized</em>, not what it does.</li>
+  </ul>
+</div>
+
+<p>Same driving, far cleaner code. And you left <code>heading</code> feeding into the drive on purpose: right
+now &ldquo;forward&rdquo; is still whichever way the robot is <em>pointed</em>. Next lesson, you'll use that heading to
+make &ldquo;forward&rdquo; always mean &ldquo;away from you.&rdquo;</p>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

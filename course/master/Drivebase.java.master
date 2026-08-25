@@ -1,0 +1,110 @@
+// @begin(09_drivebase)
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.Gamepad;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+
+/*
+ * ============================================================================
+ *  Drivebase  --  owned by Student A
+ * ============================================================================
+ *
+ *  This subsystem owns the four mecanum drive motors and turns joystick input
+ *  into motor power. A mecanum drivetrain can move in any direction AND spin
+ *  at the same time.
+ *
+ *  Driving is a CONTINUOUS command: the OpMode calls driveFieldCentric() every
+ *  loop with the latest sticks, and this subsystem applies power immediately.
+ *  That is why its update() has nothing left to do.
+ * ============================================================================
+ */
+public class Drivebase implements Subsystem {
+
+    // Overall speed limit. 1.0 = full speed; lower it (e.g. 0.6) for easier control.
+    private static final double DRIVE_SPEED_SCALE = 1.0;
+
+    // The four drive motors. Names MUST match the Driver Hub configuration.
+    private final DcMotor frontLeft;
+    private final DcMotor frontRight;
+    private final DcMotor backLeft;
+    private final DcMotor backRight;
+
+    public Drivebase(HardwareMap hardwareMap) {
+        // ===============================================
+        // RobotConfig : Device Names
+        // Do not remove this comment
+        // A later lesson moves these device-name strings (and the motor
+        // directions below) into one shared RobotConfig class
+        // ===============================================
+        frontLeft  = hardwareMap.get(DcMotor.class, "front_left_motor");
+        frontRight = hardwareMap.get(DcMotor.class, "front_right_motor");
+        backLeft   = hardwareMap.get(DcMotor.class, "back_left_motor");
+        backRight  = hardwareMap.get(DcMotor.class, "back_right_motor");
+
+        // The left side is mounted as a mirror image of the right, so reverse it.
+        frontLeft.setDirection(DcMotor.Direction.REVERSE);
+        backLeft.setDirection(DcMotor.Direction.REVERSE);
+    }
+
+    /*
+     * driveFieldCentric()  --  the main TeleOp drive method. Called every loop with the current
+     * gamepad and the robot's heading (radians, from Localization). It reads the sticks, mixes
+     * them into four wheel powers, and applies them immediately.
+     *
+     * Drivebase : Loop
+     */
+    public void driveFieldCentric(Gamepad gamepad, double headingRadians) {
+        // Read the driver's intent. Pushing the left stick UP gives a NEGATIVE y, so flip it
+        // so that "stick up" = "drive forward" = positive.
+        double drive  = -gamepad.left_stick_y;   // forward / backward
+        double strafe =  gamepad.left_stick_x;   // left / right (sideways)
+        double turn   =  gamepad.right_trigger - gamepad.left_trigger;   // spin
+
+        double forward = drive;
+        double right   = strafe;
+
+        // @fill(10_field_centric)
+        // FIELD-CENTRIC: rotate the driver's request by the negative of the robot's heading so
+        // "away from the driver" always means the same direction, no matter which way we face.
+        double cos = Math.cos(-headingRadians);
+        double sin = Math.sin(-headingRadians);
+        right   = strafe * cos - drive * sin;
+        forward = strafe * sin + drive * cos;
+        // @end(10_field_centric)
+
+        // @fill(09_drivebase)
+        // MECANUM MIX: each wheel is forward +/- strafe +/- turn, then normalized so no power
+        // exceeds 1.0 (dividing them all by the largest keeps the ratios -- and the direction).
+        double fl = forward + right + turn;
+        double fr = forward - right - turn;
+        double bl = forward - right + turn;
+        double br = forward + right - turn;
+        double max = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)),
+                                            Math.max(Math.abs(bl), Math.abs(br))));
+        frontLeft.setPower(fl / max * DRIVE_SPEED_SCALE);
+        frontRight.setPower(fr / max * DRIVE_SPEED_SCALE);
+        backLeft.setPower(bl / max * DRIVE_SPEED_SCALE);
+        backRight.setPower(br / max * DRIVE_SPEED_SCALE);
+        // @end(09_drivebase)
+    }
+
+    /** Stop all four drive motors. */
+    public void stop() {
+        frontLeft.setPower(0.0);
+        frontRight.setPower(0.0);
+        backLeft.setPower(0.0);
+        backRight.setPower(0.0);
+    }
+
+    /*
+     * update()
+     * Driving is commanded every loop by driveFieldCentric(), so there is no leftover slice of
+     * work here. We still provide the method because the Subsystem contract requires it.
+     */
+    @Override
+    public void update() {
+        // Nothing to advance -- drive is applied immediately when commanded.
+    }
+}
+// @end(09_drivebase)

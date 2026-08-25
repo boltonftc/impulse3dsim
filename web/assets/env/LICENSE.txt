@@ -1,0 +1,5 @@
+crossfit_gym_1k.hdr
+Source: https://polyhaven.com/a/crossfit_gym
+Authors: Dimitrios Savva, Jarod Guest
+License: CC0 1.0 (Public Domain) -- https://polyhaven.com/license
+No attribution required; included here for reference only.

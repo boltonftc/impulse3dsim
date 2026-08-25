@@ -1,0 +1,54 @@
+<h1>Your Code Package</h1>
+
+<p>Before you write anything, let's look at what you already have. Open the <strong>Pit</strong> code editor
+and look at the file tabs across the top. Right now there is just <strong>one</strong> file &mdash; and that is
+on purpose. As you finish lessons, new files will appear one at a time, each adding one new piece of
+the robot. Starting with a single small file keeps things clear.</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|MecanumDrive">&#9656; Open MecanumDrive.java</span>
+
+<p>This is an <strong>OpMode</strong> &mdash; a program the robot can run. The name in the
+<code>@TeleOp(...)</code> line at the top is what you'll pick from the menu on the Driver Hub. The word
+<em>TeleOp</em> means "tele-operated": a human drives it with the gamepad (as opposed to an autonomous
+program that drives itself).</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">A package is a folder of related code</div>
+  <p>The very first line, <code>package org.firstinspires.ftc.teamcode;</code>, says which folder this
+  file lives in. Every file in your robot's code shares that same package, so they can all find and use
+  each other. You'll see that identical line at the top of every file you add.</p>
+</div>
+
+<p>Now find the method called <code>runOpMode()</code>. This is where the robot's story happens, and it
+always has the same three parts. Jump to each one:</p>
+
+<span class="act" data-action="scroll_to" data-arg="─── INIT">&#9656; MecanumDrive.java : INIT</span>
+<p><strong>1. Init</strong> &mdash; runs <em>once</em>, right after you press the <strong>INIT</strong> button. This is where
+setup goes. Ours just shows a message so the driver knows the robot is ready.</p>
+
+<span class="act" data-action="scroll_to" data-arg="START: pause here">&#9656; MecanumDrive.java : START</span>
+<p><strong>2. Start</strong> &mdash; <code>waitForStart()</code> pauses the program right here until the driver
+presses the play button. Nothing past this line happens until the match begins.</p>
+
+<span class="act" data-action="scroll_to" data-arg="THE RUN LOOP">&#9656; MecanumDrive.java : the run loop</span>
+<p><strong>3. The run loop</strong> &mdash; the <code>while (opModeIsActive())</code> block repeats about
+<strong>fifty times every second</strong> until the match ends. This is where you'll spend almost all of your
+time in later lessons: reading the gamepad, driving, and showing information. Right now it does nothing
+but wait.</p>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li>Open <code>MecanumDrive.java</code> and read through the three parts with the links above.</li>
+    <li>Press <strong>Build &amp; Init</strong>, then <strong>Start</strong>.</li>
+    <li>The robot won't move yet &mdash; that's expected. You're just proving your program runs.</li>
+  </ul>
+</div>
+
+<p>That's your whole starting point: one small OpMode with an init and a loop. In the next lesson you'll
+make it actually <em>say something</em> while it runs.</p>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>
