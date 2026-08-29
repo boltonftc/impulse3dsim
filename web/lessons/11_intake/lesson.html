@@ -1,0 +1,259 @@
+<h1>Your First Mechanism: The Intake</h1>
+
+<p>Last lesson you moved all your driving into its own room &mdash; the <code>Drivebase</code> class. Driving was
+special though: it was already written, you just <em>reorganized</em> it. This lesson you build a brand-new
+mechanism from an empty file: the <strong>intake</strong>, the roller that pulls game pieces into the robot.</p>
+
+<p>And when you write it, you'll follow the <strong>exact same shape</strong> every real FTC subsystem uses. Learn
+it here on one motor, and the dumper, the arm, the climber &mdash; everything after this &mdash; will feel familiar.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">What does an intake even do?</div>
+  <p>It's one motor with a squishy roller. Spin it <strong>one way</strong> and it grabs game pieces off the field
+  and pulls them in. Spin it the <strong>other way</strong> and it spits a jammed piece back out. Leave it
+  <strong>off</strong> the rest of the time so it isn't fighting or grinding. That's the whole job: three choices.</p>
+</div>
+
+<hr>
+
+<h2>The big idea: a state machine</h2>
+
+<p>Notice we just described the intake as being in one of exactly <strong>three situations</strong>: pulling in,
+stopped, or spitting out. It is always in <em>one</em> of them, never two at once. When something can only
+ever be in one of a handful of named situations, programmers call it a <strong>state machine</strong>, and each
+situation is a <strong>state</strong>.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why not just call <code>motor.setPower()</code> directly?</div>
+  <p>You <em>could</em> sprinkle <code>motor.setPower(1.0)</code> and <code>motor.setPower(0)</code> all over your OpMode. But
+  then the &ldquo;what is the intake doing right now?&rdquo; answer is scattered across a dozen places, and two of
+  them can fight each other. A state machine keeps a <strong>single source of truth</strong>: one field that always
+  knows the answer, and one place that acts on it. Cleaner, and far easier to debug.</p>
+</div>
+
+<p>Our state machine has four parts, and you'll build them in order:</p>
+
+<ul>
+  <li>a <strong>list of the states</strong> (an <em>enum</em>) &mdash; the three names,</li>
+  <li>a <strong>field</strong> that remembers which state we're in <em>right now</em>,</li>
+  <li><strong>command methods</strong> (<code>forward</code>, <code>reverse</code>, <code>off</code>) that only <em>change</em> the state,</li>
+  <li>an <strong>update()</strong> that runs every loop and makes the motor <em>match</em> the state.</li>
+</ul>
+
+<hr>
+
+<h2>Meet <code>Intake.java</code></h2>
+
+<p>A new file just appeared in your project: <code>Intake.java</code>. Open it and read the top. The motor field,
+the tuning constants, and the constructor are already there for you &mdash; the constructor finds the motor in
+the <code>hardwareMap</code> (looking up the name <code>"intake_motor"</code> from the Driver Hub config), exactly like
+<code>Drivebase</code> found its four wheels. What's <em>missing</em> is the state machine. You'll add it in four parts.</p>
+
+<hr>
+
+<h2>Part A &mdash; Name the states (an enum)</h2>
+
+<p>An <strong>enum</strong> (short for <em>enumeration</em>) is a tiny custom type whose only values are a fixed list of
+names you write down. It's perfect here: the intake can be <code>FORWARD</code>, <code>OFF</code>, or <code>REVERSE</code> &mdash; and
+nothing else. Using an enum instead of, say, the numbers <code>0</code>/<code>1</code>/<code>2</code> means the compiler itself
+stops you from ever setting a state that doesn't exist.</p>
+
+<span class="act" data-action="open_file" data-arg="Intake.java|Intake : States">&#9656; Intake.java : Intake : States</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Intake.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>public enum State {
+    FORWARD,   // pulling game pieces in
+    OFF,       // stopped
+    REVERSE    // pushing back out to clear a jam
+}</code></pre>
+</div>
+
+<p>Now add the field that remembers the current state. It starts at <code>OFF</code> &mdash; a robot should never boot
+up with its intake already spinning.</p>
+
+<span class="act" data-action="open_file" data-arg="Intake.java|Intake : Current State">&#9656; Intake.java : Intake : Current State</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Intake.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>private State state = State.OFF;   // start stopped</code></pre>
+</div>
+
+<hr>
+
+<h2>Part B &mdash; The command methods (change the state)</h2>
+
+<p>Here's the part that surprises people: the <code>forward()</code>, <code>reverse()</code>, and <code>off()</code> methods do
+<strong>not</strong> touch the motor. Each one only sets the <code>state</code> field. That's the whole trick of a state
+machine: <em>deciding</em> what to do and <em>doing</em> it are split apart. The commands decide; <code>update()</code> (Part
+C) does. <code>getState()</code> lets the OpMode peek at the current state.</p>
+
+<span class="act" data-action="open_file" data-arg="Intake.java|Intake : Commands">&#9656; Intake.java : Intake : Commands</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Intake.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>/** Run the intake inward (collecting). Only changes the state. */
+public void forward() {
+    state = State.FORWARD;
+}
+
+/** Run the intake outward (spitting a stuck piece back out). */
+public void reverse() {
+    state = State.REVERSE;
+}
+
+/** Stop the intake. */
+public void off() {
+    state = State.OFF;
+}
+
+/** Lets the OpMode read the state -- to show it, or to decide a toggle. */
+public State getState() {
+    return state;
+}</code></pre>
+</div>
+
+<hr>
+
+<h2>Part C &mdash; <code>update()</code>: turn the state into motor power</h2>
+
+<p>This is the heart of the state machine. The scheduler calls <code>update()</code> once every loop. It looks at
+<code>state</code> and sets the motor to match &mdash; and because it runs every single loop, the motor <em>always</em> reflects
+the current state, no matter who changed it. A <code>switch</code> is the clean way to handle &ldquo;one behavior per
+state.&rdquo;</p>
+
+<span class="act" data-action="open_file" data-arg="Intake.java|Intake : Apply State">&#9656; Intake.java : Intake : Apply State</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Intake.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>switch (state) {
+    case FORWARD:
+        motor.setPower(INTAKE_FORWARD_POWER);
+        break;
+    case REVERSE:
+        motor.setPower(INTAKE_REVERSE_POWER);
+        break;
+    case OFF:
+        motor.setPower(0.0);
+        break;
+}</code></pre>
+</div>
+
+<p>The two speeds come from the named constants at the top of the file &mdash; full power (<code>1.0</code>) to pull in,
+a gentler <code>-0.5</code> to un-jam. Want a different feel later? Change those two lines; nothing else.</p>
+
+<hr>
+
+<h2>Part D &mdash; Add the intake to the robot</h2>
+
+<p>Your intake room is built, but the <em>building</em> doesn't know about it yet. Open <code>Robot.java</code> and give
+it a home &mdash; two small edits, just like <code>Drivebase</code> has.</p>
+
+<h3>1. Declare the field</h3>
+
+<span class="act" data-action="open_file" data-arg="Robot.java|Intake : Field">&#9656; Robot.java : Intake : Field</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>public final Intake intake;</code></pre>
+</div>
+
+<h3>2. Build it (and add it to the scheduler)</h3>
+
+<p>In the constructor, build the intake and add it to the <code>subsystems</code> list. That second line is what
+makes <code>robot.update()</code> call your intake's <code>update()</code> every loop &mdash; forget it, and the motor never
+moves.</p>
+
+<span class="act" data-action="open_file" data-arg="Robot.java|Intake : Setup">&#9656; Robot.java : Intake : Setup</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>intake = new Intake(hardwareMap);
+subsystems.add(intake);</code></pre>
+</div>
+
+<hr>
+
+<h2>Part E &mdash; Drive it with two buttons</h2>
+
+<p>Now the fun part: wiring the gamepad. We'll make <strong>A run the intake in</strong> and <strong>B run it out</strong>.
+And we'll add one safety rule: if the intake is <em>already</em> running (either direction), pressing
+<strong>either</strong> button just <strong>stops</strong> it. So the intake always goes <strong>in &rarr; stop &rarr; out</strong>, never slamming
+straight from full-forward into reverse &mdash; that protects the intake motor and the drive train.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why we need &ldquo;edge detection&rdquo;</div>
+  <p>The loop runs ~50 times a second. If you just wrote <code>if (gamepad1.a)</code>, then a single half-second
+  press would count as <em>dozens</em> of presses &mdash; the intake would flicker on/off so fast you couldn't
+  control it. <strong>Edge detection</strong> fixes this: we remember whether A was <em>already</em> down last loop, and
+  only react on the loop where it goes from up to down &mdash; the <em>rising edge</em>, one clean press.</p>
+</div>
+
+<h3>1. Remember last loop's buttons</h3>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Intake : Variables">&#9656; MecanumDrive.java : Intake : Variables</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>private boolean previousA = false;
+private boolean previousB = false;</code></pre>
+</div>
+
+<h3>2. In the loop: detect the press, then start or stop the intake</h3>
+
+<p>Read it slowly. <code>pressedA</code> is true only on the one loop where A just went down. When that happens,
+we ask the intake what it's doing: if it's running at all (not <code>OFF</code>), we <strong>stop</strong> it; only from a stop
+does A run it <strong>forward</strong>. B follows the same rule but runs <strong>reverse</strong> from a stop. The last two lines
+save this loop's buttons so next loop can compare.</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Intake : Loop">&#9656; MecanumDrive.java : Intake : Loop</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>boolean pressedA = gamepad1.a &amp;&amp; !previousA;
+boolean pressedB = gamepad1.b &amp;&amp; !previousB;
+if (pressedA) {
+    if (robot.intake.getState() != Intake.State.OFF) robot.intake.off();
+    else robot.intake.forward();
+}
+if (pressedB) {
+    if (robot.intake.getState() != Intake.State.OFF) robot.intake.off();
+    else robot.intake.reverse();
+}
+previousA = gamepad1.a;
+previousB = gamepad1.b;</code></pre>
+</div>
+
+<p>See how the OpMode never touches the motor either? It only sends <em>commands</em> &mdash; <code>forward()</code>,
+<code>reverse()</code>, <code>off()</code>. The input layer decides the <em>gesture</em> (press to start, press again to stop);
+the intake decides the <em>power</em>. Each side stays simple because it minds its own business.
+<strong>That's the pattern.</strong></p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Optional: show the state on the driver station</div>
+  <p>Down near your other <code>telemetry.addData(&hellip;)</code> lines, you can add
+  <code>telemetry.addData("Intake", robot.intake.getState());</code> to watch the state flip live as you press
+  the buttons. Handy for confirming the buttons work.</p>
+</div>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li><strong>Part A:</strong> in <code>Intake.java</code>, add the <code>State</code> enum and the <code>state</code> field.</li>
+    <li><strong>Part B:</strong> add <code>forward()</code>, <code>reverse()</code>, <code>off()</code>, and <code>getState()</code>.</li>
+    <li><strong>Part C:</strong> fill in the <code>switch</code> inside <code>update()</code>.</li>
+    <li><strong>Part D:</strong> in <code>Robot.java</code>, declare and build the <code>intake</code> (both lines!).</li>
+    <li><strong>Part E:</strong> in <code>MecanumDrive.java</code>, add the two edge variables and the button block.</li>
+    <li><strong>Build &amp; Init</strong>, <strong>Start</strong>, then tap <strong>A</strong> to run the intake in; tap
+    <strong>A</strong> (or <strong>B</strong>) again to stop it. From a stop, tap <strong>B</strong> to spit pollen out. Watch the roller.</li>
+  </ul>
+</div>
+
+<p>You just built a real subsystem from an empty file &mdash; a state machine with clean commands, driven by
+two buttons. Every mechanism from here follows this same four-part shape. Next up: the dumper, which
+does the same thing to <em>score</em> what your intake collects.</p>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

@@ -163,11 +163,11 @@ public class MecanumDrive extends LinearOpMode {
             boolean pressedA = gamepad1.a && !previousA;
             boolean pressedB = gamepad1.b && !previousB;
             if (pressedA) {
-                if (robot.intake.getState() == Intake.State.FORWARD) robot.intake.off();
+                if (robot.intake.getState() != Intake.State.OFF) robot.intake.off();
                 else robot.intake.forward();
             }
             if (pressedB) {
-                if (robot.intake.getState() == Intake.State.REVERSE) robot.intake.off();
+                if (robot.intake.getState() != Intake.State.OFF) robot.intake.off();
                 else robot.intake.reverse();
             }
             previousA = gamepad1.a;

@@ -16,6 +16,9 @@ public class IMUImpl implements IMU {
 
     @Override
     public boolean initialize(Parameters parameters) {
+        // A real BHI260AP reports yaw 0 right after initialize(), whatever way the
+        // robot physically faces. Match that: zero the heading to the start facing.
+        yawOffsetRad = OpModeHost.simYaw(slot);
         return true;
     }
 
