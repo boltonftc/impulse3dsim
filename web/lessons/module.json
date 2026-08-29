@@ -24,6 +24,8 @@
     { "id": "10_field_centric", "title": "Field-Centric Driving",    "tier": "intermediate", "code": true,  "html": true, "active": "Drivebase.java", "folder": "10_field_centric",
       "description": "Make \"forward\" always mean away from the driver, no matter which way the robot faces." },
     { "id": "11_intake",        "title": "Your First Mechanism: The Intake", "tier": "advanced",     "code": true,  "html": true, "active": "Intake.java",    "folder": "11_intake",
-      "description": "Build a subsystem from an empty file: an enum-based state machine for the intake, with forward/reverse/off commands and two toggle buttons to drive it." }
+      "description": "Build a subsystem from an empty file: an enum-based state machine for the intake, with forward/reverse/off commands and two toggle buttons to drive it." },
+    { "id": "12_dumper",        "title": "A Timed Machine: The Dumper",     "tier": "advanced",     "code": true,  "html": true, "active": "Dumper.java",    "folder": "12_dumper",
+      "description": "Your second subsystem and first TIMED state machine: one Y press raises the bucket, holds to dump, and lowers -- all without ever freezing the robot, using an ElapsedTime stopwatch instead of sleep()." }
   ]
 }

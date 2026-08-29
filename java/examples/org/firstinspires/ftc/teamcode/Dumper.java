@@ -60,15 +60,15 @@ public class Dumper implements Subsystem {
     // breaking code elsewhere. "Keep the details private" is the whole idea
     // behind a subsystem: a simple public button (dump()) on the outside, and
     // the messy hardware specifics locked away on the inside.
-    private static final double CARRY_POSITION = 0.0;   // bucket level (holding)
-    private static final double DUMP_POSITION  = 1.0;   // bucket tilted (dumping)
+    private static final double CARRY_POSITION = 0.5;    // bucket level (holding)
+    private static final double DUMP_POSITION  = 0.75;   // bucket tilted (dumping)
 
     // TIMINGS in milliseconds. These say how long each moving/holding step
     // lasts. If the bucket does not finish moving in time on the real robot,
     // make the matching number bigger.
-    private static final double RAISE_TIME_MS = 400;    // time for servo to travel up
-    private static final double HOLD_TIME_MS  = 500;    // time held up to let elements fall
-    private static final double LOWER_TIME_MS = 400;    // time for servo to travel down
+    private static final double RAISE_TIME_MS = 750;     // time for servo to travel up
+    private static final double HOLD_TIME_MS  = 2000;    // time held up to let elements fall
+    private static final double LOWER_TIME_MS = 750;     // time for servo to travel down
 
     // ── Hardware and state ───────────────────────────────────────────────
     // EVERYTHING IN THIS SECTION IS private ON PURPOSE.

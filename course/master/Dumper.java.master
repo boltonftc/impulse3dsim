@@ -1,0 +1,181 @@
+// @begin(12_dumper)
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+/*
+ * ============================================================================
+ *  Dumper  --  your second mechanism, and your first TIMED state machine
+ * ============================================================================
+ *
+ *  The dumper is a servo that tilts a bucket UP to dump game pieces, then tilts
+ *  it back DOWN. One button press should run the WHOLE sequence on its own:
+ *
+ *        raise the bucket  ->  hold it up so pieces slide out  ->  lower it
+ *
+ *  THE OBVIOUS (WRONG) WAY: sleep()
+ *      servo.setPosition(UP); sleep(2000); servo.setPosition(DOWN);
+ *  That FREEZES the entire robot for two seconds -- the driver cannot steer,
+ *  nothing else updates. Unacceptable in a match.
+ *
+ *  THE FIX: a state machine + a stopwatch.
+ *  The intake's states were instant. The dumper's are TIMED: the servo needs
+ *  real time to travel, so "raising" and "lowering" are their own states. We
+ *  remember which state we are in, and an ElapsedTime stopwatch tells us how
+ *  long we have been in it. Each loop, update() checks the stopwatch and moves
+ *  to the next state when enough time has passed -- then returns immediately.
+ *  The robot never freezes; the driver keeps full control the whole time.
+ * ============================================================================
+ */
+public class Dumper implements Subsystem {
+
+    // ===============================================
+    // Dumper : States
+    // Do not remove this comment
+    // Add your State enum below
+    // ===============================================
+    // @fill(12_dumper)
+    public enum State {
+        STOWED,    // resting, bucket level -- the normal state
+        RAISING,   // servo commanded up; waiting for it to reach the top
+        DUMPING,   // holding at the top so game pieces slide out
+        LOWERING   // servo commanded down; waiting for it to reach level
+    }
+    // @end(12_dumper)
+
+    // TUNING CONSTANTS. `static final` is Java's version of a labeled #define:
+    // named values that never change. Tune the dumper by editing THESE lines.
+    // SERVO POSITIONS are always between 0.0 and 1.0.
+    private static final double CARRY_POSITION = 0.5;    // bucket level (holding)
+    private static final double DUMP_POSITION  = 0.75;   // bucket tilted (dumping)
+
+    // TIMINGS in milliseconds -- how long each moving/holding step lasts. If the
+    // bucket does not finish moving in time on the real robot, make the number
+    // bigger. These are our best guesses; tune them on the bot.
+    private static final double RAISE_TIME_MS = 750;     // time for the servo to travel up
+    private static final double HOLD_TIME_MS  = 2000;    // time held up so pieces slide out
+    private static final double LOWER_TIME_MS = 750;     // time for the servo to travel down
+
+    // The physical servo. `private` so ONLY the Dumper can move it -- everyone
+    // else goes through dump(). null if no dump_servo is configured.
+    private final Servo servo;
+
+    // ElapsedTime is an FTC stopwatch. We reset() it to 0 when a new state
+    // begins, then read milliseconds() each loop to see how long we have been
+    // in that state. This is how we "wait" without ever blocking the loop.
+    private final ElapsedTime timer = new ElapsedTime();
+
+    // ===============================================
+    // Dumper : Current State
+    // Do not remove this comment
+    // Add the field that remembers the current state below
+    // ===============================================
+    // @fill(12_dumper)
+    private State state = State.STOWED;   // start at rest
+    // @end(12_dumper)
+
+    /*
+     * CONSTRUCTOR -- runs once when Robot builds the dumper. It finds the servo
+     * by the name in the Driver Hub config and moves it to the level "carry"
+     * position during INIT, so the bucket is already level the instant the servo
+     * powers on (no surprise jump). If "dump_servo" is not configured we leave
+     * the servo null and the robot still runs -- the dumper simply does nothing.
+     */
+    public Dumper(HardwareMap hardwareMap) {
+        Servo foundServo = null;
+        try {
+            foundServo = hardwareMap.get(Servo.class, "dump_servo");
+        } catch (IllegalArgumentException e) {
+            foundServo = null;   // "dump_servo" not configured -- run without it
+        }
+        servo = foundServo;
+        if (servo != null) {
+            servo.setPosition(CARRY_POSITION);
+        }
+    }
+
+    // ===============================================
+    // Dumper : Command
+    // Do not remove this comment
+    // Add your dump(), isBusy(), and getState() methods below
+    // ===============================================
+    // @fill(12_dumper)
+    /*
+     * dump() -- START the sequence. It only KICKS THINGS OFF: it commands the
+     * servo up, resets the stopwatch, and switches to RAISING. It does NOT wait;
+     * it returns instantly. update() (below) carries the rest of the cycle out
+     * over the next many loops. The `state == STOWED` guard means pressing the
+     * button again mid-cycle is ignored, so we never interrupt a dump.
+     */
+    public void dump() {
+        if (state == State.STOWED && servo != null) {
+            servo.setPosition(DUMP_POSITION);
+            timer.reset();
+            state = State.RAISING;
+        }
+    }
+
+    /** True while a dump cycle is running -- autonomous waits on this. */
+    public boolean isBusy() {
+        return state != State.STOWED;
+    }
+
+    /** Lets the OpMode show the dumper state on the Driver Hub. Read-only. */
+    public State getState() {
+        return state;
+    }
+    // @end(12_dumper)
+
+    /*
+     * update() -- ADVANCE THE SEQUENCE. The scheduler calls this once every loop.
+     * This is where the non-blocking "waiting" happens: we check the stopwatch
+     * and, when a step's time is up, move to the next state (commanding the servo
+     * if needed) and reset the stopwatch. Then we fall straight through and
+     * return -- the robot stays responsive the entire time.
+     */
+    @Override
+    public void update() {
+        // ===============================================
+        // Dumper : Advance
+        // Do not remove this comment
+        // Add the switch that advances the timed sequence below
+        // ===============================================
+        // @fill(12_dumper)
+        switch (state) {
+            case RAISING:
+                // Wait for the servo to finish traveling up, then start holding.
+                if (timer.milliseconds() > RAISE_TIME_MS) {
+                    timer.reset();
+                    state = State.DUMPING;
+                }
+                break;
+
+            case DUMPING:
+                // Held long enough for pieces to fall out: command the servo back
+                // down and start the lowering wait.
+                if (timer.milliseconds() > HOLD_TIME_MS) {
+                    if (servo != null) {
+                        servo.setPosition(CARRY_POSITION);
+                    }
+                    timer.reset();
+                    state = State.LOWERING;
+                }
+                break;
+
+            case LOWERING:
+                // Wait for the servo to reach level again, then we are done.
+                if (timer.milliseconds() > LOWER_TIME_MS) {
+                    state = State.STOWED;
+                }
+                break;
+
+            case STOWED:
+                // Nothing to do while resting.
+                break;
+        }
+        // @end(12_dumper)
+    }
+}
+// @end(12_dumper)
