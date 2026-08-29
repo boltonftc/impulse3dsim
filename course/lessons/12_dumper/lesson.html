@@ -1,0 +1,255 @@
+<h1>A Timed Machine: The Dumper</h1>
+
+<p>You just built the intake &mdash; a state machine whose states were <em>instant</em>: the moment you pressed a
+button, the motor changed. Now you'll build the <strong>dumper</strong>, the servo that tilts a bucket up to
+<strong>score</strong> the game pieces your intake collected. It follows the <em>exact same four-part shape</em> you
+already know &mdash; but with one powerful new idea: its states are <strong>timed</strong>.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">What does the dumper do?</div>
+  <p>One press of a button should run a whole little sequence: <strong>raise</strong> the bucket, <strong>hold</strong> it up for
+  a moment so the pieces slide out, then <strong>lower</strong> it back to level. The driver presses once and keeps
+  driving &mdash; the dumper finishes the routine on its own.</p>
+</div>
+
+<hr>
+
+<h2>The trap: <code>sleep()</code></h2>
+
+<p>The obvious way to write &ldquo;raise, wait, lower&rdquo; looks like this:</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Do NOT do this</span></div>
+  <pre><code>servo.setPosition(UP);
+sleep(2000);            // &lt;-- freezes the WHOLE robot for 2 seconds
+servo.setPosition(DOWN);</code></pre>
+</div>
+
+<p>That <code>sleep(2000)</code> freezes <strong>everything</strong> for two seconds: the driver can't steer, the intake
+can't run, telemetry stops updating. In a match that's a disaster. We need to wait <em>without</em> stopping
+the world.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">The fix: a state machine + a stopwatch</div>
+  <p>A servo takes real <em>time</em> to travel, so &ldquo;raising&rdquo; and &ldquo;lowering&rdquo; become their own
+  <strong>states</strong>. We keep a field for the current state, and an <code>ElapsedTime</code> <strong>stopwatch</strong> that
+  tells us how long we've been in it. Each loop, <code>update()</code> peeks at the stopwatch and, when a step's
+  time is up, moves to the next state &mdash; then returns <em>immediately</em>. The robot never freezes; the
+  driver keeps full control the entire time.</p>
+</div>
+
+<p>Same four parts as the intake &mdash; states, a current-state field, a command, and an <code>update()</code> &mdash;
+you'll just add a stopwatch to the mix.</p>
+
+<hr>
+
+<h2>Meet <code>Dumper.java</code></h2>
+
+<p>A new file appeared: <code>Dumper.java</code>. Open it and read the top. The tuning constants (servo positions
+and step timings), the <code>servo</code> field, the <code>timer</code> stopwatch, and the constructor are already there.
+What's missing is the state machine &mdash; you'll add it in the same four parts as before.</p>
+
+<hr>
+
+<h2>Part A &mdash; Name the states (an enum)</h2>
+
+<p>The intake had three states. The dumper has <strong>four</strong>, because moving takes time: it's <code>STOWED</code>
+at rest, <code>RAISING</code> while the servo travels up, <code>DUMPING</code> while it holds at the top, and
+<code>LOWERING</code> while it travels back down.</p>
+
+<span class="act" data-action="open_file" data-arg="Dumper.java|Dumper : States">&#9656; Dumper.java : Dumper : States</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Dumper.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>public enum State {
+    STOWED,    // resting, bucket level -- the normal state
+    RAISING,   // servo commanded up; waiting for it to reach the top
+    DUMPING,   // holding at the top so game pieces slide out
+    LOWERING   // servo commanded down; waiting for it to reach level
+}</code></pre>
+</div>
+
+<p>Now add the field that remembers the current state. It starts <code>STOWED</code> &mdash; the bucket should be at
+rest when the robot boots.</p>
+
+<span class="act" data-action="open_file" data-arg="Dumper.java|Dumper : Current State">&#9656; Dumper.java : Dumper : Current State</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Dumper.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>private State state = State.STOWED;   // start at rest</code></pre>
+</div>
+
+<hr>
+
+<h2>Part B &mdash; The command: <code>dump()</code></h2>
+
+<p>Here's the key difference from the intake. <code>dump()</code> does <strong>not</strong> run the whole sequence &mdash; it
+only <em>starts</em> it. It commands the servo up, resets the stopwatch, and switches to <code>RAISING</code>. Then it
+returns <strong>instantly</strong>. The waiting happens later, in <code>update()</code>. The <code>state == STOWED</code> guard
+means pressing the button again mid-dump is ignored, so a cycle in progress is never interrupted.</p>
+
+<span class="act" data-action="open_file" data-arg="Dumper.java|Dumper : Command">&#9656; Dumper.java : Dumper : Command</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Dumper.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>public void dump() {
+    if (state == State.STOWED &amp;&amp; servo != null) {
+        servo.setPosition(DUMP_POSITION);
+        timer.reset();
+        state = State.RAISING;
+    }
+}
+
+public boolean isBusy() {
+    return state != State.STOWED;
+}
+
+public State getState() {
+    return state;
+}</code></pre>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why <code>servo != null</code>?</div>
+  <p>The constructor sets <code>servo</code> to <code>null</code> if no <code>dump_servo</code> is in the robot config, so this
+  check just means &ldquo;a robot without a dump servo does nothing here instead of crashing.&rdquo; <code>isBusy()</code>
+  reports whether a cycle is running (autonomous will wait on it later), and <code>getState()</code> lets the
+  OpMode show the state on the Driver Hub. Both are read-only windows &mdash; they never change the state.</p>
+</div>
+
+<hr>
+
+<h2>Part C &mdash; <code>update()</code>: advance the timed sequence</h2>
+
+<p>This is where the non-blocking waiting lives. The scheduler calls <code>update()</code> every loop. It checks the
+stopwatch and, when the current step's time is up, moves to the next state (commanding the servo if needed)
+and resets the stopwatch &mdash; then falls straight through and returns. Read it as a chain: <code>RAISING</code>
+finishes &rarr; hold; <code>DUMPING</code> finishes &rarr; lower; <code>LOWERING</code> finishes &rarr; done.</p>
+
+<span class="act" data-action="open_file" data-arg="Dumper.java|Dumper : Advance">&#9656; Dumper.java : Dumper : Advance</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Dumper.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>switch (state) {
+    case RAISING:
+        if (timer.milliseconds() &gt; RAISE_TIME_MS) {
+            timer.reset();
+            state = State.DUMPING;
+        }
+        break;
+
+    case DUMPING:
+        if (timer.milliseconds() &gt; HOLD_TIME_MS) {
+            if (servo != null) {
+                servo.setPosition(CARRY_POSITION);
+            }
+            timer.reset();
+            state = State.LOWERING;
+        }
+        break;
+
+    case LOWERING:
+        if (timer.milliseconds() &gt; LOWER_TIME_MS) {
+            state = State.STOWED;
+        }
+        break;
+
+    case STOWED:
+        break;
+}</code></pre>
+</div>
+
+<p>Notice the servo is commanded in exactly two places &mdash; up in <code>dump()</code>, down here in <code>DUMPING</code>
+&mdash; and the timings all come from the named constants at the top. Bucket too slow? Make
+<code>RAISE_TIME_MS</code> bigger. Pieces not falling out? Make <code>HOLD_TIME_MS</code> bigger. One place each.</p>
+
+<hr>
+
+<h2>Part D &mdash; Add the dumper to the robot</h2>
+
+<p>Just like the intake, the <code>Robot</code> needs to know about the dumper &mdash; two small edits.</p>
+
+<h3>1. Declare the field</h3>
+
+<span class="act" data-action="open_file" data-arg="Robot.java|Dumper : Field">&#9656; Robot.java : Dumper : Field</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>public final Dumper dumper;</code></pre>
+</div>
+
+<h3>2. Build it (and add it to the scheduler)</h3>
+
+<p>That second line is what makes <code>robot.update()</code> call the dumper's <code>update()</code> every loop &mdash;
+without it, the sequence would start on the button press but never advance.</p>
+
+<span class="act" data-action="open_file" data-arg="Robot.java|Dumper : Setup">&#9656; Robot.java : Dumper : Setup</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>dumper = new Dumper(hardwareMap);
+subsystems.add(dumper);</code></pre>
+</div>
+
+<hr>
+
+<h2>Part E &mdash; Fire it with the Y button</h2>
+
+<p>One press should run the whole cycle, so we use edge detection again &mdash; act only on the loop where Y
+first goes down. But this time there's no toggle: <code>dump()</code> guards itself, so a press during a cycle is
+simply ignored.</p>
+
+<h3>1. Remember last loop's button</h3>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Dumper : Variables">&#9656; MecanumDrive.java : Dumper : Variables</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>private boolean previousY = false;</code></pre>
+</div>
+
+<h3>2. In the loop: on a fresh Y press, start the dump</h3>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Dumper : Loop">&#9656; MecanumDrive.java : Dumper : Loop</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>boolean pressedY = gamepad1.y &amp;&amp; !previousY;
+if (pressedY) {
+    robot.dumper.dump();
+}
+previousY = gamepad1.y;</code></pre>
+</div>
+
+<p>That's the whole control: one call to <code>dump()</code>. The OpMode never touches the servo or the timer &mdash;
+it just fires the command and keeps driving while the dumper runs its routine in the background.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Optional: watch the state flip live</div>
+  <p>Near your other <code>telemetry.addData(&hellip;)</code> lines you can add
+  <code>telemetry.addData("Dumper", robot.dumper.getState());</code> to see it step through
+  <code>RAISING &rarr; DUMPING &rarr; LOWERING &rarr; STOWED</code> on one press &mdash; proof the sequence runs without
+  ever blocking your driving.</p>
+</div>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li><strong>Part A:</strong> in <code>Dumper.java</code>, add the four-state <code>State</code> enum and the <code>state</code> field.</li>
+    <li><strong>Part B:</strong> add <code>dump()</code>, <code>isBusy()</code>, and <code>getState()</code>.</li>
+    <li><strong>Part C:</strong> fill in the timed <code>switch</code> inside <code>update()</code>.</li>
+    <li><strong>Part D:</strong> in <code>Robot.java</code>, declare and build the <code>dumper</code> (both lines!).</li>
+    <li><strong>Part E:</strong> in <code>MecanumDrive.java</code>, add the <code>previousY</code> variable and the button block.</li>
+    <li><strong>Build &amp; Init</strong>, <strong>Start</strong>, then tap <strong>Y</strong> once and watch the bucket raise,
+    hold, and lower &mdash; all while you keep driving and running the intake.</li>
+  </ul>
+</div>
+
+<p>You just built a <em>timed</em> state machine &mdash; a sequence that runs itself over many loops without ever
+freezing the robot. That non-blocking pattern is the backbone of autonomous, which is exactly where we're
+headed next.</p>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>
