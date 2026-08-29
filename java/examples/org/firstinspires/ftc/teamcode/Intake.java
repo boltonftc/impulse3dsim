@@ -60,6 +60,9 @@ public class Intake implements Subsystem {
      */
     public Intake(HardwareMap hardwareMap) {
         motor = hardwareMap.dcMotor.get(RobotConfig.INTAKE_MOTOR);
+        // This motor is wired/geared so plain positive power spins it the wrong
+        // way, so REVERSE it once here -- now FORWARD (positive power) pulls in.
+        motor.setDirection(DcMotor.Direction.REVERSE);
         motor.setPower(0.0);
     }
 
