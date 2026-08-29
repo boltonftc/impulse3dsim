@@ -64,6 +64,8 @@
     .bottomsheet.open{transform:translate(-50%,0);opacity:1;pointer-events:auto}
     .bottomsheet h3{margin:.1rem 0 .4rem;font-size:.8rem;color:#cbd5e1;letter-spacing:.05em;text-transform:uppercase}
     body.pit-open .edgepanel{display:none !important}   /* keep the floating hubs/scoreboard out of the full-screen Pit */
+    body.pit-open #bottombar .btab[data-panel="diag"],
+    body.pit-open #bottombar .btab[data-panel="settings"]{display:none}   /* in the Pit only the SIM tab shows; DIAG/SETTINGS are simulator-only */
     /* the Driver Hub cards already carry their own frame/shadow -- don't double-frame them */
     #panel-redhub .panel-body,#panel-bluehub .panel-body{background:transparent;border:none;box-shadow:none;padding:2px 0}
 
@@ -167,7 +169,7 @@
     /* ===== Pit redesign: bottom drawer (IDE panel) ===== */
     #pit-drawer{flex:0 0 auto;margin-top:8px;border:1px solid #24303f;border-radius:10px 10px 0 0;background:#0d1219;display:flex;flex-direction:column;overflow:hidden;transition:height .18s ease}
     #pit-drawer.peek{height:40px}
-    #pit-drawer.full{height:min(54vh,520px)}
+    #pit-drawer.full{height:min(82vh,860px)}
     #pit-drawer-handle{flex:0 0 40px;display:flex;align-items:center;gap:10px;padding:0 12px;cursor:pointer;background:#111823;border-bottom:1px solid #1c2733;user-select:none}
     #pit-drawer-handle .chev{color:#93c5fd;font-size:12px;transition:transform .18s}
     #pit-drawer:not(.peek) #pit-drawer-handle .chev{transform:rotate(180deg)}
@@ -603,7 +605,6 @@
           <button id="btn-deploy" class="pit-primary">DEPLOY ▸</button>
         </div>
         <div class="pit-tb">
-          <span class="rowhint">Editing the live package — Deploy to the Simulator to test it below</span>
           <span class="spacer"></span>
           <label>Import from</label>
           <select id="import-src" class="pit-destsel">
@@ -2442,7 +2443,9 @@
       const open = on == null ? !pit.classList.contains('active') : on;
       pit.classList.toggle('active', open);
       document.body.classList.toggle('pit-open', open);   // CSS hides the floating edge cards over the IDE
-      document.querySelector('#bottombar .btab[data-panel="pit"]').classList.toggle('active', open);
+      const pitBtn = document.querySelector('#bottombar .btab[data-panel="pit"]');
+      pitBtn.classList.toggle('active', open);
+      pitBtn.textContent = open ? 'SIM' : 'PIT';   // in the Pit this tab returns you to the simulator
       // the full-screen Pit would sit under the floating edge cards -- tuck them away while it's open
       if (open){ for (const id of Object.keys(EDGE)) setEdge(id, false); closeSheets(); toggleCapture(false); }
     }
@@ -2984,12 +2987,43 @@
     ghLoadCfg();
 
     // ================= Pit redesign: drawer + Driver Hub + Deploy/Import sheets =================
-    // ---- bottom drawer (peek / full) ----
+    // ---- bottom drawer (peek / full, drag the handle to any height in between) ----
     const pitDrawer = document.getElementById('pit-drawer');
-    function setDrawer(h){ if (!pitDrawer) return; pitDrawer.className = h; document.querySelectorAll('#pit-drawer .snaps button').forEach(b => b.classList.toggle('on', b.dataset.h === h)); }
+    function setDrawer(h){ if (!pitDrawer) return; pitDrawer.style.height = ''; pitDrawer.className = h; document.querySelectorAll('#pit-drawer .snaps button').forEach(b => b.classList.toggle('on', b.dataset.h === h)); }
     document.querySelectorAll('#pit-drawer .snaps button').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); setDrawer(b.dataset.h); }));
     const pitHandle = document.getElementById('pit-drawer-handle');
-    if (pitHandle) pitHandle.addEventListener('click', () => setDrawer(pitDrawer.classList.contains('peek') ? 'full' : 'peek'));
+    if (pitHandle){
+      let dragging = false, moved = false, startY = 0, startH = 0, startPeek = true;
+      const maxH = () => Math.round(window.innerHeight * 0.9);
+      pitHandle.addEventListener('pointerdown', e => {
+        if (e.target.closest('.snaps')) return;   // let the Peek/Full buttons handle their own clicks
+        dragging = true; moved = false; startY = e.clientY;
+        startH = pitDrawer.getBoundingClientRect().height;
+        startPeek = pitDrawer.classList.contains('peek');
+        pitDrawer.style.transition = 'none';
+        pitHandle.setPointerCapture(e.pointerId);
+      });
+      pitHandle.addEventListener('pointermove', e => {
+        if (!dragging) return;
+        const dy = startY - e.clientY;
+        if (Math.abs(dy) > 4) moved = true;
+        if (!moved) return;
+        const h = Math.max(40, Math.min(maxH(), startH + dy));
+        pitDrawer.classList.remove('peek', 'full');
+        pitDrawer.style.height = h + 'px';
+        document.querySelectorAll('#pit-drawer .snaps button').forEach(b => b.classList.remove('on'));
+      });
+      const endDrag = e => {
+        if (!dragging) return;
+        dragging = false;
+        pitDrawer.style.transition = '';
+        try { pitHandle.releasePointerCapture(e.pointerId); } catch(_){}
+        if (!moved) setDrawer(startPeek ? 'full' : 'peek');           // plain click toggles
+        else if (parseFloat(pitDrawer.style.height) <= 48) setDrawer('peek');   // dragged nearly closed -> snap peek
+      };
+      pitHandle.addEventListener('pointerup', endDrag);
+      pitHandle.addEventListener('pointercancel', endDrag);
+    }
 
     // ---- pit Driver Hub: run the LIVE package on the test stand (proxies the hidden run controls) ----
     function syncPitPill(code){
