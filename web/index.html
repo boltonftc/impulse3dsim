@@ -134,17 +134,79 @@
     #pkgbar label,#ghbar label{color:#94a3b8;font-size:12px}
     #ghbar input{background:#0b1220;border:1px solid #263244;color:#e2e8f0;border-radius:6px;padding:3px 6px;font-size:12px}
     #ghstat{font-size:12px}
-    #ghpick{position:fixed;inset:0;z-index:300;background:#00000088;display:none;align-items:center;justify-content:center}
+    #ghpick{position:fixed;inset:0;z-index:500;background:#00000088;display:none;align-items:center;justify-content:center}
     #ghpick.show{display:flex}
     #ghpick .card{background:#0d1526;border:1px solid #334155;border-radius:8px;padding:16px 18px;min-width:280px;box-shadow:0 10px 40px #000a}
     #ghpick h3{margin:0 0 4px;font-size:14px;color:#e2e8f0}
     #ghpick p{margin:0 0 10px;font-size:12px;color:#94a3b8}
     #ghpick select{width:100%;background:#0b1220;border:1px solid #263244;color:#e2e8f0;border-radius:6px;padding:5px 6px;font-size:13px}
     #ghpick .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
-    /* Pit test-stand viewport (M6c) */
-    #bench-wrap{flex:0 0 240px;display:flex;flex-direction:column;margin-top:8px;min-height:0}
+    /* Pit test-stand viewport (M6c) — bench now lives inside the drawer */
+    #bench-wrap{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
     #bench-head{font-size:11px;color:#94a3b8;margin-bottom:4px}
     #bench{flex:1;width:100%;display:block;background:#0b0f14;border:1px solid #1e2733;border-radius:8px;min-height:0}
+
+    /* ===== Pit redesign: clean Deploy/Import toolbar ===== */
+    .pit-tb{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+    .pit-tb label{color:#94a3b8;font-size:12px}
+    .pit-tb select{background:#0b1220;border:1px solid #263244;color:#e2e8f0;border-radius:6px;padding:5px 8px;font-size:13px}
+    #pkgsel{min-width:150px}
+    .pit-destsel{min-width:168px}
+    .pit-tb .spacer{flex:1}
+    .pit-tb .rowhint{color:#5b6b80;font-size:11px}
+    .pit-primary{border:none;border-radius:8px;padding:7px 18px;min-width:132px;text-align:center;font-size:13px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:.02em;background:#2563eb}
+    .pit-primary:hover{background:#1d4ed8}
+    .pkg-menu-btn{background:#0f1318;border:1px solid #333b47;color:#93c5fd;border-radius:6px;padding:5px 9px;font-size:14px;cursor:pointer}
+    .pkg-menu-btn:hover{background:#182130}
+    .pkg-menu{position:absolute;z-index:60;background:#0d1526;border:1px solid #334155;border-radius:8px;box-shadow:0 10px 40px #000a;padding:4px;display:none;min-width:150px}
+    .pkg-menu.show{display:block}
+    .pkg-menu button{display:block;width:100%;text-align:left;background:none;border:none;color:#e2e8f0;font-size:13px;padding:7px 12px;border-radius:6px;cursor:pointer}
+    .pkg-menu button:hover{background:#182234}
+    .pkg-menu button.danger{color:#f87171}
+
+    /* ===== Pit redesign: bottom drawer (IDE panel) ===== */
+    #pit-drawer{flex:0 0 auto;margin-top:8px;border:1px solid #24303f;border-radius:10px 10px 0 0;background:#0d1219;display:flex;flex-direction:column;overflow:hidden;transition:height .18s ease}
+    #pit-drawer.peek{height:40px}
+    #pit-drawer.full{height:min(54vh,520px)}
+    #pit-drawer-handle{flex:0 0 40px;display:flex;align-items:center;gap:10px;padding:0 12px;cursor:pointer;background:#111823;border-bottom:1px solid #1c2733;user-select:none}
+    #pit-drawer-handle .chev{color:#93c5fd;font-size:12px;transition:transform .18s}
+    #pit-drawer:not(.peek) #pit-drawer-handle .chev{transform:rotate(180deg)}
+    #pit-drawer-handle .dtitle{font-size:.78rem;font-weight:700;letter-spacing:.08em;color:#cbd5e1}
+    #pit-drawer-handle #cstat{color:#93c5fd;font-size:.72rem}
+    .dpill{display:inline-flex;align-items:center;gap:6px;font-size:.7rem;font-weight:700;padding:2px 9px;border-radius:999px;letter-spacing:.05em}
+    .dpill .dot{width:8px;height:8px;border-radius:50%}
+    .dpill.idle{background:#1b2431;color:#9fb3d1}.dpill.idle .dot{background:#64748b}
+    .dpill.run{background:#0f2318;color:#4ade80}.dpill.run .dot{background:#16a34a}
+    .dpill.comp{background:#1b2230;color:#93c5fd}.dpill.comp .dot{background:#2563eb}
+    #pit-drawer .snaps{margin-left:auto;display:flex;gap:4px}
+    #pit-drawer .snaps button{background:#0f1720;border:1px solid #2a3646;color:#8aa0bd;border-radius:5px;padding:2px 9px;font-size:.68rem;cursor:pointer}
+    #pit-drawer .snaps button.on{background:#1d4ed8;color:#fff;border-color:#3b82f6}
+    #pit-drawer-body{flex:1;min-height:0;display:flex;gap:16px;padding:14px;overflow:auto}
+    #pit-drawer.peek #pit-drawer-body{display:none}
+    #pit-dh{width:340px;flex:0 0 auto}
+    #pit-tele{margin:.5rem;min-height:4rem;max-height:22vh;overflow:auto;background:#05070a;border:1px solid #222933;border-radius:6px;padding:.5rem;color:#86efac;font-size:.72rem;white-space:pre-wrap}
+
+    /* ===== Pit redesign: shared modal sheet (Deploy / Import) ===== */
+    #pit-scrim{position:fixed;inset:0;background:#00000099;backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:400}
+    #pit-scrim.show{display:flex}
+    .pit-sheet{width:440px;max-width:92vw;background:#0d1526;border:1px solid #334155;border-radius:14px;box-shadow:0 20px 60px #000b;overflow:hidden}
+    .pit-sheet-head{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid #1e293b}
+    .pit-sheet-head .ic{font-size:1.4rem}
+    .pit-sheet-head h3{margin:0;font-size:15px;color:#f1f5f9}
+    .pit-sheet-head .sub{font-size:12px;color:#94a3b8;margin-top:2px}
+    .pit-sheet-body{padding:16px 18px;font-size:13px;color:#cbd5e1;max-height:60vh;overflow:auto}
+    .pit-sheet-body p{margin:.2em 0 .9em;color:#94a3b8;line-height:1.5}
+    .pit-field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+    .pit-field label{font-size:11px;color:#8aa0bd;letter-spacing:.03em}
+    .pit-field input{background:#0b1220;border:1px solid #263244;color:#e2e8f0;border-radius:7px;padding:8px 10px;font-size:13px}
+    .pit-chkline{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;color:#cbd5e1}
+    .pit-logbox{background:#05070a;border:1px solid #222933;border-radius:8px;padding:8px 10px;font-family:ui-monospace,monospace;font-size:11px;color:#d7dde8;min-height:64px;max-height:34vh;overflow:auto;white-space:pre-wrap}
+    .pit-logbox .l-ok{color:#6ee787}.pit-logbox .l-err{color:#ff8080}.pit-logbox .l-warn{color:#ffcf5c}.pit-logbox .l-dim{color:#8b97a8}
+    .pit-sheet-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #1e293b;background:#0b1220}
+    .pit-btn{border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer}
+    .pit-btn.ghost{background:#1e293b;color:#cbd5e1}
+    .pit-btn.go{background:#2563eb;color:#fff}
+    .pit-btn.go:disabled{opacity:.5;cursor:not-allowed}
     /* --- Pit lessons layout (M6a) --- */
     /* Pit is a full-window workspace, not a small overlay panel like the other tabs */
     #tab-pit{width:auto;max-width:none;left:8px;right:8px;top:46px;bottom:8px;box-sizing:border-box;overflow:hidden}
@@ -362,6 +424,21 @@
     </div>
   </div>
 
+  <!-- Shared Deploy/Import sheet (Apple-style share sheet); body filled per destination -->
+  <div id="pit-scrim">
+    <div class="pit-sheet">
+      <div class="pit-sheet-head">
+        <span class="ic" id="pit-sheet-ic">🤖</span>
+        <div><h3 id="pit-sheet-title">Title</h3><div class="sub" id="pit-sheet-sub">subtitle</div></div>
+      </div>
+      <div class="pit-sheet-body" id="pit-sheet-body"></div>
+      <div class="pit-sheet-foot">
+        <button class="pit-btn ghost" id="pit-sheet-cancel">Cancel</button>
+        <button class="pit-btn go" id="pit-sheet-go">Action ▸</button>
+      </div>
+    </div>
+  </div>
+
   <div id="topbar">
     <span class="brand">impulse_3dsim v2</span>
     <span class="sp"></span>
@@ -510,35 +587,87 @@
         </div>
       </div>
       <div id="code-pane">
-        <div class="row">
-          <button id="init">Build &amp; Init</button>
-          <button id="start">▶ Start</button>
-          <button id="halt">■ Stop</button>
-          <button id="pit-carry" class="carrybtn" title="Snapshot this package into the Driver Hub for a match">⇢ Load to Driver Hub</button>
-          <span id="cstat" style="color:#93c5fd">idle</span>
-        </div>
-        <div class="row" id="pkgbar">
+        <!-- clean Deploy / Import toolbar (replaces the old run / package / GitHub button rows) -->
+        <div class="pit-tb">
           <label>Package</label>
           <select id="pkgsel"></select>
-          <button id="pkgnew">Create New Package</button>
-          <button id="pkgexport">Export</button>
-          <button id="pkgimport">Import</button>
-          <input id="pkgfile" type="file" accept=".zip" style="display:none">
+          <button id="pkg-menu-btn" class="pkg-menu-btn" title="Package actions">⋯</button>
+          <span class="spacer"></span>
+          <label>Deploy to</label>
+          <select id="deploy-dest" class="pit-destsel">
+            <option value="sim">Simulator</option>
+            <option value="robot">Real Robot (USB)</option>
+            <option value="github">GitHub (push)</option>
+            <option value="zip">Zip file</option>
+          </select>
+          <button id="btn-deploy" class="pit-primary">DEPLOY ▸</button>
         </div>
-        <div class="row" id="ghbar">
-          <label>GitHub</label>
-          <input id="ghrepo" placeholder="owner/repo" size="16" title="Repository, e.g. bolton-robotics/team1-code">
-          <input id="ghtoken" type="password" placeholder="token (private / push)" size="14" title="Fine-grained PAT with Contents: write. Kept only in this tab's sessionStorage; never exported.">
-          <button id="ghpull" title="Pull a branch into a code package (branch name = package name)">⤓ Pull</button>
-          <button id="ghpush" title="Force-push the current package to its branch (= package name)">⤒ Push</button>
-          <button id="ghrename" title="Rename the current package — this is also the branch it pushes to">✎ Rename</button>
-          <span id="ghstat"></span>
+        <div class="pit-tb">
+          <span class="rowhint">Editing the live package — Deploy to the Simulator to test it below</span>
+          <span class="spacer"></span>
+          <label>Import from</label>
+          <select id="import-src" class="pit-destsel">
+            <option value="robot">Real Robot (USB)</option>
+            <option value="github">GitHub (pull)</option>
+            <option value="zip">Zip file</option>
+          </select>
+          <button id="btn-import" class="pit-primary">IMPORT ▸</button>
         </div>
+
+        <!-- package actions menu (opens under the ⋯ button) -->
+        <div id="pkg-menu" class="pkg-menu">
+          <button data-act="new">New package…</button>
+          <button data-act="rename">Rename…</button>
+          <button data-act="duplicate">Duplicate…</button>
+          <button data-act="delete" class="danger">Delete…</button>
+        </div>
+
         <div id="filetabs"></div>
         <div id="src"></div>
-        <div id="bench-wrap">
-          <div id="bench-head">Test stand — Build &amp; Init, Start, then drive / hold F / V to see the mechanisms move</div>
-          <canvas id="bench"></canvas>
+
+        <!-- bottom drawer: reuses the .dh Driver Hub component + the test-stand bench -->
+        <div id="pit-drawer" class="peek">
+          <div id="pit-drawer-handle">
+            <span class="chev">▲</span>
+            <span class="dtitle">TEST STAND</span>
+            <span id="cstat">idle</span>
+            <span class="dpill idle" id="pit-pill"><span class="dot"></span>IDLE</span>
+            <span class="snaps">
+              <button data-h="peek" class="on">Peek</button>
+              <button data-h="full">Full</button>
+            </span>
+          </div>
+          <div id="pit-drawer-body">
+            <div id="pit-dh" class="dh">
+              <div class="dh-top">
+                <select id="pit-auto" class="dh-sel" title="Autonomous"><option value="">Autonomous</option></select>
+                <div class="dh-alliance">RED</div>
+                <select id="pit-teleop" class="dh-sel" title="TeleOp"><option value="">TeleOp</option></select>
+              </div>
+              <div class="dh-op" id="pit-op">No OpMode Selected</div>
+              <div class="dh-mid"><button id="pit-dh-btn" class="dh-btn init">INIT</button></div>
+              <div class="dh-bottom">
+                <select class="dh-sel dh-code" disabled><option>live package</option></select>
+                <div class="dh-status" id="pit-opstate">STOPPED</div>
+                <button id="pit-dh-recompile" class="dh-recompile" title="Recompile the live package">⟳</button>
+              </div>
+              <div id="pit-tele">telemetry…</div>
+              <div class="dh-gp">gamepad&nbsp;1 &nbsp; <span id="pit-gp">—</span></div>
+            </div>
+            <div id="bench-wrap">
+              <div id="bench-head">Test stand — INIT then ▶ on the Driver Hub, then drive / hold F / V to see the mechanisms move</div>
+              <canvas id="bench"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- hidden originals: kept in the DOM so existing handlers/refs stay valid; driven by the new UI -->
+        <div id="pit-hidden" style="display:none">
+          <button id="init"></button><button id="start"></button><button id="halt"></button><button id="pit-carry"></button>
+          <button id="pkgnew"></button><button id="pkgexport"></button><button id="pkgimport"></button>
+          <input id="pkgfile" type="file" accept=".zip">
+          <input id="ghrepo"><input id="ghtoken" type="password"><span id="ghstat"></span>
+          <button id="ghpull"></button><button id="ghpush"></button><button id="ghrename"></button>
         </div>
       </div>
     </div>
@@ -1920,8 +2049,8 @@
       const a = sel(slot); a.calls++; a.mech.intake = intake; a.mech.feeder = feeder; a.mech.shooter = shooter; a.mech.hood = hood;
     }
     const teleEl = document.getElementById('tele');
-    // each alliance's telemetry -> its own Driver Hub panel
-    function Java_sim_OpModeHost_telemetry(lib, slot, text){ const a = sel(slot); a.calls++; const el2 = document.getElementById(a.hub.tele); if (el2) el2.textContent = text; }
+    // each alliance's telemetry -> its own Driver Hub panel (+ the Pit test-stand drawer for the sim)
+    function Java_sim_OpModeHost_telemetry(lib, slot, text){ const a = sel(slot); a.calls++; const el2 = document.getElementById(a.hub.tele); if (el2) el2.textContent = text; if (a === sim){ const pt = document.getElementById('pit-tele'); if (pt) pt.textContent = text; } }
     // runner state -> HUD; codes: 1 compiling, 2 initialized, 3 running, 4 stopped, 5 error
     const STATE = { 0:'STOPPED', 1:'COMPILING', 2:'INIT', 3:'RUNNING', 4:'STOPPED', 5:'ERROR' };
     // reflect the lifecycle on an alliance's Driver Hub big round button (INIT -> ▶ -> ■)
@@ -1936,6 +2065,7 @@
         const ready = !!(al.loaded && al.loaded.fqn);
         btn.textContent = 'INIT'; btn.dataset.act = 'init'; btn.disabled = !ready; btn.className = 'dh-btn init';
       }
+      if (al === sim && typeof syncPitHubButton === 'function') syncPitHubButton(code);
     }
     // redraw an alliance's hub button from its last known status, e.g. after its op selection changes
     function refreshHubBtn(al){ renderHub(al, al.lastCode || 0); }
@@ -1967,6 +2097,7 @@
       const st = document.getElementById(a.hub.opstate);
       if (st) st.textContent = STATE[code] || code;
       renderHub(a, code);
+      if (a === sim){ const ps = document.getElementById('pit-opstate'); if (ps) ps.textContent = STATE[code] || code; }
       const load = document.getElementById(a.hub.load);
       if (code === 5) {
         const errs = parseEcjErrors(msg);
@@ -2099,6 +2230,7 @@
         el('mode').textContent = auto ? 'auto' : 'manual';
         const g = el('gp1'); if (g) g.textContent =
           'lx ' + sim.pad.lx.toFixed(2) + '  ly ' + sim.pad.ly.toFixed(2) + '  rx ' + sim.pad.rx.toFixed(2);
+        const pg = el('pit-gp'); if (pg && g) pg.textContent = g.textContent;
         const gb = el('gp1-b'); if (gb) { const bp = alliances.blue.pad; gb.textContent = upMode === 2
           ? 'lx ' + bp.lx.toFixed(2) + '  ly ' + bp.ly.toFixed(2) + '  rx ' + bp.rx.toFixed(2)
           : '—'; }
@@ -2526,7 +2658,7 @@
       if (healed) saveStore();
     }
 
-    function renderAll(){ renderPkgSel(); renderFileTabs(); const p = curPkg(); editorFile = p ? p.active : null; setEditorDoc(p ? p.files[p.active] : ''); syncPitOp(); for (const al of [alliances.red, alliances.blue]){ renderHubCode(al); renderHubOps(al); updateLoadState(al); } }
+    function renderAll(){ renderPkgSel(); renderFileTabs(); const p = curPkg(); editorFile = p ? p.active : null; setEditorDoc(p ? p.files[p.active] : ''); syncPitOp(); if (typeof renderPitOps === 'function') renderPitOps(); for (const al of [alliances.red, alliances.blue]){ renderHubCode(al); renderHubOps(al); updateLoadState(al); } }
 
     function renderPkgSel(){
       const sel = document.getElementById('pkgsel');
@@ -2690,7 +2822,7 @@
       try { const c = JSON.parse(localStorage.getItem(GH_KEY) || 'null'); if (c) ghEl('ghrepo').value = c.repo || ''; } catch(e){}
       try { const t = sessionStorage.getItem(GH_TOK); if (t) ghEl('ghtoken').value = t; } catch(e){}
     }
-    function ghStat(msg, err){ const el = ghEl('ghstat'); if (el){ el.textContent = msg; el.style.color = err ? '#f87171' : '#93c5fd'; } }
+    function ghStat(msg, err){ const el = ghEl('ghstat'); if (el){ el.textContent = msg; el.style.color = err ? '#f87171' : '#93c5fd'; } const s = document.getElementById('pit-sheet-ghstat'); if (s){ s.textContent = msg; s.style.color = err ? '#f87171' : '#93c5fd'; } }
     // decode a GitHub base64 blob as UTF-8 (atob yields Latin-1 bytes)
     function ghDecodeB64(b64){
       const bin = atob((b64 || '').replace(/\n/g, ''));
@@ -2850,6 +2982,289 @@
     ghEl('ghrename').addEventListener('click', ghRename);
     ['ghrepo','ghtoken'].forEach(id => ghEl(id).addEventListener('change', ghSaveCfg));
     ghLoadCfg();
+
+    // ================= Pit redesign: drawer + Driver Hub + Deploy/Import sheets =================
+    // ---- bottom drawer (peek / full) ----
+    const pitDrawer = document.getElementById('pit-drawer');
+    function setDrawer(h){ if (!pitDrawer) return; pitDrawer.className = h; document.querySelectorAll('#pit-drawer .snaps button').forEach(b => b.classList.toggle('on', b.dataset.h === h)); }
+    document.querySelectorAll('#pit-drawer .snaps button').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); setDrawer(b.dataset.h); }));
+    const pitHandle = document.getElementById('pit-drawer-handle');
+    if (pitHandle) pitHandle.addEventListener('click', () => setDrawer(pitDrawer.classList.contains('peek') ? 'full' : 'peek'));
+
+    // ---- pit Driver Hub: run the LIVE package on the test stand (proxies the hidden run controls) ----
+    function syncPitPill(code){
+      const p = document.getElementById('pit-pill'); if (!p) return;
+      let cls = 'idle', txt = 'IDLE';
+      if (code === 1){ cls = 'comp'; txt = 'COMPILING'; }
+      else if (code === 2){ cls = 'run'; txt = 'INIT'; }
+      else if (code === 3){ cls = 'run'; txt = 'RUNNING'; }
+      p.className = 'dpill ' + cls; p.innerHTML = '<span class="dot"></span>' + txt;
+    }
+    function syncPitHubButton(code){
+      const b = document.getElementById('pit-dh-btn'); if (!b) return;
+      if (code === 1){ b.textContent = '…'; b.dataset.act = ''; b.disabled = true; b.className = 'dh-btn compiling'; }
+      else if (code === 2){ b.textContent = '▶'; b.dataset.act = 'start'; b.disabled = false; b.className = 'dh-btn start'; }
+      else if (code === 3){ b.textContent = '■'; b.dataset.act = 'stop'; b.disabled = false; b.className = 'dh-btn stop'; }
+      else { b.textContent = 'INIT'; b.dataset.act = 'init'; b.disabled = false; b.className = 'dh-btn init'; }
+      syncPitPill(code);
+    }
+    // fill the drawer's Auto/TeleOp selects from the live package; changing one sets the armed op
+    function renderPitOps(){
+      const auto = document.getElementById('pit-auto'), teleop = document.getElementById('pit-teleop'), opl = document.getElementById('pit-op');
+      if (!auto || !teleop) return;
+      const ops = scanOps(curPkg());
+      const fill = (selEl, kind, head) => {
+        selEl.innerHTML = '<option value="">' + head + '</option>';
+        ops.filter(o => o.type === kind).forEach(o => { const opt = document.createElement('option'); opt.value = o.fqn; opt.textContent = o.name; selEl.appendChild(opt); });
+      };
+      fill(auto, 'auto', 'Autonomous');
+      fill(teleop, 'teleop', 'TeleOp');
+      const cur = ops.find(o => o.fqn === selectedFqn);
+      auto.value   = cur && cur.type === 'auto'   ? cur.fqn : '';
+      teleop.value = cur && cur.type === 'teleop' ? cur.fqn : '';
+      if (opl) opl.textContent = cur ? (cur.name + (cur.type === 'auto' ? '  (Autonomous)' : '  (TeleOp)')) : 'No OpMode Selected';
+    }
+    const pAuto = document.getElementById('pit-auto'), pTeleop = document.getElementById('pit-teleop');
+    if (pAuto) pAuto.addEventListener('change', e => { selectedFqn = e.target.value; if (pTeleop) pTeleop.value = ''; forceHubStopped(sim); renderPitOps(); });
+    if (pTeleop) pTeleop.addEventListener('change', e => { selectedFqn = e.target.value; if (pAuto) pAuto.value = ''; forceHubStopped(sim); renderPitOps(); });
+    const pitBtn = document.getElementById('pit-dh-btn');
+    if (pitBtn) pitBtn.addEventListener('click', () => {
+      const act = pitBtn.dataset.act || 'init';
+      if (act === 'start') document.getElementById('start').click();
+      else if (act === 'stop') document.getElementById('halt').click();
+      else document.getElementById('init').click();
+    });
+    const pitRe = document.getElementById('pit-dh-recompile');
+    if (pitRe) pitRe.addEventListener('click', () => document.getElementById('init').click());
+
+    // ---- package actions menu (⋯) ----
+    function duplicatePackage(){
+      const p = curPkg(); if (!p) return;
+      let nn = prompt('Duplicate package as:', store.current + '_copy'); if (nn == null) return; nn = nn.trim(); if (!nn) return;
+      if (store.packages[nn]){ alert('That package already exists.'); return; }
+      writeActive(); store.packages[nn] = { files: { ...p.files }, active: p.active };
+      store.current = nn; selectedFqn = ''; saveStore(); renderAll();
+    }
+    function deletePackage(){
+      const cur = store.current; if (!cur || !store.packages[cur]) return;
+      if (typeof ghProtected === 'function' && ghProtected(cur)){ alert('"' + cur + '" is a protected package and can\'t be deleted.'); return; }
+      if (Object.keys(store.packages).length <= 1){ alert('Can\'t delete the only package.'); return; }
+      if (!confirm('Delete package "' + cur + '"? This cannot be undone.')) return;
+      delete store.packages[cur]; store.current = Object.keys(store.packages)[0]; selectedFqn = ''; saveStore(); renderAll();
+    }
+    const pkgMenuBtn = document.getElementById('pkg-menu-btn'), pkgMenu = document.getElementById('pkg-menu');
+    if (pkgMenuBtn && pkgMenu){
+      pkgMenuBtn.addEventListener('click', e => { e.stopPropagation(); const r = pkgMenuBtn.getBoundingClientRect(); pkgMenu.style.left = r.left + 'px'; pkgMenu.style.top = (r.bottom + 4) + 'px'; pkgMenu.classList.toggle('show'); });
+      document.addEventListener('click', () => pkgMenu.classList.remove('show'));
+      pkgMenu.addEventListener('click', e => {
+        const act = e.target.dataset && e.target.dataset.act; if (!act) return;
+        pkgMenu.classList.remove('show');
+        if (act === 'new') document.getElementById('pkgnew').click();
+        else if (act === 'rename') document.getElementById('ghrename').click();
+        else if (act === 'duplicate') duplicatePackage();
+        else if (act === 'delete') deletePackage();
+      });
+    }
+
+    // ---- shared Deploy/Import sheet ----
+    const pitScrim = document.getElementById('pit-scrim');
+    function sheetLog(msg, cls){ const box = document.getElementById('pit-sheet-log'); if (!box) return; const d = document.createElement('div'); if (cls) d.className = 'l-' + cls; d.textContent = msg; box.appendChild(d); box.scrollTop = box.scrollHeight; }
+    function openSheet(cfg){
+      document.getElementById('pit-sheet-ic').textContent = cfg.ic;
+      document.getElementById('pit-sheet-title').textContent = cfg.title;
+      document.getElementById('pit-sheet-sub').textContent = cfg.sub;
+      document.getElementById('pit-sheet-body').innerHTML = cfg.body || '';
+      const go = document.getElementById('pit-sheet-go');
+      go.textContent = cfg.go || 'Go ▸'; go.disabled = false; go.onclick = cfg.onGo || null;
+      if (cfg.onOpen) cfg.onOpen();
+      pitScrim.classList.add('show');
+    }
+    function closeSheet(){ pitScrim.classList.remove('show'); }
+    document.getElementById('pit-sheet-cancel').addEventListener('click', closeSheet);
+    pitScrim.addEventListener('click', e => { if (e.target === pitScrim) closeSheet(); });
+
+    function sheetDeploySim(){
+      openSheet({ ic: '🖥️', title: 'Deploy → Simulator', sub: 'Compile & load into the test-stand Driver Hub', go: 'Deploy ▸',
+        body: '<p>Compiles the <b>live package</b> and loads it into the test stand below. The drawer opens when it\u2019s ready.</p>',
+        onGo: () => { closeSheet(); setDrawer('full'); document.getElementById('init').click(); } });
+    }
+    function sheetZip(mode){
+      if (mode === 'export'){
+        openSheet({ ic: '🗜️', title: 'Deploy → Zip file', sub: 'Download this package as a .zip', go: 'Export ▸',
+          body: '<p>Bundles the files in <b>' + store.current + '</b> into <code>' + store.current + '.zip</code>.</p>',
+          onGo: () => { closeSheet(); document.getElementById('pkgexport').click(); } });
+      } else {
+        openSheet({ ic: '🗜️', title: 'Import ← Zip file', sub: 'Load a package from a .zip', go: 'Choose file ▸',
+          body: '<p>Pick a <code>.zip</code> exported earlier; its files become a package.</p>',
+          onGo: () => { closeSheet(); document.getElementById('pkgimport').click(); } });
+      }
+    }
+    function sheetGithub(mode){
+      const push = mode === 'push';
+      openSheet({
+        ic: push ? '⬆️' : '⬇️',
+        title: push ? 'Deploy → GitHub' : 'Import ← GitHub',
+        sub: push ? 'Force-push this package to its branch' : 'Pull a branch into a code package',
+        go: push ? 'Push ▸' : 'Pull ▸',
+        body: '<div class="pit-field"><label>Repository (owner/repo)</label><input id="sheet-ghrepo" placeholder="owner/repo"></div>'
+            + '<div class="pit-field"><label>Token — Contents: write (kept only in this tab)</label><input id="sheet-ghtoken" type="password" placeholder="ghp_\u2026"></div>'
+            + (push ? '<p>Branch = package name → <b>' + store.current + '</b></p>' : '<p>You\u2019ll pick the branch next; it becomes the package name.</p>')
+            + '<div id="pit-sheet-ghstat" style="font-size:12px;color:#93c5fd;min-height:16px"></div>',
+        onOpen: () => {
+          document.getElementById('sheet-ghrepo').value = document.getElementById('ghrepo').value || '';
+          document.getElementById('sheet-ghtoken').value = document.getElementById('ghtoken').value || '';
+        },
+        onGo: () => {
+          document.getElementById('ghrepo').value = document.getElementById('sheet-ghrepo').value;
+          document.getElementById('ghtoken').value = document.getElementById('sheet-ghtoken').value;
+          if (typeof ghSaveCfg === 'function') ghSaveCfg();
+          if (push) document.getElementById('ghpush').click(); else document.getElementById('ghpull').click();
+        }
+      });
+    }
+    function sheetRobot(mode){
+      const isDeploy = mode === 'deploy';
+      openSheet({
+        ic: '🤖', title: isDeploy ? 'Deploy → Real Robot' : 'Import ← Real Robot',
+        sub: isDeploy ? 'Push OpModes to the Control Hub over USB' : 'Pull OpModes from the Control Hub over USB',
+        go: RobotUSB.isConnected() ? (isDeploy ? 'Deploy ▸' : 'Import ▸') : 'Connect ▸',
+        body: '<p>' + (isDeploy ? 'Sends the live package to the physical Control Hub via USB.' : 'Reads the source tree off the Control Hub via USB into a new package.') + ' <b>Chrome / Edge only.</b></p>'
+            + (isDeploy ? '<div class="pit-chkline"><input type="checkbox" id="sheet-ob" checked> <label for="sheet-ob">On-bot test mode (<code>.ob</code>) — avoids class collisions, reversed on import</label></div>' : '')
+            + '<div class="pit-logbox" id="pit-sheet-log"></div>',
+        onGo: () => runRobot(isDeploy)
+      });
+    }
+    async function runRobot(isDeploy){
+      const go = document.getElementById('pit-sheet-go');
+      const log = (m, c) => sheetLog(m, c);
+      try {
+        if (!RobotUSB.isConnected()){
+          go.disabled = true; log('Opening device picker — choose the Control Hub…');
+          await RobotUSB.connect(log);
+          go.disabled = false; go.textContent = isDeploy ? 'Deploy ▸' : 'Import ▸';
+          return;
+        }
+        go.disabled = true;
+        if (isDeploy){
+          writeActive();
+          const p = curPkg(); if (!p){ log('No package selected.', 'err'); return; }
+          const ob = (document.getElementById('sheet-ob') || {}).checked;
+          await RobotUSB.deployFiles(p.files, ob, log);
+        } else {
+          const files = await RobotUSB.pullFiles(log);
+          let nn = prompt('Save pulled code as package:', 'robot_pull'); if (nn == null) return; nn = nn.trim(); if (!nn) return;
+          if (store.packages[nn] && !confirm('Replace existing package "' + nn + '"?')) return;
+          store.packages[nn] = { files, active: Object.keys(files)[0] };
+          store.current = nn; selectedFqn = ''; saveStore(); renderAll();
+          log('Imported into package "' + nn + '".', 'ok');
+        }
+      } catch (err){ log((isDeploy ? 'Deploy' : 'Import') + ' failed: ' + (err && err.message ? err.message : err), 'err'); }
+      finally { go.disabled = false; }
+    }
+
+    document.getElementById('btn-deploy').addEventListener('click', () => {
+      const dest = document.getElementById('deploy-dest').value;
+      if (dest === 'sim') sheetDeploySim();
+      else if (dest === 'robot') sheetRobot('deploy');
+      else if (dest === 'github') sheetGithub('push');
+      else if (dest === 'zip') sheetZip('export');
+    });
+    document.getElementById('btn-import').addEventListener('click', () => {
+      const src = document.getElementById('import-src').value;
+      if (src === 'robot') sheetRobot('import');
+      else if (src === 'github') sheetGithub('pull');
+      else if (src === 'zip') sheetZip('import');
+    });
+
+    // ---- WebUSB → ADB → OnBotJava bridge (ported from website/programming/deploy) ----
+    const RobotUSB = (function(){
+      const A = { CNXN: 0x4e584e43, OPEN: 0x4e45504f, OKAY: 0x59414b4f, WRTE: 0x45545257, CLSE: 0x45534c43, AUTH: 0x48545541 };
+      const TEAMCODE_ROOT = '/src/org/firstinspires/ftc/teamcode/';
+      const OB_PKG = 'ob', OB_TAG = ' OB';
+      const enc = new TextEncoder();
+      let usb = null, nextLocalId = 1;
+      function withTimeout(promise, ms, label){ let t; const to = new Promise((_, rej) => { t = setTimeout(() => rej(new Error('Timed out after ' + ms + 'ms during ' + label)), ms); }); return Promise.race([promise, to]).finally(() => clearTimeout(t)); }
+      function adbSum(p){ let s = 0; for (let i = 0; i < p.length; i++) s = (s + p[i]) >>> 0; return s; }
+      function concatBytes(){ const arrs = [].slice.call(arguments); let n = 0; for (const a of arrs) n += a.length; const out = new Uint8Array(n); let k = 0; for (const a of arrs){ out.set(a, k); k += a.length; } return out; }
+      function cmdName(c){ return ({ 0x4e584e43:'CNXN', 0x48545541:'AUTH', 0x4e45504f:'OPEN', 0x59414b4f:'OKAY', 0x45534c43:'CLSE', 0x45545257:'WRTE' })[c] || ('0x' + (c >>> 0).toString(16)); }
+      async function sendMsg(command, arg0, arg1, payload){ payload = payload || new Uint8Array(0); const hdr = new DataView(new ArrayBuffer(24)); hdr.setUint32(0, command, true); hdr.setUint32(4, arg0 >>> 0, true); hdr.setUint32(8, arg1 >>> 0, true); hdr.setUint32(12, payload.length, true); hdr.setUint32(16, adbSum(payload), true); hdr.setUint32(20, (command ^ 0xffffffff) >>> 0, true); await usb.dev.transferOut(usb.epOut, hdr.buffer); if (payload.length) await usb.dev.transferOut(usb.epOut, payload); }
+      async function recvMsg(timeoutMs){ timeoutMs = timeoutMs || 20000; const h = await withTimeout(usb.dev.transferIn(usb.epIn, 24), timeoutMs, 'read header'); if (!h.data || h.data.byteLength < 24) throw new Error('short/empty ADB header'); const dv = h.data; const command = dv.getUint32(0, true), arg0 = dv.getUint32(4, true), arg1 = dv.getUint32(8, true), len = dv.getUint32(12, true); let payload = new Uint8Array(0); if (len > 0){ const p = await withTimeout(usb.dev.transferIn(usb.epIn, len), timeoutMs, 'read payload'); payload = new Uint8Array(p.data.buffer.slice(0, p.data.byteLength)); } return { command, arg0, arg1, payload }; }
+      async function openStream(service){ const localId = nextLocalId++; await sendMsg(A.OPEN, localId, 0, enc.encode(service + '\0')); while (true){ const p = await recvMsg(); if (p.arg1 !== localId) continue; if (p.command === A.OKAY) return { localId, remoteId: p.arg0 }; if (p.command === A.CLSE) throw new Error('stream refused for ' + service + ' (is the Robot Controller app running?)'); } }
+      function indexOfCRLFCRLF(b){ for (let i = 0; i + 3 < b.length; i++){ if (b[i] === 13 && b[i+1] === 10 && b[i+2] === 13 && b[i+3] === 10) return i; } return -1; }
+      function dechunk(bytes){ const out = []; let i = 0; while (i < bytes.length){ let j = i; while (j + 1 < bytes.length && !(bytes[j] === 13 && bytes[j+1] === 10)) j++; const sizeHex = new TextDecoder('ascii').decode(bytes.subarray(i, j)).trim(); const size = parseInt(sizeHex, 16); if (!Number.isFinite(size) || size <= 0) break; const start = j + 2; out.push(bytes.subarray(start, start + size)); i = start + size + 2; } let len = 0; for (const c of out) len += c.length; const merged = new Uint8Array(len); let off = 0; for (const c of out){ merged.set(c, off); off += c.length; } return merged; }
+      function parseHttp(raw){ const sep = indexOfCRLFCRLF(raw); if (sep < 0) return { status: 0, statusText: 'no headers', headers: {}, body: '', raw }; const headText = new TextDecoder('ascii').decode(raw.subarray(0, sep)); const bodyBytes = raw.subarray(sep + 4); const lines = headText.split('\r\n'); const statusLine = lines.shift() || ''; const m = statusLine.match(/^HTTP\/\d\.\d\s+(\d+)\s*(.*)$/); const status = m ? parseInt(m[1], 10) : 0; const statusText = m ? m[2] : statusLine; const headers = {}; for (const line of lines){ const idx = line.indexOf(':'); if (idx > 0) headers[line.slice(0, idx).trim().toLowerCase()] = line.slice(idx + 1).trim(); } let bodyOut; if ((headers['transfer-encoding'] || '').toLowerCase().includes('chunked')) bodyOut = new TextDecoder().decode(dechunk(bodyBytes)); else bodyOut = new TextDecoder().decode(bodyBytes); return { status, statusText, headers, body: bodyOut, raw }; }
+      async function httpRequest(method, path, opts){ opts = opts || {}; const body = opts.body != null ? opts.body : null; const contentType = opts.contentType || 'application/x-www-form-urlencoded'; const readTimeout = opts.readTimeout || 20000; if (!usb) throw new Error('not connected'); const bodyBytes = body == null ? null : (typeof body === 'string' ? enc.encode(body) : body); let head = method + ' ' + path + ' HTTP/1.1\r\nHost: localhost:8080\r\nUser-Agent: impulse-deploy\r\nAccept: */*\r\nConnection: close\r\n'; if (bodyBytes) head += 'Content-Type: ' + contentType + '\r\nContent-Length: ' + bodyBytes.length + '\r\n'; head += '\r\n'; const reqBytes = bodyBytes ? concatBytes(enc.encode(head), bodyBytes) : enc.encode(head); const stream = await openStream('tcp:8080'); const localId = stream.localId, remoteId = stream.remoteId; const respChunks = []; let closed = false; const max = Math.max(1, Math.min(usb.maxData, 0x40000)); for (let off = 0; off < reqBytes.length && !closed; off += max){ await sendMsg(A.WRTE, localId, remoteId, reqBytes.subarray(off, off + max)); let acked = false; while (!acked){ const p = await recvMsg(readTimeout); if (p.arg1 !== localId) continue; if (p.command === A.OKAY) acked = true; else if (p.command === A.WRTE){ respChunks.push(p.payload); await sendMsg(A.OKAY, localId, remoteId); } else if (p.command === A.CLSE){ closed = true; acked = true; } } } while (!closed){ const p = await recvMsg(readTimeout); if (p.arg1 !== localId) continue; if (p.command === A.WRTE){ respChunks.push(p.payload); await sendMsg(A.OKAY, localId, remoteId); } else if (p.command === A.CLSE) closed = true; } try { await sendMsg(A.CLSE, localId, remoteId); } catch(e){} return parseHttp(concatBytes.apply(null, respChunks)); }
+      function toOb(text){ let out = text.replace(/\borg\.firstinspires\.ftc\.teamcode\b(?!\.ob\b)/g, 'org.firstinspires.ftc.teamcode.ob'); out = out.replace(/(@(?:TeleOp|Autonomous)\s*\(\s*name\s*=\s*")([^"]*)(")/g, (m, pre, nm, post) => nm.endsWith(OB_TAG) ? m : pre + nm + OB_TAG + post); return out; }
+      function fromOb(text){ let out = text.replace(/\borg\.firstinspires\.ftc\.teamcode\.ob\b/g, 'org.firstinspires.ftc.teamcode'); out = out.replace(/(@(?:TeleOp|Autonomous)\s*\(\s*name\s*=\s*")([^"]*)(")/g, (m, pre, nm, post) => nm.endsWith(OB_TAG) ? pre + nm.slice(0, -OB_TAG.length) + post : m); return out; }
+      function devicePathFor(text, name){ const m = /(^|\n)\s*package\s+([\w.]+)\s*;/.exec(text); if (m) return '/src/' + m[2].split('.').join('/') + '/' + name; return TEAMCODE_ROOT + name; }
+      function obDevicePath(p){ return p.replace(TEAMCODE_ROOT, TEAMCODE_ROOT + OB_PKG + '/'); }
+      async function saveOne(path, text){ const body = 'f=' + encodeURIComponent(path) + '&data=' + encodeURIComponent(text); const r = await httpRequest('POST', '/java/file/save', { body }); return r.status === 200; }
+      async function connect(log){
+        if (!navigator.usb) throw new Error('This browser can\u2019t access USB — use Chrome or Edge on a computer.');
+        const dev = await navigator.usb.requestDevice({ filters: [{ classCode: 0xff, subclassCode: 0x42, protocolCode: 1 }] });
+        await dev.open();
+        if (dev.configuration === null) await dev.selectConfiguration(dev.configurations[0].configurationValue);
+        let iface = null, alt = null;
+        for (const cfg of dev.configurations) for (const i of cfg.interfaces) for (const a of i.alternates) if (a.interfaceClass === 0xff && a.interfaceSubclass === 0x42 && a.interfaceProtocol === 1){ iface = i; alt = a; }
+        if (!iface) throw new Error('No ADB interface on this device — is USB debugging on?');
+        await dev.claimInterface(iface.interfaceNumber);
+        let epIn = null, epOut = null;
+        for (const e of alt.endpoints){ if (e.type === 'bulk' && e.direction === 'in') epIn = e.endpointNumber; if (e.type === 'bulk' && e.direction === 'out') epOut = e.endpointNumber; }
+        usb = { dev, ifaceNum: iface.interfaceNumber, epIn, epOut, maxData: 256 * 1024 }; nextLocalId = 1;
+        await sendMsg(A.CNXN, 0x01000000, 256 * 1024, enc.encode('host::features=cmd,shell_v2\0'));
+        const pkt = await recvMsg(8000);
+        if (pkt.command === A.AUTH) throw new Error('This robot has secure ADB enabled and needs on-device authorization.');
+        if (pkt.command !== A.CNXN) throw new Error('Unexpected reply from robot: ' + cmdName(pkt.command));
+        usb.maxData = (pkt.arg1 >>> 0) || 256 * 1024;
+        const banner = new TextDecoder().decode(pkt.payload).replace(/[^\x20-\x7e]/g, '.');
+        const model = (/ro\.product\.model=([^;]+)/.exec(banner) || [])[1] || 'robot';
+        if (log) log('Connected to ' + model + '. Click again to continue.', 'ok');
+        return model;
+      }
+      function isConnected(){ return !!usb; }
+      async function deployFiles(files, obMode, log){
+        if (!usb) throw new Error('Connect to the robot first.');
+        const names = Object.keys(files).filter(n => n.endsWith('.java'));
+        if (!names.length) throw new Error('No .java files to deploy.');
+        if (obMode) log('On-bot test mode: deploying into the .ob package (OpMode names get " OB").', 'dim');
+        log('Uploading ' + names.length + ' file' + (names.length === 1 ? '' : 's') + '…', 'warn');
+        let failed = 0;
+        for (const name of names){
+          const src = files[name];
+          const outText = obMode ? toOb(src) : src;
+          const devPath = devicePathFor(src, name);
+          const outPath = obMode ? obDevicePath(devPath) : devPath;
+          const ok = await saveOne(outPath, outText);
+          log((ok ? '  ✓ ' : '  ✗ ') + outPath, ok ? 'ok' : 'err'); if (!ok) failed++;
+        }
+        if (failed) throw new Error(failed + ' file(s) failed to upload.');
+        log('Starting the build on the robot…');
+        const s = await httpRequest('GET', '/java/build/start'); if (s.status !== 200) throw new Error('Could not start build: ' + s.status + ' ' + s.statusText);
+        log('Compiling (first build can take a minute)…', 'warn');
+        const w = await httpRequest('GET', '/java/build/wait', { readTimeout: 300000 });
+        const body = w.body || '';
+        log('── build log ──', 'dim');
+        if (body.trim()) log(body.slice(0, 8000), /error:/i.test(body) ? 'err' : 'dim');
+        if (w.status === 200 && !/error:/i.test(body)){ log('Build successful — restart the OpMode on the Driver Hub to run it.', 'ok'); return true; }
+        log('Build reported problems — fix the errors above and deploy again.', 'warn'); return false;
+      }
+      async function pullFiles(log){
+        if (!usb) throw new Error('Connect to the robot first.');
+        log('Reading the file list from the robot…');
+        const tree = await httpRequest('GET', '/java/file/tree'); if (tree.status !== 200) throw new Error('Could not read files: ' + tree.status + ' ' + tree.statusText);
+        let entries = [];
+        try { const parsed = JSON.parse(tree.body); entries = (parsed.src || []).filter(p => typeof p === 'string' && !p.endsWith('/') && !p.startsWith('<') && !p.includes('EXTERNAL_LIBRARIES')); }
+        catch(e){ throw new Error('Robot returned an unexpected file list.'); }
+        const javaEntries = entries.filter(e => e.toLowerCase().endsWith('.java'));
+        if (!javaEntries.length) throw new Error('No source files found on the robot.');
+        log('Robot has ' + javaEntries.length + ' file' + (javaEntries.length === 1 ? '' : 's') + '. Pulling…');
+        const files = {}; let failed = 0;
+        for (const e of javaEntries){ const getPath = '/src' + (e.startsWith('/') ? e : '/' + e); const r = await httpRequest('GET', '/java/file/get?f=' + encodeURIComponent(getPath)); if (r.status !== 200){ log('  ✗ ' + e + ' (' + r.status + ')', 'err'); failed++; continue; } const base = e.split('/').pop(); files[base] = fromOb(r.body); log('  ✓ ' + base, 'ok'); }
+        log('Pulled ' + Object.keys(files).length + ' file' + (Object.keys(files).length === 1 ? '' : 's') + (failed ? ', ' + failed + ' failed' : '') + '.', failed ? 'warn' : 'ok');
+        return files;
+      }
+      return { connect, isConnected, deployFiles, pullFiles };
+    })();
 
     // ---- Lessons engine (M6a): markdown + ACTION cross-links + progress ----
     const readerEl = document.getElementById('lesson-reader');
