@@ -77,7 +77,7 @@ public class Dumper implements Subsystem {
     // only ever be moved by code inside this file -- so the state machine is
     // the single source of truth for the bucket, and no stray line in an
     // OpMode can command the servo behind its back and confuse the sequence.
-    private final Servo servo;               // the physical dump servo (private: hardware)
+    private final Servo servo;               // null if no dump_servo is configured (private: hardware)
     private State state = State.STOWED;       // current situation; starts at rest (private: internal bookkeeping)
 
     /*
@@ -102,8 +102,22 @@ public class Dumper implements Subsystem {
      * private, no one outside this file could create a Dumper at all.
      */
     public Dumper(HardwareMap hardwareMap) {
-        servo = hardwareMap.servo.get(RobotConfig.DUMP_SERVO);
-        servo.setPosition(CARRY_POSITION);
+        // Try to find the dump servo. If it is not in the configuration -- e.g.
+        // a robot that only has drive motors and an intake so far -- we set it
+        // to null and the whole robot still runs (the dumper simply does
+        // nothing). This is the same guard Localization uses for the Pinpoint,
+        // and it is what keeps one un-built mechanism from crashing the OpMode
+        // at INIT and taking every other subsystem (like the intake) down with it.
+        Servo foundServo = null;
+        try {
+            foundServo = hardwareMap.servo.get(RobotConfig.DUMP_SERVO);
+        } catch (IllegalArgumentException e) {
+            foundServo = null;   // "dump_servo" not configured -- run without it
+        }
+        servo = foundServo;
+        if (servo != null) {
+            servo.setPosition(CARRY_POSITION);
+        }
     }
 
     /*
@@ -122,6 +136,9 @@ public class Dumper implements Subsystem {
      * subsystem hard to misuse.
      */
     public void dump() {
+        if (servo == null) {
+            return;   // no dump servo on this robot -- nothing to do
+        }
         if (state == State.STOWED) {
             servo.setPosition(DUMP_POSITION);
             timer.reset();
@@ -156,7 +173,9 @@ public class Dumper implements Subsystem {
                 // Held long enough for elements to fall out: command the servo
                 // back down and start the lowering wait.
                 if (timer.milliseconds() > HOLD_TIME_MS) {
-                    servo.setPosition(CARRY_POSITION);
+                    if (servo != null) {
+                        servo.setPosition(CARRY_POSITION);
+                    }
                     timer.reset();
                     state = State.LOWERING;
                 }

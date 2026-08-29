@@ -27,7 +27,17 @@ public class Dumper implements Subsystem {
     private final ElapsedTime timer = new ElapsedTime();
 
     public Dumper(HardwareMap hardwareMap) {
-        servo = hardwareMap.servo.get(RobotConfig.DUMP_SERVO);
+        // Tolerate a robot that has no dump servo yet (e.g. while you are still
+        // on the intake lesson): if "dump_servo" is not in the configuration,
+        // leave servo null so the Robot constructor does NOT crash at INIT and
+        // take the rest of the robot -- including the intake -- down with it.
+        Servo foundServo = null;
+        try {
+            foundServo = hardwareMap.servo.get(RobotConfig.DUMP_SERVO);
+        } catch (IllegalArgumentException e) {
+            foundServo = null;   // "dump_servo" not configured -- run without it
+        }
+        servo = foundServo;
     }
 
     /** Start one full dump cycle. TODO: command the servo up and begin the sequence. */
