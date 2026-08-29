@@ -100,19 +100,19 @@ public class MecanumDrive extends LinearOpMode {
             boolean pressedRightBumper = gamepad1.right_bumper && !previousRightBumper;
 
             if (pressedA) {
-                // TOGGLE GESTURE, built in the input layer: if the intake is
-                // already running forward, turn it off; otherwise run forward.
-                // We read the subsystem's state and pick the matching DISCRETE
-                // command. The Intake never has to know a "toggle" exists.
-                if (robot.intake.getState() == Intake.State.FORWARD) {
+                // If the intake is running (either direction), any press stops it
+                // first -- forward -> off -> reverse -- so the motor and drive train
+                // never slam straight from full forward into reverse. From a stop,
+                // A runs it forward.
+                if (robot.intake.getState() != Intake.State.OFF) {
                     robot.intake.off();
                 } else {
                     robot.intake.forward();
                 }
             }
             if (pressedB) {
-                // Same toggle idea for reverse: off <-> reverse.
-                if (robot.intake.getState() == Intake.State.REVERSE) {
+                // Same rule for B: stop if running, otherwise run in reverse.
+                if (robot.intake.getState() != Intake.State.OFF) {
                     robot.intake.off();
                 } else {
                     robot.intake.reverse();

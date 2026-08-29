@@ -22,6 +22,8 @@
     { "id": "09_drivebase",     "title": "From Messy Loop to Clean Class",  "tier": "easier",       "code": true,  "html": true, "active": "Drivebase.java", "folder": "09_drivebase",
       "description": "Move the crowded inline drive code into its own Drivebase class, then collapse the OpMode loop down to two clean calls. Your first object-oriented refactor." },
     { "id": "10_field_centric", "title": "Field-Centric Driving",    "tier": "intermediate", "code": true,  "html": true, "active": "Drivebase.java", "folder": "10_field_centric",
-      "description": "Make \"forward\" always mean away from the driver, no matter which way the robot faces." }
+      "description": "Make \"forward\" always mean away from the driver, no matter which way the robot faces." },
+    { "id": "11_intake",        "title": "Your First Mechanism: The Intake", "tier": "advanced",     "code": true,  "html": true, "active": "Intake.java",    "folder": "11_intake",
+      "description": "Build a subsystem from an empty file: an enum-based state machine for the intake, with forward/reverse/off commands and two toggle buttons to drive it." }
   ]
 }

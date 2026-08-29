@@ -1376,7 +1376,7 @@
       g.group.position.set(cp.x, cp.y, cp.z);
       g.group.quaternion.set(cr.x, cr.y, cr.z, cr.w);
       const M = a.mech;
-      g.intakeRoller.rotation.y += M.intake  * 10  * dt;   // visual cue only, slowed ~3x so it reads clearly
+      g.intakeRoller.rotation.y -= M.intake  * 10  * dt;   // visual cue only; sign set so "forward" sweeps pollen inward
       g.feederWheel.rotation.y  += M.feeder  * 7   * dt;
       const lv = localVel(body);
       spinWheels(g, lv.fwd, lv.strafe, lv.turn, dt);
@@ -2184,22 +2184,23 @@
       const CAP = mainRobot.store.length;
       const intakeOn = M.intake > 0.15 || debugIntake;               // 'I' toggles intake on for testing
       sim.captured = Math.min(CAP, sim.captured + game.serviceIntake(robot, intakeOn, sim.captured, CAP));
-      // reverse intake + indexer: meter 1-3 held balls back out the front at a time, randomized gap between bursts
-      const ejecting = M.intake < -0.15 && M.feeder < -0.15;
+      // reverse intake: meter 1-3 held balls back out the front at a time, short randomized gap between bursts.
+      // Keyed on the intake motor alone (a simple Intake subsystem drives no feeder), so reversing spits pollen.
+      const ejecting = M.intake < -0.15;
       sim.ejectTimer = ejecting ? sim.ejectTimer - dt : 0;
       if (ejecting && sim.captured > 0 && sim.ejectTimer <= 0) {
         sim.captured -= game.ejectBalls(robot, Math.min(sim.captured, 1 + Math.floor(Math.random() * 3)));
-        sim.ejectTimer = 0.4 + Math.random() * 0.53;   // gap averages ~0.67s -> ~3 balls/sec with a 1-3 ball burst
+        sim.ejectTimer = 0.1 + Math.random() * 0.3;    // 0.1-0.4s gap -> a full 20-ball hopper empties in ~2-4s
       }
-      if (debugIntake) mainRobot.intakeRoller.rotation.y += 10 * dt; // spin the roller so the test reads
+      if (debugIntake) mainRobot.intakeRoller.rotation.y -= 10 * dt; // spin the roller so the test reads (forward dir)
       renderStore(mainRobot, sim.captured);
       if (upMode === 2) {
         alliances.blue.captured = Math.min(CAP, alliances.blue.captured + game.serviceIntake(robotBlue, alliances.blue.mech.intake > 0.15, alliances.blue.captured, CAP));
-        const ejectingB = alliances.blue.mech.intake < -0.15 && alliances.blue.mech.feeder < -0.15;
+        const ejectingB = alliances.blue.mech.intake < -0.15;
         alliances.blue.ejectTimer = ejectingB ? alliances.blue.ejectTimer - dt : 0;
         if (ejectingB && alliances.blue.captured > 0 && alliances.blue.ejectTimer <= 0) {
           alliances.blue.captured -= game.ejectBalls(robotBlue, Math.min(alliances.blue.captured, 1 + Math.floor(Math.random() * 3)));
-          alliances.blue.ejectTimer = 0.4 + Math.random() * 0.53;
+          alliances.blue.ejectTimer = 0.1 + Math.random() * 0.3;
         }
         renderStore(blueRobot, alliances.blue.captured);
       }
@@ -2210,7 +2211,7 @@
       // Pit test-stand: same signals, chassis stays put so you can watch the mechanisms up close
       if (document.getElementById('tab-pit').classList.contains('active')) {
         resizeBench();
-        benchRobot.intakeRoller.rotation.y += M.intake  * 10  * dt;
+        benchRobot.intakeRoller.rotation.y -= M.intake  * 10  * dt;
         benchRobot.feederWheel.rotation.y  += M.feeder  * 7   * dt;
         const bv = localVel(robot);
         spinWheels(benchRobot, bv.fwd, bv.strafe, bv.turn, dt);
