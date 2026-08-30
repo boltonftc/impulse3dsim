@@ -3473,7 +3473,10 @@
           const mp = buildMultipart('file', lib.file, bytes, 'application/java-archive');
           const up = await httpRequest('POST', '/java/file/upload?force=true', { body: mp.body, contentType: mp.contentType, readTimeout: 120000 });
           if (up.status === 200){ log('  \u2713 ' + lib.file + ' installed (' + bytes.length + ' bytes)', 'ok'); }
-          else { const detail = (up.body || '').slice(0, 200); if (/7\.0|external librar/i.test(detail)) log('  This robot\u2019s Android version is too old for add-on libraries (needs Android 7.0+).', 'err'); throw new Error('Library upload failed for ' + lib.file + ': ' + up.status + ' ' + up.statusText + ' ' + detail); }
+          else { const detail = (up.body || '').slice(0, 200);
+            if (/already exist|already in/i.test(detail)){ log('  \u2713 ' + lib.file + ' is already built into the Robot Controller app \u2014 no upload needed.', 'ok'); continue; }
+            if (/7\.0|external librar/i.test(detail)) log('  This robot\u2019s Android version is too old for add-on libraries (needs Android 7.0+).', 'err');
+            throw new Error('Library upload failed for ' + lib.file + ': ' + up.status + ' ' + up.statusText + ' ' + detail); }
         }
       }
       async function connect(log){
