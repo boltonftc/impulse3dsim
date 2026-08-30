@@ -3440,6 +3440,7 @@
       function withTimeout(promise, ms, label){ let t; const to = new Promise((_, rej) => { t = setTimeout(() => rej(new Error('Timed out after ' + ms + 'ms during ' + label)), ms); }); return Promise.race([promise, to]).finally(() => clearTimeout(t)); }
       function adbSum(p){ let s = 0; for (let i = 0; i < p.length; i++) s = (s + p[i]) >>> 0; return s; }
       function concatBytes(){ const arrs = [].slice.call(arguments); let n = 0; for (const a of arrs) n += a.length; const out = new Uint8Array(n); let k = 0; for (const a of arrs){ out.set(a, k); k += a.length; } return out; }
+      function buildMultipart(fieldName, filename, bytes, mime){ const boundary = '----BoltonDeploy' + Math.random().toString(16).slice(2); const pre = enc.encode('--' + boundary + '\r\nContent-Disposition: form-data; name="' + fieldName + '"; filename="' + filename + '"\r\nContent-Type: ' + mime + '\r\n\r\n'); const post = enc.encode('\r\n--' + boundary + '--\r\n'); return { body: concatBytes(pre, bytes, post), contentType: 'multipart/form-data; boundary=' + boundary }; }
       function cmdName(c){ return ({ 0x4e584e43:'CNXN', 0x48545541:'AUTH', 0x4e45504f:'OPEN', 0x59414b4f:'OKAY', 0x45534c43:'CLSE', 0x45545257:'WRTE' })[c] || ('0x' + (c >>> 0).toString(16)); }
       async function sendMsg(command, arg0, arg1, payload){ payload = payload || new Uint8Array(0); const hdr = new DataView(new ArrayBuffer(24)); hdr.setUint32(0, command, true); hdr.setUint32(4, arg0 >>> 0, true); hdr.setUint32(8, arg1 >>> 0, true); hdr.setUint32(12, payload.length, true); hdr.setUint32(16, adbSum(payload), true); hdr.setUint32(20, (command ^ 0xffffffff) >>> 0, true); await usb.dev.transferOut(usb.epOut, hdr.buffer); if (payload.length) await usb.dev.transferOut(usb.epOut, payload); }
       async function recvMsg(timeoutMs){ timeoutMs = timeoutMs || 20000; const h = await withTimeout(usb.dev.transferIn(usb.epIn, 24), timeoutMs, 'read header'); if (!h.data || h.data.byteLength < 24) throw new Error('short/empty ADB header'); const dv = h.data; const command = dv.getUint32(0, true), arg0 = dv.getUint32(4, true), arg1 = dv.getUint32(8, true), len = dv.getUint32(12, true); let payload = new Uint8Array(0); if (len > 0){ const p = await withTimeout(usb.dev.transferIn(usb.epIn, len), timeoutMs, 'read payload'); payload = new Uint8Array(p.data.buffer.slice(0, p.data.byteLength)); } return { command, arg0, arg1, payload }; }
@@ -3453,6 +3454,28 @@
       function devicePathFor(text, name){ const m = /(^|\n)\s*package\s+([\w.]+)\s*;/.exec(text); if (m) return '/src/' + m[2].split('.').join('/') + '/' + name; return TEAMCODE_ROOT + name; }
       function obDevicePath(p){ return p.replace(TEAMCODE_ROOT, TEAMCODE_ROOT + OB_PKG + '/'); }
       async function saveOne(path, text){ const body = 'f=' + encodeURIComponent(path) + '&data=' + encodeURIComponent(text); const r = await httpRequest('POST', '/java/file/save', { body }); return r.status === 200; }
+      // Add-on libraries pushed to OnBotJava's External Libraries before building. A jar is uploaded only
+      // when a deployed file imports its package, and only if it isn't already on the robot (one-time, idempotent).
+      const DEPLOY_LIBS = [{ file: 'PedroPathing-core-2.0.6.jar', url: 'pedro-core.jar', requiredWhenImport: 'com.pedropathing' }];
+      async function ensureLibraries(files, log){
+        const srcs = Object.keys(files).map(n => files[n]);
+        const wanted = DEPLOY_LIBS.filter(l => !l.requiredWhenImport || srcs.some(t => t.includes(l.requiredWhenImport)));
+        if (!wanted.length) return;
+        const tree = await httpRequest('GET', '/java/file/tree');
+        const treeText = tree.status === 200 ? tree.body : '';
+        const missing = wanted.filter(l => !treeText.includes(l.file));
+        if (!missing.length){ log('Required libraries already on the robot.', 'ok'); return; }
+        for (const lib of missing){
+          log('Installing library ' + lib.file + '\u2026', 'warn');
+          let bytes;
+          try { const res = await fetch(lib.url, { cache: 'no-store' }); if (!res.ok) throw new Error('HTTP ' + res.status); bytes = new Uint8Array(await res.arrayBuffer()); }
+          catch(e){ throw new Error('Could not fetch library ' + lib.url + ' (' + e.message + ')'); }
+          const mp = buildMultipart('file', lib.file, bytes, 'application/java-archive');
+          const up = await httpRequest('POST', '/java/file/upload?force=true', { body: mp.body, contentType: mp.contentType, readTimeout: 120000 });
+          if (up.status === 200){ log('  \u2713 ' + lib.file + ' installed (' + bytes.length + ' bytes)', 'ok'); }
+          else { const detail = (up.body || '').slice(0, 200); if (/7\.0|external librar/i.test(detail)) log('  This robot\u2019s Android version is too old for add-on libraries (needs Android 7.0+).', 'err'); throw new Error('Library upload failed for ' + lib.file + ': ' + up.status + ' ' + up.statusText + ' ' + detail); }
+        }
+      }
       async function connect(log){
         if (!navigator.usb) throw new Error('This browser can\u2019t access USB — use Chrome or Edge on a computer.');
         const dev = await navigator.usb.requestDevice({ filters: [{ classCode: 0xff, subclassCode: 0x42, protocolCode: 1 }] });
@@ -3480,6 +3503,7 @@
         if (!usb) throw new Error('Connect to the robot first.');
         const names = Object.keys(files).filter(n => n.endsWith('.java'));
         if (!names.length) throw new Error('No .java files to deploy.');
+        await ensureLibraries(files, log);
         if (obMode) log('On-bot test mode: deploying into the .ob package (OpMode names get " OB").', 'dim');
         log('Uploading ' + names.length + ' file' + (names.length === 1 ? '' : 's') + '…', 'warn');
         let failed = 0;
