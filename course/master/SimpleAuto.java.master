@@ -1,0 +1,184 @@
+// @begin(14_autonomous)
+package org.firstinspires.ftc.teamcode;
+
+import com.pedropathing.follower.Follower;
+import com.pedropathing.follower.FollowerConstants;
+import com.pedropathing.control.PIDFCoefficients;
+import com.pedropathing.control.FilteredPIDFCoefficients;
+import com.pedropathing.geometry.BezierLine;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.paths.PathChain;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+
+/*
+ * ============================================================================
+ *  SimpleAuto  --  the robot drives ITSELF along a path
+ * ============================================================================
+ *
+ *  TeleOp is you driving. AUTONOMOUS is the robot driving on its own for the
+ *  first 30 seconds of a match, with no controller input. Instead of reading a
+ *  gamepad, an autonomous OpMode follows a PLAN: go to this spot, do a thing,
+ *  go to the next spot.
+ *
+ *  TWO DIFFERENT JOBS, TWO DIFFERENT TOOLS
+ *    1. DRIVING to an exact field spot is a closed-loop control problem, so we
+ *       use Pedro Pathing's Follower. The Follower needs two helpers you met in
+ *       this package: a PinpointLocalizer (where am I?) and a
+ *       MecanumDrivetrainSubsystem (how do I push the wheels?).
+ *    2. MECHANISMS (intake, dumper) are the SAME subsystems from TeleOp. We
+ *       build the same Robot and call the same robot.update() scheduler, so the
+ *       dumper code you wrote in TeleOp works here unchanged.
+ *
+ *  HOW WE "WAIT" WITHOUT FREEZING (no sleep!)
+ *    Some actions take time (following a path; the dumper's raise/hold/lower).
+ *    We never sleep(). Instead we run a small loop that keeps pumping updates
+ *    until the thing reports it is done:
+ *        while (opModeIsActive() && follower.isBusy()) {
+ *            follower.update();   // drive one small step along the path
+ *            robot.update();      // let mechanisms advance too
+ *        }
+ *    Same rhythm as the scheduler -- lots of tiny steps, never one long freeze.
+ * ============================================================================
+ */
+@Autonomous(name = "SimpleAuto", group = "Dumper OOP")
+public class SimpleAuto extends LinearOpMode {
+
+    // ── TUNING CONSTANTS ("defines") ─────────────────────────────────────
+    // `static final` = a named value that never changes.
+    // Maximum motor power while following a path (0.0-1.0). Lower = slower and
+    // more precise.
+    private static final double SPEED = 0.5;
+
+    // ── SET YOUR STARTING POSITION HERE ──────────────────────────────────
+    // Before the match you PLACE the robot on the field, then tell the code
+    // exactly where you put it. X/Y are inches from the field ORIGIN; HEADING
+    // is the way the robot points (degrees, counter-clockwise positive, 0 =
+    // facing +X = "forward"). If this does not match where you set the robot
+    // down, every path is shifted by the difference.
+    private static final double START_X_IN        = -36.0;
+    private static final double START_Y_IN        = -36.0;
+    private static final double START_HEADING_DEG = 0.0;   // facing +X (forward)
+
+    @Override
+    public void runOpMode() throws InterruptedException {
+
+        // ── MECHANISMS: the same Robot/subsystems TeleOp uses ────────────
+        // Building Robot also configures its Localization (Pinpoint). We build
+        // it here for its intake and dumper. HOLD THE ROBOT STILL during INIT --
+        // the Pinpoint calibrates now.
+        Robot robot = new Robot(hardwareMap);
+
+        // ── DRIVING: Pedro Pathing setup (closed-loop path following) ────
+        // The Follower needs a Localizer (where am I?) and a Drivetrain (how do
+        // I push the wheels?) -- the two helper classes in this package.
+        PinpointLocalizer localizer = new PinpointLocalizer(hardwareMap);
+        MecanumDrivetrainSubsystem drivetrain = new MecanumDrivetrainSubsystem(hardwareMap);
+
+        // FollowerConstants are the path-following tuning numbers. They match
+        // the sim robot and are a good start on a real robot; retune on hardware
+        // if pathing overshoots or oscillates.
+        FollowerConstants constants = new FollowerConstants()
+                .translationalPIDFCoefficients(new PIDFCoefficients(0.3, 0, 0.03, 0))
+                .headingPIDFCoefficients(new PIDFCoefficients(2.0, 0, 0.1, 0))
+                .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.02, 0, 0.0005, 0.6, 0))
+                .mass(13.0)
+                .forwardZeroPowerAcceleration(30)
+                .lateralZeroPowerAcceleration(50)
+                .centripetalScaling(0.0005)
+                .holdPointTranslationalScaling(0.45)
+                .holdPointHeadingScaling(0.35);
+
+        Follower follower = new Follower(constants, localizer, drivetrain);
+        // Draws the path in the simulator; does nothing on a real robot.
+        MecanumDrivetrainSubsystem.registerForVisualization(hardwareMap, follower);
+
+        // ===============================================
+        // SimpleAuto : Paths
+        // Do not remove this comment
+        // Define your start pose and waypoints, then build the two path chains below
+        // ===============================================
+        // @fill(14_autonomous)
+        // Each spot on the field is a Pose(x, y, headingRadians). Units are
+        // inches; heading 0 = facing +X, counter-clockwise positive.
+        Pose startPose = new Pose(START_X_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));
+        Pose pose1 = new Pose(12.0, -36.0, Math.toRadians(0.0));   // 48" straight forward (+X)
+        Pose pose2 = new Pose(12.0,  12.0, Math.toRadians(0.0));   // then 48" to the left (+Y)
+
+        // A BezierLine is a straight path from one pose to the next. A PathChain
+        // wraps it up for the Follower. We keep the heading constant along each
+        // line so the robot faces the same way the whole time.
+        PathChain chain1 = follower.pathBuilder()
+                .addPath(new BezierLine(startPose, pose1))
+                .setConstantHeadingInterpolation(Math.toRadians(START_HEADING_DEG))
+                .build();
+
+        PathChain chain2 = follower.pathBuilder()
+                .addPath(new BezierLine(pose1, pose2))
+                .setConstantHeadingInterpolation(Math.toRadians(START_HEADING_DEG))
+                .build();
+        // @end(14_autonomous)
+
+        // ── Wait for START ───────────────────────────────────────────────
+        telemetry.addLine("Autonomous ready. Hold the robot still, then press START.");
+        telemetry.update();
+        waitForStart();
+        if (isStopRequested()) return;
+
+        // ===============================================
+        // SimpleAuto : Run
+        // Do not remove this comment
+        // Seed the start pose, then follow each chain with a pump-wait loop below
+        // ===============================================
+        // @fill(14_autonomous)
+        // Tell the localizer exactly where the robot is starting. From here on,
+        // its tracked position is in FIELD inches -- not "inches from wherever
+        // it powered on."
+        follower.setStartingPose(startPose);
+
+        // ── Segment 1: drive forward to pose1 ────────────────────────────
+        follower.followPath(chain1, SPEED, true);
+        while (opModeIsActive() && follower.isBusy()) {
+            follower.update();   // drive one step along the path
+            robot.update();      // keep the mechanisms' state machines alive
+            Pose p = follower.getPose();
+            telemetry.addData("Phase", "Segment 1");
+            telemetry.addData("Pos", "(%.1f, %.1f)", p.getX(), p.getY());
+            telemetry.update();
+        }
+
+        // ── Action: dump, then WAIT for the dump to finish ───────────────
+        // dump() only STARTS the raise/hold/lower. We pump BOTH updates so the
+        // robot holds its spot on the path while the bucket cycles. No sleep().
+        robot.dumper.dump();
+        while (opModeIsActive() && robot.dumper.isBusy()) {
+            robot.update();      // advance the dumper's state machine
+            follower.update();   // hold position while dumping
+            telemetry.addData("Phase", "Dumping");
+            telemetry.update();
+        }
+
+        // ── Segment 2: strafe left to pose2 ──────────────────────────────
+        follower.followPath(chain2, SPEED, true);
+        while (opModeIsActive() && follower.isBusy()) {
+            follower.update();
+            robot.update();
+            telemetry.addData("Phase", "Segment 2");
+            telemetry.update();
+        }
+        // @end(14_autonomous)
+
+        // ── Done: stop everything ────────────────────────────────────────
+        drivetrain.breakFollowing();
+        MecanumDrivetrainSubsystem.unregisterVisualization(hardwareMap);
+        robot.drive.stop();
+
+        Pose finalPose = follower.getPose();
+        telemetry.addData("Status", "COMPLETE");
+        telemetry.addData("Final", "(%.1f, %.1f) h=%.1f",
+                finalPose.getX(), finalPose.getY(), Math.toDegrees(finalPose.getHeading()));
+        telemetry.update();
+    }
+}
+// @end(14_autonomous)

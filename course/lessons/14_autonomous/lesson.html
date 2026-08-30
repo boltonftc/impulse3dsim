@@ -1,0 +1,170 @@
+<h1>Autonomous with Pedro Pathing</h1>
+
+<p>Every FTC match starts with <strong>30 seconds of autonomous</strong>: the robot drives itself, with nobody
+touching a controller. Up to now you have written <em>TeleOp</em> &mdash; <em>you</em> drive. Now the robot needs a
+<strong>plan</strong> it can run alone: go to this spot, do a thing, go to the next spot. In this lesson you write your
+first autonomous and watch the robot follow a path you drew for it.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">TeleOp reads a gamepad; Autonomous follows a plan</div>
+  <p>A TeleOp OpMode loops forever reading sticks and buttons. An <strong>autonomous</strong> OpMode has no driver &mdash;
+  it runs a fixed list of steps once and stops. That is why this file is marked <code>@Autonomous</code> instead of
+  <code>@TeleOp</code>: it shows up in the <em>autonomous</em> slot on the Driver Hub.</p>
+</div>
+
+<hr>
+
+<h2>Driving to a spot is a different job than driving by hand</h2>
+
+<p>Steering to an <em>exact</em> field position is a control problem: the robot must keep checking &ldquo;where am I
+versus where should I be?&rdquo; and correct itself. That closed loop is what <strong>Pedro Pathing's Follower</strong>
+does for us. The Follower needs two helpers, and both are new <strong>given</strong> files in your package that you
+can read but do not have to write:</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">The Follower needs a Localizer and a Drivetrain</div>
+  <ul>
+    <li><code>PinpointLocalizer</code> &mdash; answers <em>&ldquo;where am I?&rdquo;</em> It wraps the <strong>same</strong>
+    goBILDA Pinpoint your Localization subsystem uses, configured the same way, so the two never disagree.</li>
+    <li><code>MecanumDrivetrainSubsystem</code> &mdash; answers <em>&ldquo;how do I push the wheels?&rdquo;</em> It uses the
+    <strong>same</strong> mecanum mixing math as your TeleOp <code>Drivebase</code>.</li>
+  </ul>
+  <p>Open both files and skim them. Notice there is nothing magic inside &mdash; just the sensor and the wheels you
+  already know, wrapped so the Follower can call them.</p>
+</div>
+
+<p>Your mechanisms are <em>not</em> new: autonomous builds the same <code>Robot</code> as TeleOp and calls the same
+<code>robot.update()</code> scheduler, so the dumper you wrote earlier works here unchanged.</p>
+
+<hr>
+
+<h2>Poses and the field frame</h2>
+
+<p>A <strong>Pose</strong> is the same three-number idea from the localization lesson &mdash; an <code>(x, y)</code> spot
+plus a <code>heading</code> &mdash; but now you use it to <em>tell the robot where to go</em>. And it uses the exact
+same field frame you sanity-checked last lesson:</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">+X is forward, +Y is left, +heading is counter-clockwise</div>
+  <ul>
+    <li><strong>+X</strong> &rarr; forward &nbsp;(driving forward makes <code>x</code> go up)</li>
+    <li><strong>+Y</strong> &rarr; left &nbsp;(strafing left makes <code>y</code> go up; right makes it go down)</li>
+    <li><strong>heading 0</strong> = facing +X, and turning <strong>counter-clockwise</strong> makes heading go up</li>
+  </ul>
+  <p>This is <em>why</em> last lesson's pod fix mattered: if <code>+Y</code> pointed the wrong way, every path would
+  steer sideways into a wall. Same frame, now used to give orders instead of just to read.</p>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">setStartingPose: place the robot, then tell the code</div>
+  <p>Before a match you physically <em>set the robot down</em> on the field, then call
+  <code>follower.setStartingPose(startPose)</code> to tell it exactly where that is. From that moment its tracked
+  position is in <strong>field inches</strong>. If the pose you type does not match where you set the robot, every path
+  is shifted by the difference &mdash; so this one line matters.</p>
+</div>
+
+<hr>
+
+<h2>Part A &mdash; Draw the path</h2>
+
+<p>A path is a list of <strong>poses</strong> joined by straight lines. A <code>BezierLine</code> is a straight path from
+one pose to the next, and a <code>PathChain</code> bundles it up for the Follower. You will build two chains: one to
+drive forward, and one to strafe left.</p>
+
+<span class="act" data-action="open_file" data-arg="SimpleAuto.java|SimpleAuto : Paths">&#9656; SimpleAuto.java : SimpleAuto : Paths</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>SimpleAuto.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>// Each spot on the field is a Pose(x, y, headingRadians).
+Pose startPose = new Pose(START_X_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));
+Pose pose1 = new Pose(12.0, -36.0, Math.toRadians(0.0));   // 48" straight forward (+X)
+Pose pose2 = new Pose(12.0,  12.0, Math.toRadians(0.0));   // then 48" to the left (+Y)
+
+// A BezierLine is a straight path; a PathChain wraps it for the Follower.
+// Keep the heading constant so the robot faces the same way the whole time.
+PathChain chain1 = follower.pathBuilder()
+        .addPath(new BezierLine(startPose, pose1))
+        .setConstantHeadingInterpolation(Math.toRadians(START_HEADING_DEG))
+        .build();
+
+PathChain chain2 = follower.pathBuilder()
+        .addPath(new BezierLine(pose1, pose2))
+        .setConstantHeadingInterpolation(Math.toRadians(START_HEADING_DEG))
+        .build();</code></pre>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Heading in radians, not degrees</div>
+  <p>A <code>Pose</code> wants its heading in <strong>radians</strong>, the unit the driving math prefers. You think in
+  degrees, so write <code>Math.toRadians(0.0)</code> and let Java convert. Same trick you used for telemetry, just the
+  other direction.</p>
+</div>
+
+<hr>
+
+<h2>Part B &mdash; Run the plan</h2>
+
+<p>Now sequence the match. Seed the start pose, follow chain 1, dump, then follow chain 2. The key pattern is the
+<strong>follow-and-wait loop</strong>: after <code>followPath(...)</code> you keep pumping <code>follower.update()</code>
+(to drive) and <code>robot.update()</code> (to keep mechanisms alive) until the Follower says it is no longer busy.</p>
+
+<span class="act" data-action="open_file" data-arg="SimpleAuto.java|SimpleAuto : Run">&#9656; SimpleAuto.java : SimpleAuto : Run</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>SimpleAuto.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>// Tell the localizer where the robot is starting (field inches from here on).
+follower.setStartingPose(startPose);
+
+// Segment 1: drive forward to pose1.
+follower.followPath(chain1, SPEED, true);
+while (opModeIsActive() &amp;&amp; follower.isBusy()) {
+    follower.update();   // drive one step along the path
+    robot.update();      // keep the mechanisms' state machines alive
+}
+
+// Action: dump, then WAIT for the dump to finish (pump both, never sleep).
+robot.dumper.dump();
+while (opModeIsActive() &amp;&amp; robot.dumper.isBusy()) {
+    robot.update();      // advance the dumper's state machine
+    follower.update();   // hold position while dumping
+}
+
+// Segment 2: strafe left to pose2.
+follower.followPath(chain2, SPEED, true);
+while (opModeIsActive() &amp;&amp; follower.isBusy()) {
+    follower.update();
+    robot.update();
+}</code></pre>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">The follow-and-wait loop is just the scheduler again</div>
+  <p>You never call <code>sleep()</code>. Instead you take thousands of tiny steps: each <code>follower.update()</code>
+  nudges the wheels a little and re-checks the position, and each <code>robot.update()</code> advances the dumper a
+  little. When the Follower reaches the target it reports <code>isBusy() == false</code> and the loop ends &mdash; the
+  exact same &ldquo;lots of small steps, never one big freeze&rdquo; rhythm you have used all along.</p>
+</div>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li><strong>Read the helpers:</strong> open <code>PinpointLocalizer.java</code> and
+    <code>MecanumDrivetrainSubsystem.java</code> and skim them &mdash; the sensor and wheels you already know.</li>
+    <li><strong>Part A:</strong> in <code>SimpleAuto.java</code>, define <code>startPose</code>, <code>pose1</code>,
+    <code>pose2</code> and build <code>chain1</code> and <code>chain2</code>.</li>
+    <li><strong>Part B:</strong> seed the start pose, then follow each chain with a pump-wait loop, with a dump in
+    between.</li>
+    <li><strong>Build</strong>, pick <strong>SimpleAuto</strong> from the autonomous list, <strong>Init</strong> (hold
+    still while the Pinpoint calibrates), then <strong>Start</strong>.</li>
+    <li><strong>Watch it drive itself:</strong> the robot should roll forward about 4&nbsp;feet, dump, then strafe left
+    about 4&nbsp;feet &mdash; following the gray path drawn on the field.</li>
+  </ul>
+</div>
+
+<p>Your robot just ran a match segment with nobody driving. Next up: <strong>FTC Dashboard</strong>, where you draw the
+robot and its path on a live field view so you can <em>see</em> exactly what the Follower is thinking.</p>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

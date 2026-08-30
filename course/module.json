@@ -28,6 +28,8 @@
     { "id": "12_dumper",        "title": "A Timed Machine: The Dumper",     "tier": "advanced",     "code": true,  "html": true, "active": "Dumper.java",    "folder": "12_dumper",
       "description": "Your second subsystem and first TIMED state machine: one Y press raises the bucket, holds to dump, and lowers -- all without ever freezing the robot, using an ElapsedTime stopwatch instead of sleep(). Also reverses the servo (like a drive motor) so a bigger number tilts up." },
     { "id": "13_localization",  "title": "Where Am I? Pinpoint Localization", "tier": "advanced",    "code": true,  "html": true, "active": "Localization.java", "folder": "13_localization",
-      "description": "Give the robot a sense of place: read x, y, and heading off a goBILDA Pinpoint smart sensor, share them through getters, and measure straight-line distance from the start with the Pythagorean theorem (Math.hypot)." }
+      "description": "Give the robot a sense of place: read x, y, and heading off a goBILDA Pinpoint smart sensor, share them through getters, and measure straight-line distance from the start with the Pythagorean theorem (Math.hypot)." },
+    { "id": "14_autonomous",    "title": "Autonomous with Pedro Pathing", "tier": "advanced",        "code": true,  "html": true, "active": "SimpleAuto.java", "folder": "14_autonomous",
+      "description": "Write your first self-driving OpMode: hand Pedro Pathing's Follower a Pinpoint localizer and a mecanum drivetrain, draw a two-segment path out of Poses and BezierLines, set the starting pose, and run it with follow-and-wait loops that dump in between -- all without a single sleep()." }
   ]
 }
