@@ -8,8 +8,8 @@ missing sense: <strong>localization</strong>, the ability to track its own posit
   <div class="blk-head">A pose is three numbers</div>
   <p>To describe where a robot is, you need three facts bundled together &mdash; a <strong>pose</strong>:</p>
   <ul>
-    <li><code>x</code> &mdash; how far to the <em>side</em> of the start (inches)</li>
-    <li><code>y</code> &mdash; how far <em>forward or back</em> from the start (inches)</li>
+    <li><code>x</code> &mdash; how far <em>forward or back</em> from the start (inches)</li>
+    <li><code>y</code> &mdash; how far to the <em>side</em> (left or right) of the start (inches)</li>
     <li><code>heading</code> &mdash; which way it's <em>facing</em> (an angle)</li>
   </ul>
   <p>That's the same idea as a point on a graph in math class: <code>(x, y)</code> tells you the spot, and the
@@ -44,6 +44,25 @@ and dumper. It implements <code>Subsystem</code>, so the scheduler calls its <co
 <code>latestPose</code> field, and the constructor are already written. The constructor finds the sensor, describes
 its tracking wheels, and zeroes it &mdash; and it uses the <em>same</em> null-guard you've seen before, so a robot
 without a Pinpoint simply does nothing instead of crashing. Two pieces are missing, and you'll add them.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Which way is +X, +Y, and +heading?</div>
+  <p>The Pinpoint &mdash; and Pedro Pathing, coming next lesson &mdash; use one standard field frame. Starting from
+  where the robot booted up:</p>
+  <ul>
+    <li><strong>Drive forward</strong> &rarr; <code>x</code> counts <strong>up</strong> &nbsp;(+X is forward)</li>
+    <li><strong>Strafe left</strong> &rarr; <code>y</code> counts <strong>up</strong> &nbsp;(+Y is left, so moving <em>right</em> makes <code>y</code> go down)</li>
+    <li><strong>Turn counter-clockwise</strong> &rarr; <code>heading</code> counts <strong>up</strong> &nbsp;(CCW is positive)</li>
+  </ul>
+  <p>Here's the catch: each dead wheel only knows <em>how far it rolled</em>, not which way you <em>call</em> that
+  direction. So the constructor tells the Pinpoint the sign of each pod with
+  <code>setEncoderDirections(...)</code>. On <em>our</em> robot the strafe pod was mounted so that moving <em>left</em>
+  made <code>y</code> count the wrong way &mdash; so its direction is set to <code>REVERSED</code> to put +Y back on the
+  left where Pedro expects it. The forward pod was already correct, so it stays <code>FORWARD</code>.</p>
+  <p><strong>Sanity-check any real robot once:</strong> push it forward, push it left, and spin it counter-clockwise,
+  and confirm <code>x</code>, <code>y</code>, and <code>heading</code> each go <em>up</em>. If one reads backwards, flip only
+  that pod's <code>FORWARD</code>/<code>REVERSED</code> in the constructor &mdash; no rewiring and no moving the pod.</p>
+</div>
 
 <hr>
 
@@ -184,7 +203,8 @@ telemetry.addData("Distance from start (in)", "%.1f",
     <li><strong>Part C:</strong> in <code>Robot.java</code>, declare and build <code>localization</code> (both lines!).</li>
     <li><strong>Part D:</strong> in <code>MecanumDrive.java</code>, add the telemetry lines.</li>
     <li><strong>Build &amp; Init</strong> (hold still while it calibrates), <strong>Start</strong>, then drive around and watch
-    <code>x</code>, <code>y</code>, and heading change as you move.</li>
+    <code>x</code>, <code>y</code>, and heading change as you move. Check the signs: forward makes <code>x</code> go up,
+    strafing left makes <code>y</code> go up, and turning counter-clockwise makes heading go up.</li>
     <li><strong>Prove the math:</strong> drive out, then return to your starting spot &mdash; the
     <strong>Distance from start</strong> should shrink back toward <code>0</code>.</li>
   </ul>

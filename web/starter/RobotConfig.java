@@ -73,10 +73,13 @@ public final class RobotConfig {
             GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD;
 
     // Which way each pod counts. REAL ROBOT sanity check (do this ONCE):
-    //   push the robot FORWARD by hand -> X must count UP
-    //   push the robot LEFT by hand    -> Y must count UP
+    //   push the robot FORWARD by hand      -> X must count UP
+    //   push the robot LEFT by hand         -> Y must count UP   (RIGHT counts DOWN)
+    //   spin the robot COUNTER-clockwise    -> heading must count UP
+    // This is the frame Pedro Pathing assumes: +X forward, +Y left, CCW+ heading.
     // If a pod counts the wrong way, change its FORWARD to REVERSED right here
-    // -- this is the single place that setting lives.
+    // -- this is the single place that setting lives. (On the course robot the
+    // strafe pod needed REVERSED; check yours and set it to match.)
     public static final GoBildaPinpointDriver.EncoderDirection X_POD_DIRECTION =
             GoBildaPinpointDriver.EncoderDirection.FORWARD;
     public static final GoBildaPinpointDriver.EncoderDirection Y_POD_DIRECTION =
