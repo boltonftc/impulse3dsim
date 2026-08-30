@@ -49,8 +49,8 @@ public class Dumper implements Subsystem {
     // named values that never change. Tune the dumper by editing THESE lines.
     // SERVO POSITIONS are always between 0.0 and 1.0. Because this servo is
     // REVERSED (see the constructor), a bigger number tilts the bucket UP.
-    private static final double CARRY_POSITION = 0.9;    // bucket level (stowed/holding)
-    private static final double DUMP_POSITION  = 0.3;    // bucket tilted (dumping)
+    private static final double CARRY_POSITION = 0.1;    // bucket level (stowed/holding)
+    private static final double DUMP_POSITION  = 0.8;    // bucket tilted (dumping)
 
     // TIMINGS in milliseconds -- how long each moving/holding step lasts. If the
     // bucket does not finish moving in time on the real robot, make the number

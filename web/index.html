@@ -732,7 +732,7 @@
       return {
         pad:  { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, rb: false, btns: 0 }, // JS -> Java gamepad (ly inverted: up = -1)
         cmd:  { vx: 0, vy: 0, omega: 0 }, // Java -> JS chassis velocity, robot frame
-        mech: { intake: 0, feeder: 0, shooter: 0, hood: 0, dump: 0 }, // Java -> JS mechanism state (spin/pos; dump = bed servo 0.5 carry .. 0.75 dump)
+        mech: { intake: 0, feeder: 0, shooter: 0, hood: 0, dump: 0 }, // Java -> JS mechanism state (spin/pos; dump = bed servo 0.1 carry .. 0.8 dump)
         dumpTimer: 0,      // meters held balls off the bed over several frames while the bed is tilted up
         active: true,
         pending: 0,        // one-shot lifecycle command for the runner: 1 init, 2 start, 3 stop
@@ -1376,11 +1376,11 @@
         if (Math.abs(w.y) > wc) body.setAngvel({ x: w.x, y: Math.sign(w.y) * wc, z: w.z }, true);
       }
     }
-    // ease the dump bed toward its commanded tilt (servo dump=0.5 carry .. 0.75 dump); smoothing gives
+    // ease the dump bed toward its commanded tilt (servo dump=0.1 carry .. 0.8 dump); smoothing gives
     // the ~0.75s visual travel even though the sim servo snaps to its target instantly
     function animateBed(g, M, dt) {
       if (!g.bed) return;
-      const t = Math.max(0, Math.min(1, (M.dump - 0.5) / 0.25));
+      const t = Math.max(0, Math.min(1, (M.dump - 0.1) / 0.7));
       const target = BED_REST + t * (BED_DUMP - BED_REST);
       g.bed.rotation.x += (target - g.bed.rotation.x) * Math.min(1, dt * 6);
     }

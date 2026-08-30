@@ -55,10 +55,10 @@ What's missing is the state machine &mdash; you'll add it in the same four parts
   same way. In the constructor you'll see <code>servo.setDirection(Servo.Direction.REVERSE)</code>. We use it here
   so that a <em>bigger</em> position number tilts the bucket <strong>up</strong> to dump.</p>
   <p>There's one twist a motor doesn't have: reversing a servo <strong>mirrors every position around 0.5</strong> &mdash; a
-  command of <code>p</code> now lands where <code>1 - p</code> used to. That's why the numbers look the way they do:
-  <code>CARRY_POSITION = 0.9</code> holds the bucket level (stowed), and <code>DUMP_POSITION = 0.3</code> tilts it up.
-  If your real robot tilts the wrong way, flip that one line and re-tune these two numbers &mdash; no rewiring, no
-  remounting.</p>
+  command of <code>p</code> now lands where <code>1 - p</code> used to. So after reversing you re-tune the two numbers by
+  testing on the bot: here <code>CARRY_POSITION = 0.1</code> holds the bucket level (stowed), and
+  <code>DUMP_POSITION = 0.8</code> tilts it up to dump. If your real robot tilts the wrong way, flip that one line
+  and re-tune these two numbers &mdash; no rewiring, no remounting.</p>
 </div>
 
 <hr>
