@@ -30,9 +30,11 @@ public class PinpointLocalizer implements Localizer {
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
         pinpoint.setOffsets(0.0, 0.0, DistanceUnit.MM);
         pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+        // Pedro expects +X forward, +Y left, CCW+ heading. Our strafe pod read backwards
+        // (moving LEFT made Y count DOWN), so the Y pod is REVERSED to put +Y on the left.
         pinpoint.setEncoderDirections(
-                GoBildaPinpointDriver.EncoderDirection.FORWARD,
-                GoBildaPinpointDriver.EncoderDirection.FORWARD);
+                GoBildaPinpointDriver.EncoderDirection.FORWARD,    // X (forward) pod
+                GoBildaPinpointDriver.EncoderDirection.REVERSED);  // Y (strafe) pod
         pinpoint.resetPosAndIMU();   // ROBOT MUST BE STATIONARY here
     }
 
