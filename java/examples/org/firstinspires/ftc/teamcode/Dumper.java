@@ -60,8 +60,8 @@ public class Dumper implements Subsystem {
     // breaking code elsewhere. "Keep the details private" is the whole idea
     // behind a subsystem: a simple public button (dump()) on the outside, and
     // the messy hardware specifics locked away on the inside.
-    private static final double CARRY_POSITION = 0.5;    // bucket level (holding)
-    private static final double DUMP_POSITION  = 0.75;   // bucket tilted (dumping)
+    private static final double CARRY_POSITION = 0.1;    // bucket level (stowed/holding)
+    private static final double DUMP_POSITION  = 0.8;    // bucket tilted (dumping)
 
     // TIMINGS in milliseconds. These say how long each moving/holding step
     // lasts. If the bucket does not finish moving in time on the real robot,
@@ -116,6 +116,10 @@ public class Dumper implements Subsystem {
         }
         servo = foundServo;
         if (servo != null) {
+            // Reverse the servo (like reversing a drive motor) so a bigger position
+            // number tilts the bucket UP. Reversing mirrors positions around 0.5, so
+            // the tuning constants above are set to match: 0.1 stowed, 0.8 dumped.
+            servo.setDirection(Servo.Direction.REVERSE);
             servo.setPosition(CARRY_POSITION);
         }
     }
