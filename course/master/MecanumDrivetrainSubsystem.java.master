@@ -1,0 +1,191 @@
+// @begin(14_autonomous)
+package org.firstinspires.ftc.teamcode;
+
+import com.pedropathing.Drivetrain;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.math.Vector;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+
+/*
+ * ============================================================================
+ *  MecanumDrivetrainSubsystem  --  the wheels for Pedro Pathing's Follower
+ * ============================================================================
+ *
+ *  GIVEN FILE -- you do not have to write this. Read it to see how the
+ *  Follower turns a path into wheel power.
+ *
+ *  Your TeleOp drives with the Drivebase subsystem: open-loop, driver sticks.
+ *  Autonomous is different -- it must FOLLOW A PATH to exact field spots, which
+ *  needs a closed-loop controller. That controller is Pedro Pathing's Follower,
+ *  and the Follower needs a "drivetrain" object it can push wheel powers
+ *  through. THIS class is that adapter. It is only used by autonomous.
+ *
+ *  Pedro's Follower calls calculateDrive() to work out four wheel powers, then
+ *  runDrive() to apply them. The mecanum mixing math here is the SAME formula
+ *  Drivebase uses in TeleOp, so autonomous and TeleOp can never drift apart.
+ *
+ *  Motor order everywhere in this file: [ FL, FR, BL, BR ].
+ * ============================================================================
+ */
+public class MecanumDrivetrainSubsystem extends Drivetrain {
+
+    private final DcMotor[] motors;   // [FL, FR, BL, BR]
+
+    // Cached velocities (inches/s) -- Pedro's Follower sets these each tick.
+    private volatile double xVel = 0;
+    private volatile double yVel = 0;
+
+    /*
+     * Pull the four drive motors from the SAME names and reversals the
+     * Drivebase subsystem uses, so the two can never disagree.
+     */
+    public MecanumDrivetrainSubsystem(HardwareMap hardwareMap) {
+        DcMotor frontLeft  = hardwareMap.get(DcMotor.class, "front_left_motor");
+        DcMotor frontRight = hardwareMap.get(DcMotor.class, "front_right_motor");
+        DcMotor backLeft   = hardwareMap.get(DcMotor.class, "back_left_motor");
+        DcMotor backRight  = hardwareMap.get(DcMotor.class, "back_right_motor");
+
+        // The left side is mounted mirror-image, so reverse it -- same as Drivebase.
+        frontLeft.setDirection(DcMotor.Direction.REVERSE);
+        backLeft.setDirection(DcMotor.Direction.REVERSE);
+
+        this.motors = new DcMotor[] { frontLeft, frontRight, backLeft, backRight };
+    }
+
+    /*
+     * calculateDrive()  --  turn Pedro's control vectors into four wheel powers.
+     *   corrective = translational error correction (field frame)
+     *   heading    = heading error correction
+     *   pathing    = feed-forward along the path (field frame)
+     *   robotHeading = current robot heading (radians)
+     * Returns double[4] wheel powers [FL, FR, BL, BR] in [-1, 1].
+     */
+    @Override
+    public double[] calculateDrive(Vector corrective, Vector heading, Vector pathing, double robotHeading) {
+        // Add the field-frame control vectors together.
+        double fieldX = 0;
+        double fieldY = 0;
+        double turn = 0;
+
+        if (corrective != null) {
+            fieldX += corrective.getXComponent();
+            fieldY += corrective.getYComponent();
+        }
+        if (pathing != null) {
+            fieldX += pathing.getXComponent();
+            fieldY += pathing.getYComponent();
+        }
+
+        // Rotate the field-frame request into the ROBOT frame.
+        double cos = Math.cos(robotHeading);
+        double sin = Math.sin(robotHeading);
+
+        if (heading != null) {
+            // Pedro's heading vector points along the robot; project it back to a
+            // signed turn value, then negate (our mecanum turn>0 = CW, Pedro = CCW).
+            double pidOutput = heading.getXComponent() * cos + heading.getYComponent() * sin;
+            turn = -pidOutput;
+        }
+
+        double forward     = fieldX * cos + fieldY * sin;   // along robot forward
+        double strafeRight = fieldX * sin - fieldY * cos;   // along robot right
+
+        // The SAME mecanum mix Drivebase uses: each wheel is forward +/- strafe
+        // +/- turn, normalized so no power exceeds 1.0 (keeps the direction).
+        double fl = forward + strafeRight + turn;
+        double fr = forward - strafeRight - turn;
+        double bl = forward - strafeRight + turn;
+        double br = forward + strafeRight - turn;
+        double largest = Math.max(Math.max(Math.abs(fl), Math.abs(fr)),
+                                  Math.max(Math.abs(bl), Math.abs(br)));
+        if (largest > 1.0) {
+            fl /= largest; fr /= largest; bl /= largest; br /= largest;
+        }
+
+        double scale = getMaxPowerScaling();
+        return new double[] { fl * scale, fr * scale, bl * scale, br * scale };
+    }
+
+    /* Apply wheel powers to the four motors. */
+    @Override
+    public void runDrive(double[] drivePowers) {
+        if (drivePowers == null || drivePowers.length < 4) return;
+        for (int i = 0; i < 4; i++) {
+            double p = drivePowers[i];
+            motors[i].setPower(Double.isNaN(p) || Double.isInfinite(p) ? 0.0 : p);
+        }
+    }
+
+    @Override
+    public void startTeleopDrive() {
+        for (DcMotor motor : motors) motor.setPower(0);
+    }
+
+    @Override
+    public void startTeleopDrive(boolean brakeMode) {
+        startTeleopDrive();
+    }
+
+    @Override
+    public void breakFollowing() {
+        for (DcMotor motor : motors) motor.setPower(0);
+    }
+
+    @Override
+    public void updateConstants() {
+        // No-op -- constants don't change at runtime.
+    }
+
+    @Override
+    public double xVelocity() { return xVel; }
+    @Override
+    public double yVelocity() { return yVel; }
+    @Override
+    public void setXVelocity(double v) { this.xVel = v; }
+    @Override
+    public void setYVelocity(double v) { this.yVel = v; }
+
+    @Override
+    public double getVoltage() {
+        return 12.0;   // nominal battery voltage
+    }
+
+    @Override
+    public String debugString() {
+        return String.format("MecanumDrivetrain[FL=%.2f FR=%.2f BL=%.2f BR=%.2f]",
+                motors[0].getPower(), motors[1].getPower(),
+                motors[2].getPower(), motors[3].getPower());
+    }
+
+    // ── Simulator path visualization (optional, silent no-op on a real robot) ──
+
+    /** Register the Follower so the simulator can draw its planned path. */
+    public static void registerForVisualization(HardwareMap hardwareMap, Follower follower) {
+        try {
+            Class<?> registryClass = Class.forName("sim.FollowerRegistry");
+            java.lang.reflect.Method method = registryClass.getMethod(
+                    "register", int.class, Follower.class);
+            int robotIdx = (int) hardwareMap.getClass()
+                    .getMethod("getRobotIndex").invoke(hardwareMap);
+            method.invoke(null, robotIdx, follower);
+        } catch (Throwable ignored) {
+            // Not running in the simulator -- visualization unavailable.
+        }
+    }
+
+    /** Stop drawing the path (call during OpMode cleanup). */
+    public static void unregisterVisualization(HardwareMap hardwareMap) {
+        try {
+            Class<?> registryClass = Class.forName("sim.FollowerRegistry");
+            java.lang.reflect.Method method = registryClass.getMethod(
+                    "unregister", int.class);
+            int robotIdx = (int) hardwareMap.getClass()
+                    .getMethod("getRobotIndex").invoke(hardwareMap);
+            method.invoke(null, robotIdx);
+        } catch (Throwable ignored) {
+            // Not running in the simulator.
+        }
+    }
+}
+// @end(14_autonomous)

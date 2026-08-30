@@ -52,6 +52,51 @@
     .edgetab.bluetab.active,.dock-right.open .edgetab{color:#dbeafe;background:#1e3a8a;border-color:#2563eb}
     .dock-top.open .edgetab{background:#1d4ed8;color:#eff6ff;border-color:#3b82f6}
 
+    /* ---- Path Capture: a second left-edge card, its tab stacked above the Driver Hub tab ---- */
+    #panel-capture{top:calc(50% - 72px)}     /* lift the whole card so its (centred) tab reads as attached */
+    #tab-redhub{top:calc(50% + 72px)}        /* Driver Hub tab stays below; both tabs stack when closed */
+    .edgetab.captab{color:#5eead4;border-color:#60a5fa}
+    .edgetab.captab.active,#panel-capture.open .edgetab{color:#ccfbf1;background:#134e4a;border-color:#93c5fd}
+    #panel-capture .panel-body{width:300px;padding:16px 16px 18px;color:#cbd5e1;font-family:system-ui,sans-serif;
+                               background:#0b1220f8;border:1px solid #334155}
+    #panel-capture .cap-group{margin-bottom:12px}
+    #panel-capture .cap-field{display:flex;gap:8px}
+    /* selects/inputs: legible slate fill with the same hairline-blue outline as the buttons */
+    #panel-capture input#cap-name,#panel-capture select#cap-load-sel{flex:1;min-width:0;background:#1e293b;
+        border:1px solid #60a5fa;border-radius:8px;color:#e2e8f0;padding:8px 10px;font-size:.82rem;font-family:inherit}
+    #panel-capture input#cap-name::placeholder{color:#94a3b8}
+    #panel-capture input#cap-name:focus,#panel-capture select#cap-load-sel:focus{outline:none;border-color:#93c5fd;box-shadow:0 0 0 2px #60a5fa40}
+    /* buttons: teal fill, thin sky-blue outline, soft hover ring */
+    #panel-capture .capbtn{border:1px solid #60a5fa;border-radius:8px;padding:8px 13px;font-size:.82rem;font-weight:600;
+        font-family:inherit;cursor:pointer;background:#14b8a6;color:#042f2e;white-space:nowrap;transition:background .15s,transform .05s,box-shadow .15s}
+    #panel-capture .capbtn:hover{background:#2dd4bf;box-shadow:0 0 0 2px #60a5fa40}
+    #panel-capture .capbtn:active{transform:scale(.97)}
+    #panel-capture #cap-begin,#panel-capture #cap-reset{flex:1}
+    #panel-capture #cap-begin.capturing{background:#dc2626;color:#fff;border-color:#fca5a5}
+    #panel-capture #cap-begin.capturing:hover{background:#ef4444}
+    #panel-capture #cap-list{font-size:.75rem;color:#9fb3d1;max-height:180px;overflow:auto;margin:4px 0 2px}
+    /* Help sits top-right, same button styling as the rest */
+    #panel-capture .cap-help-row{display:flex;justify-content:center;margin-bottom:10px}
+    #panel-capture #cap-help-btn{padding:5px 14px}
+    /* Help overlay: a clean centred modal that hides all the jargon until asked for */
+    .cap-help-overlay{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:#0009}
+    .cap-help-overlay[hidden]{display:none}
+    .cap-help-card{width:min(560px,92vw);max-height:82vh;overflow:auto;background:#0f172a;border:1px solid #1e293b;
+        border-radius:16px;box-shadow:0 20px 60px #000c;font-family:system-ui,sans-serif;color:#cbd5e1}
+    .cap-help-head{position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;
+        padding:18px 22px 14px;background:#0f172a;border-bottom:1px solid #1e293b}
+    .cap-help-head h3{margin:0;font-size:1.15rem;font-weight:600;color:#f1f5f9;letter-spacing:0;text-transform:none}
+    .cap-help-x{background:#1e293b;border:none;color:#cbd5e1;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:.85rem}
+    .cap-help-x:hover{background:#334155;color:#fff}
+    .cap-help-body{padding:8px 22px 24px;font-size:.9rem;line-height:1.6}
+    .cap-help-body h4{margin:20px 0 6px;font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:#5eead4;font-weight:600}
+    .cap-help-body p{margin:6px 0}
+    .cap-help-body kbd{background:#1e293b;border:1px solid #334155;border-radius:5px;padding:1px 6px;font-family:monospace;font-size:.8em;color:#e2e8f0}
+    .cap-help-body code{background:#1e293b;border-radius:5px;padding:1px 5px;font-family:monospace;font-size:.85em;color:#5eead4}
+    .cap-help-body ul{margin:6px 0;padding-left:20px}
+    .cap-help-body li{margin:5px 0}
+    .cap-help-body .cap-note{background:#134e4a44;border-left:3px solid #14b8a6;border-radius:0 8px 8px 0;padding:10px 12px;margin:12px 0;font-size:.86rem}
+
     /* ---- bottom tab bar (DIAG / SETTINGS / PIT) + the sheets that rise above it ---- */
     #bottombar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);z-index:14;display:flex;gap:6px}
     .btab{font-family:monospace;font-size:.75rem;letter-spacing:.08em;color:#9fb3d1;background:#131c30;border:1px solid #24324d;border-bottom:none;
@@ -85,9 +130,13 @@
     #mb-start{background:#166534;border-color:#16a34a}
     #mb-start:disabled,#mb-abort:disabled,#mb-reset:disabled{opacity:.4;cursor:default}
     #mb-abort{background:#7f1d1d;border-color:#dc2626}
-    #status{background:#334155;color:#e2e8f0;padding:.25rem .6rem;border-radius:6px;font-size:.78rem;font-weight:bold}
+    #status{background:#334155;color:#e2e8f0;padding:.25rem .6rem;border-radius:6px;font-size:.78rem;font-weight:bold;display:inline-flex;align-items:center;gap:.4rem;vertical-align:middle}
     #status.pass{background:#166534;color:#dcfce7}
     #status.fail{background:#7f1d1d;color:#fee2e2}
+    #status.busy{background:#ea580c;color:#fff}                 /* orange: warming / compiling */
+    #status.ready{background:#facc15;color:#422006}             /* yellow: initialized & ready to run */
+    #status.busy::before{content:'\2699';display:inline-block;font-size:1em;line-height:1;animation:statusgear 1.05s linear infinite}
+    @keyframes statusgear{to{transform:rotate(360deg)}}
     /* ---- match-start ceremony: lights-out fade, held opaque during the spotlight sweep ---- */
     #ceremony-fade{position:fixed;inset:0;z-index:200;background:#000;opacity:0;pointer-events:none;transition:opacity .4s linear}
     .tab{position:fixed;top:46px;left:8px;width:46vw;max-width:680px;background:#0b1220ee;border:1px solid #334155;
@@ -444,7 +493,6 @@
   <div id="topbar">
     <span class="brand">impulse_3dsim v2</span>
     <span class="sp"></span>
-    <button class="tabbtn" data-panel="capture">Capture</button>
     <div id="status">STATUS: init…</div>
   </div>
 
@@ -484,7 +532,7 @@
           <button id="dh-btn" class="dh-btn init">INIT</button>
         </div>
         <div class="dh-bottom">
-          <select id="dh-code" class="dh-sel dh-code" title="Loaded code package (deploy from the Pit)" disabled><option>_starter</option></select>
+          <select id="dh-code" class="dh-sel dh-code" title="Code package — pick one to load &amp; recompile on the Driver Hub"><option>_starter</option></select>
           <div class="dh-status" id="opstate">STOPPED</div>
           <button id="dh-recompile" class="dh-recompile" title="Recompile">⟳</button>
         </div>
@@ -674,35 +722,82 @@
     </div>
   </section>
 
-  <!-- CAPTURE: Pedro Pathing teach-pendant. Drive the robot, record poses/actions, export a real Autonomous -->
-  <section id="tab-capture" class="tab slide">
-    <h3>Path Capture</h3>
-    <div class="row">
-      <button id="cap-begin">● Begin Capture</button>
-      <button id="cap-reset">Reset</button>
+  <!-- CAPTURE: Pedro Pathing teach-pendant, docked as a left-edge card whose tab stacks above the Driver Hub -->
+  <div id="panel-capture" class="edgepanel dock-left">
+    <div class="panel-body">
+      <div class="cap-help-row">
+        <button id="cap-help-btn" class="capbtn">Help</button>
+      </div>
+
+      <div class="cap-group">
+        <div class="cap-field">
+          <button id="cap-begin" class="capbtn">START</button>
+          <button id="cap-reset" class="capbtn">RESET</button>
+        </div>
+      </div>
+
+      <div class="cap-group">
+        <div class="cap-field">
+          <select id="cap-load-sel"><option value="">-- pick a captured auto --</option></select>
+          <button id="cap-load-btn" class="capbtn">Load Capture</button>
+        </div>
+      </div>
+
+      <div class="cap-group">
+        <div class="cap-field">
+          <input id="cap-name" type="text" value="CapturedAuto" spellcheck="false">
+          <button id="cap-export" class="capbtn">Save Capture</button>
+        </div>
+      </div>
+
+      <div id="cap-list"></div>
     </div>
-    <div class="row">
-      <label>Name</label>
-      <input id="cap-name" type="text" value="CapturedAuto" style="width:140px">
-      <button id="cap-export">Export to package</button>
+    <div id="tab-capture" class="edgetab captab" data-panel="capture">CAPTURE</div>
+  </div>
+
+  <!-- CAPTURE HELP: everything explanatory lives here so the panel itself stays clean -->
+  <div id="cap-help" class="cap-help-overlay" hidden>
+    <div class="cap-help-card">
+      <div class="cap-help-head">
+        <h3>Path Capture — Help</h3>
+        <button id="cap-help-close" class="cap-help-x" aria-label="Close">✕</button>
+      </div>
+      <div class="cap-help-body">
+        <p>Drive the robot around the field and record where it goes. When you save, the tool writes a real
+           Pedro&nbsp;Pathing <code>@Autonomous</code> file that runs unchanged on the simulator <em>or</em> the real robot.</p>
+
+        <h4>1 · Record the path</h4>
+        <p>Hold <kbd>C</kbd> (or the controller's <kbd>LB</kbd>) to drop a pose wherever the robot currently sits.
+           The cyan ▲ <b>Start</b> marker is the robot's initial Pinpoint pose — where you physically place it before the match.</p>
+        <p>Drag a pose disc to move it, drag its arrow tip to re-aim it, or edit the x / y / heading numbers directly in the list.</p>
+
+        <h4>2 · Mark actions</h4>
+        <p>Press <kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd>/<kbd>4</kbd> (or controller <kbd>A</kbd>/<kbd>B</kbd>/<kbd>X</kbd>/<kbd>Y</kbd>)
+           to mark an action. Each action ends the current path chain and starts a new one.</p>
+        <div class="cap-note"><b>A button press only inserts a labelled code comment</b> — it does <em>not</em> make the
+           robot do anything on its own. You are responsible for writing the actual code (for example
+           <code>robot.dumper.dump();</code>) inside that action's markers.</div>
+
+        <h4>3 · Save</h4>
+        <p>Type a name and click <b>Save Capture</b>. The tool writes <code>&lt;Name&gt;.java</code> into the current
+           code package (overwriting is confirmed first).</p>
+
+        <h4>4 · Loading it back for editing</h4>
+        <p>To re-open a saved file here later, its <code>// CAP:</code> marker comments must be left <b>exactly</b> as
+           generated. If you keep them intact you can hand-edit the file and still reload it; if any marker is removed,
+           reordered, or broken, the tool refuses to load it rather than guess and lose your work.</p>
+        <ul>
+          <li><code>// CAP:FILE version=1</code> near the top — proves the file came from this tool.</li>
+          <li>a <code>// CAP:POSE seq=N kind=init|pose</code> line immediately above each
+              <code>Pose x = new Pose(x, y, Math.toRadians(h));</code> — those three values must stay
+              <b>plain numbers</b> (no variables or expressions).</li>
+          <li>each action wrapped in a matching
+              <code>// CAP:ACTION seq=N button=X</code> … <code>// CAP:ACTION-END seq=N</code> pair.
+              You may add your own code <b>only between</b> those two lines — that is the one region kept verbatim on reload.</li>
+        </ul>
+      </div>
     </div>
-    <div class="row">
-      <label>Edit existing</label>
-      <select id="cap-load-sel" style="max-width:180px"><option value="">-- pick a captured auto --</option></select>
-      <button id="cap-load-btn">Load for editing</button>
-    </div>
-    <div style="font-size:.78rem;color:#93c5fd">
-      Hold <kbd>C</kbd> (or controller LT) to record a pose. Press <kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd>/<kbd>4</kbd>
-      (or controller A/B/X/Y) to mark an action — that ends the current path chain and starts a new one.
-      Drag a pose disc to move it, drag its arrow tip to re-aim it, or edit x/y/h directly in the list below.
-      The cyan &#9650; Start marker is the robot&#39;s initial Pinpoint pose (where you place it before the match) &mdash; drag/edit it like any pose.
-      Generated files have <code>// CAP:...</code> marker comments — leave those in place (add your own code
-      below a <code>// CAP:ACTION</code> line, above its matching <code>// CAP:ACTION-END</code>) if you want
-      to re-open the file here later; if the markers get removed or broken, this tool will refuse to load it
-      back in rather than guess and lose your edits.
-    </div>
-    <div id="cap-list" style="font-size:.75rem;color:#9fb3d1;max-height:200px;overflow:auto;margin-top:6px"></div>
-  </section>
+  </div>
 
   <div id="log"><div id="log-head"><span>console</span><span id="log-min">–</span></div><div id="log-body"></div></div>
 
@@ -1717,6 +1812,9 @@
     // clock/opmode state -- lets you re-run a capture or re-test a teleop pass without a full match reset.
     function fieldReset(){
       if (match.running || match.arming) return;
+      // stop any running practice OpMode first, so its localizer/odometry can't keep a stale pose
+      // after the robot snaps back to spawn (the reset must leave everything STOPPED + cleared).
+      for (const al of [alliances.red, alliances.blue]) if (al.lastCode === 2 || al.lastCode === 3) forceHubStopped(al);
       resetFieldForMatch();
     }
     // advance the clock + period transitions; called each frame from the render loop
@@ -2218,8 +2316,8 @@
           if (c) c.textContent = msg;
           if (code >= 2 && editor) CM.setErrors(editor, []);   // clear squiggles on any clean outcome
           if (code === 3) { s.className = 'pass'; s.textContent = 'STATUS: running'; }
-          else if (code === 2) { s.className = ''; s.textContent = 'STATUS: initialized'; }
-          else if (code === 1) { s.className = '';
+          else if (code === 2) { s.className = 'ready'; s.textContent = 'STATUS: READY'; }
+          else if (code === 1) { s.className = 'busy';
             s.textContent = a.warmed ? 'STATUS: compiling…'
                                      : 'STATUS: warming compiler — first run only (~1 min)…'; }
           else if (code === 4) { s.className = ''; s.textContent = 'STATUS: stopped'; }
@@ -2492,14 +2590,16 @@
       const selEl = document.getElementById(al.hub.code);
       if (!selEl) return;
       selEl.innerHTML = '';
+      const names = Object.keys(store.packages);
       if (al.hub.fromPit){
-        const o = document.createElement('option');
-        o.value = al.loaded ? al.loaded.name : '';
-        o.textContent = al.loaded ? al.loaded.name : '— no code loaded —';
-        selEl.appendChild(o); selEl.value = o.value; selEl.disabled = true;
+        // RED (sim) Driver Hub: pick any saved package here to load & recompile it, without going to the Pit
+        if (!names.length){ const o = document.createElement('option'); o.value = ''; o.textContent = '— no code —'; selEl.appendChild(o); selEl.disabled = true; return; }
+        names.forEach(name => { const o = document.createElement('option'); o.value = name; o.textContent = name; selEl.appendChild(o); });
+        selEl.value = al.loaded ? al.loaded.name : names[0];
+        selEl.disabled = false;
       } else {
         const head = document.createElement('option'); head.value = ''; head.textContent = '— pick opponent code —'; selEl.appendChild(head);
-        Object.keys(store.packages).forEach(name => { const o = document.createElement('option'); o.value = name; o.textContent = name; selEl.appendChild(o); });
+        names.forEach(name => { const o = document.createElement('option'); o.value = name; o.textContent = name; selEl.appendChild(o); });
         selEl.value = al.loaded ? al.loaded.name : ''; selEl.disabled = false;
       }
     }
@@ -2528,13 +2628,15 @@
     }
 
     // ---- tab shell ----
-    // Edge index cards (redhub/bluehub/matchplay) each toggle independently; the two bottom sheets
-    // (settings/diag) share the bottom-centre spot so they're mutually exclusive; Pit is a full-screen
-    // workspace; Capture keeps its own top slide-down. Clicking an open tab slides it back to the edge.
+    // Edge index cards toggle by side: Capture + the red Driver Hub share the left edge (one open at a
+    // time), Blue Hub docks right, Match Play drops from the top. The two bottom sheets (settings/diag)
+    // share the bottom-centre spot so they're mutually exclusive; Pit is a full-screen workspace.
+    // Clicking an open tab slides it back to the edge.
     const EDGE = {
-      redhub:    { panel: 'panel-redhub',    tab: 'tab-redhub'    },
-      bluehub:   { panel: 'panel-bluehub',   tab: 'tab-bluehub'   },
-      matchplay: { panel: 'panel-matchplay', tab: 'tab-matchplay' },
+      redhub:    { panel: 'panel-redhub',    tab: 'tab-redhub',    side: 'left'  },
+      capture:   { panel: 'panel-capture',   tab: 'tab-capture',   side: 'left'  },
+      bluehub:   { panel: 'panel-bluehub',   tab: 'tab-bluehub',   side: 'right' },
+      matchplay: { panel: 'panel-matchplay', tab: 'tab-matchplay', side: 'top'   },
     };
     const SHEET = { settings: 'panel-settings', diag: 'panel-diag' };
 
@@ -2558,19 +2660,11 @@
       pitBtn.classList.toggle('active', open);
       pitBtn.textContent = open ? 'SIM' : 'PIT';   // in the Pit this tab returns you to the simulator
       // the full-screen Pit would sit under the floating edge cards -- tuck them away while it's open
-      if (open){ for (const id of Object.keys(EDGE)) setEdge(id, false); closeSheets(); toggleCapture(false); }
-    }
-
-    function toggleCapture(on){
-      const cap = document.getElementById('tab-capture');
-      const open = on == null ? !cap.classList.contains('open') : on;
-      cap.classList.toggle('open', open);
-      document.querySelectorAll('.tabbtn[data-panel="capture"]').forEach(b => b.classList.toggle('active', open));
+      if (open){ for (const id of Object.keys(EDGE)) setEdge(id, false); closeSheets(); }
     }
 
     function togglePanel(id){
       if (id === 'pit')     { showPit(); return; }
-      if (id === 'capture') { toggleCapture(); return; }
       if (id in SHEET){
         const el = document.getElementById(SHEET[id]);
         const open = !el.classList.contains('open');
@@ -2581,8 +2675,12 @@
       }
       if (id in EDGE){
         const el = document.getElementById(EDGE[id].panel);
-        setEdge(id, !el.classList.contains('open'));
-        if (document.getElementById(EDGE[id].panel).classList.contains('open')) showPit(false);
+        const willOpen = !el.classList.contains('open');
+        // only one edge card per side may be open at a time (Capture and the Driver Hub share the left edge)
+        if (willOpen) for (const other of Object.keys(EDGE))
+          if (other !== id && EDGE[other].side === EDGE[id].side) setEdge(other, false);
+        setEdge(id, willOpen);
+        if (willOpen) showPit(false);
       }
     }
     document.querySelectorAll('[data-panel]').forEach(el => el.addEventListener('click', () => togglePanel(el.dataset.panel)));
@@ -2621,10 +2719,14 @@
       const dir = '/str/';
       const files = src.files;
       const names = Object.keys(files);
-      for (const fname of names) cheerpjAddStringFile(dir + fname, files[fname]);
-      cheerpjAddStringFile(dir + 'files.txt', names.join('\n'));
+      // cheerpjAddStringFile is write-once per path -- re-adding an edited file was IGNORED, so a
+      // recompile silently ran the previously-staged source. cheerpOSAddStringFile OVERWRITES, so
+      // edits actually reach the compiler and the robot's motion updates.
+      const addStr = (typeof cheerpOSAddStringFile === 'function') ? cheerpOSAddStringFile : cheerpjAddStringFile;
+      for (const fname of names) addStr(dir + fname, files[fname]);
+      addStr(dir + 'files.txt', names.join('\n'));
       const fqn = resolveFqn(files, src.fqn);
-      cheerpjAddStringFile(dir + 'opclass.txt', fqn);
+      addStr(dir + 'opclass.txt', fqn);
       a.cmd.vx = a.cmd.vy = a.cmd.omega = 0;
       a.active = true;
       a.pending = 1;
@@ -2648,7 +2750,7 @@
       if (on && op && job.src.fqn) on.textContent = op.name + (op.type === 'auto' ? '  (Autonomous)' : '  (TeleOp)');
       if (job.al.hub.fromPit){
         const warming = !job.al.warmed;
-        statusEl.className = '';
+        statusEl.className = 'busy';
         statusEl.textContent = warming ? 'STATUS: warming compiler — first run only (~1 min)…' : 'STATUS: compiling…';
         cstat.textContent = warming ? 'warming (~1 min)…' : 'compiling…';
       }
@@ -2661,6 +2763,12 @@
     function hubInit(al){
       if (!al.loaded && al.hub.fromPit) carryToHub(true);
       if (!al.loaded){ updateLoadState(al); return; }
+      // the sim (Pit-fed) hub always recompiles the CURRENT saved package, not the deploy-time
+      // snapshot -- otherwise edits made after deploying never reach the robot.
+      if (al.hub.fromPit && store.packages[al.loaded.name]){
+        writeActive();
+        snapshotInto(al, al.loaded.name, al.loaded.fqn);
+      }
       if (!al.loaded.fqn) { alert('Select a TeleOp or an Autonomous program first.'); return; }
       armInit(al, al.loaded);
     }
@@ -2712,7 +2820,8 @@
         renderHubOps(al);
       });
       const code = document.getElementById(al.hub.code);
-      if (code && !al.hub.fromPit) code.addEventListener('change', e => { if (e.target.value) snapshotInto(al, e.target.value); });
+      // both hubs can pick a package here; RED loads & recompiles it on the sim test stand
+      if (code) code.addEventListener('change', e => { if (e.target.value) snapshotInto(al, e.target.value); });
       const btn = document.getElementById(al.hub.btn);
       if (btn) btn.addEventListener('click', () => {
         const act = btn.dataset.act || 'init';
@@ -3680,7 +3789,7 @@
     setMatchUI();
 
     // ==================== Pedro Pathing: path capture (teach pendant) ====================
-    // Drive the red robot (any mode), record poses on 'C'/controller LT and actions on 1-4/A-B-X-Y,
+    // Drive the red robot (any mode), record poses on 'C'/controller LB and actions on 1-4/A-B-X-Y,
     // then export a real @Autonomous Pedro Pathing OpMode -- same code runs in the sim or on the robot.
     // Pose entries store SIM-space (meters/radians) as the source of truth; FTC inches/degrees are only
     // ever derived (toFtc/fromFtc) for display and code generation, so dragging never accumulates drift.
@@ -3958,7 +4067,7 @@
       canvas.addEventListener('pointercancel', endDrag);
 
       // ---- input edge-detection: own rAF poll, independent of the physics/render loop ----
-      let prevC = false, prevLt = false;
+      let prevC = false, prevLb = false;
       const prevFace = [false, false, false, false];
       const faceKeys = ['1', '2', '3', '4'], faceLabels = ['A', 'B', 'X', 'Y'];
       function poll() {
@@ -3968,9 +4077,9 @@
           prevC = cNow;
 
           const gp = navigator.getGamepads && navigator.getGamepads()[0];
-          const ltNow = !!(gp && gp.buttons[6] && gp.buttons[6].value > 0.5);
-          if (ltNow && !prevLt) recordPose();
-          prevLt = ltNow;
+          const lbNow = !!(gp && gp.buttons[4] && gp.buttons[4].pressed);   // left bumper (LT is used to turn the robot)
+          if (lbNow && !prevLb) recordPose();
+          prevLb = lbNow;
 
           for (let i = 0; i < 4; i++) {
             const btn = gp && gp.buttons[i];
@@ -4022,8 +4131,17 @@
       });
 
       const beginBtn = document.getElementById('cap-begin');
+      // one toggle button: start a fresh capture, or stop (keeping what you've got so you can still Save/edit)
+      function setCapturing(on){
+        captureMode = on;
+        if (beginBtn){
+          beginBtn.textContent = on ? 'STOP' : 'START';
+          beginBtn.classList.toggle('capturing', on);
+        }
+      }
       if (beginBtn) beginBtn.addEventListener('click', () => {
-        clearAll(); captureMode = true; beginBtn.textContent = '● Capturing…';
+        if (captureMode) { setCapturing(false); return; }   // stop; keep the recorded/loaded capture intact
+        clearAll(); setCapturing(true);
         // seed the Pinpoint's initial pose at wherever the robot currently sits; editable/movable like a pose
         const r = currentRobotPose();
         const initEntry = { id: nextId++, type: 'init', sx: r.sx, sz: r.sz, yaw: r.yaw };
@@ -4033,9 +4151,15 @@
         renderCapList();
       });
       const resetBtn = document.getElementById('cap-reset');
-      if (resetBtn) resetBtn.addEventListener('click', () => {
-        clearAll(); captureMode = false; if (beginBtn) beginBtn.textContent = '● Begin Capture';
-      });
+      if (resetBtn) resetBtn.addEventListener('click', () => { clearAll(); setCapturing(false); });
+
+      // Help overlay: keep the panel clean by tucking every explanation behind this button
+      const helpBtn = document.getElementById('cap-help-btn');
+      const helpOverlay = document.getElementById('cap-help');
+      const helpClose = document.getElementById('cap-help-close');
+      if (helpBtn && helpOverlay) helpBtn.addEventListener('click', () => { helpOverlay.hidden = false; });
+      if (helpClose) helpClose.addEventListener('click', () => { helpOverlay.hidden = true; });
+      if (helpOverlay) helpOverlay.addEventListener('click', e => { if (e.target === helpOverlay) helpOverlay.hidden = true; });
 
       // ---- code generation: split entries into segments at each action, splice continuity, emit Pedro ----
       function segmentEntries(list) {
@@ -4323,7 +4447,7 @@
         return { ok: true, entries: newEntries, nextId: idc };
       }
 
-      // swap the live entries/visuals for a freshly parsed set (used by the "Load for editing" button)
+      // swap the live entries/visuals for a freshly parsed set (used by the "Load Capture" button)
       function loadEntries(newEntries, newNextId) {
         for (const rec of poseObjs.values()) {
           capGroup.remove(rec.mesh); capGroup.remove(rec.rotArrowA); capGroup.remove(rec.rotArrowB);
@@ -4355,7 +4479,7 @@
         }
         if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
       }
-      document.querySelector('button[data-panel="capture"]')?.addEventListener('click', refreshCapLoadOptions);
+      document.querySelector('[data-panel="capture"]')?.addEventListener('click', refreshCapLoadOptions);
       refreshCapLoadOptions();
 
       const loadBtn = document.getElementById('cap-load-btn');
@@ -4367,8 +4491,7 @@
         const result = parseCapturedJava(p.files[fname]);
         if (!result.ok) { alert('Can\'t open "' + fname + '" for editing:\n\n' + result.reason); return; }
         loadEntries(result.entries, result.nextId);
-        captureMode = true;
-        if (beginBtn) beginBtn.textContent = '● Capturing…';
+        setCapturing(true);
         const nameInput = document.getElementById('cap-name');
         if (nameInput) nameInput.value = fname.replace(/\.java$/, '');
       });
