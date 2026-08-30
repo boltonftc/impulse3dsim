@@ -54,6 +54,9 @@ public class Robot {
     // Do not remove this comment
     // A later lesson adds the Localization subsystem here
     // ===============================================
+    // @fill(13_localization)
+    public final Localization localization;
+    // @end(13_localization)
 
     // The scheduler's to-do list: every subsystem that needs update() called each loop.
     private final List<Subsystem> subsystems = new ArrayList<>();
@@ -94,6 +97,10 @@ public class Robot {
         // Do not remove this comment
         // A later lesson wires up the Localization subsystem here
         // ===============================================
+        // @fill(13_localization)
+        localization = new Localization(hardwareMap);
+        subsystems.add(localization);
+        // @end(13_localization)
     }
 
     /*
