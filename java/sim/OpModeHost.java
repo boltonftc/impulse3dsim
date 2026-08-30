@@ -42,8 +42,8 @@ public class OpModeHost {
 
     // Java -> JS chassis velocity, robot frame (m/s, m/s, rad/s CCW+).
     static native void publish(int slot, double vx, double vy, double omega);
-    // Java -> JS mechanism state so the sim can animate them (intake/feeder/shooter spin, hood pos).
-    static native void mech(int slot, double intake, double feeder, double shooter, double hood);
+    // Java -> JS mechanism state so the sim can animate them (intake/feeder/shooter spin, hood + dump-bed pos).
+    static native void mech(int slot, double intake, double feeder, double shooter, double hood, double dump);
     // Java -> JS telemetry snapshot for the HUD.
     static native void telemetry(int slot, String text);
     // Java -> JS run state: 1 compiling, 2 initialized, 3 running, 4 stopped, 5 error.
@@ -264,7 +264,7 @@ public class OpModeHost {
                     double shv = shooter.getVelocity();
                     double shooterSpin = Math.abs(shv) > 1e-6 ? shv / SHOOTER_MAXV : shooter.getEffectivePower();
                     shooterSpin = Math.max(-1.0, Math.min(1.0, shooterSpin));
-                    mech(s, intake.getEffectivePower(), feeder.getEffectivePower(), shooterSpin, hood.getPosition());
+                    mech(s, intake.getEffectivePower(), feeder.getEffectivePower(), shooterSpin, hood.getPosition(), dumpServo.getPosition());
 
                     samples++;
                     // ~60 Hz control rate; under CheerpJ this loop shares the browser main thread, so a tighter sleep starves rendering.

@@ -732,7 +732,8 @@
       return {
         pad:  { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, rb: false, btns: 0 }, // JS -> Java gamepad (ly inverted: up = -1)
         cmd:  { vx: 0, vy: 0, omega: 0 }, // Java -> JS chassis velocity, robot frame
-        mech: { intake: 0, feeder: 0, shooter: 0, hood: 0 }, // Java -> JS mechanism state (spin/pos)
+        mech: { intake: 0, feeder: 0, shooter: 0, hood: 0, dump: 0 }, // Java -> JS mechanism state (spin/pos; dump = bed servo 0.5 carry .. 0.75 dump)
+        dumpTimer: 0,      // meters held balls off the bed over several frames while the bed is tilted up
         active: true,
         pending: 0,        // one-shot lifecycle command for the runner: 1 init, 2 start, 3 stop
         autoStart: false,  // auto-issue START once INIT reports ready
@@ -776,6 +777,8 @@
     const CUBE = 18 * 0.0254, CH = CUBE / 2;
     const BALL_R = 0.0356, N_BALLS = 20;         // BIOBUZZ yellow whiffle balls (2.8 in dia = 71 mm)
     const HIVE_R = 0.34, HIVE_H = 0.20;          // central hive: hex apothem + rim height (tall enough to read as a solid wall, not just floor trim)
+    const DECK_Y = 0.254, DUMP_H = 0.30;         // hive 2nd-floor deck at ~10"; dump bed spills balls off its rear at ~11"
+    const BED_REST = 0.80, BED_DUMP = -0.28;     // bed tilt (rad): rest slopes down to the front; dump rotates past horizontal so balls roll off the rear
     const ROBOT_MASS = 12.0;
     const TAU_LIN = 0.12, TAU_ROT = 0.10;
 
@@ -796,7 +799,7 @@
     const BACK_T = 0.30, BACK_H = 0.50, IN = HALF - WALL_T/2;
     const back = (hx, hz, x, z) =>
       world.createCollider(RAPIER.ColliderDesc.cuboid(hx, BACK_H, hz).setTranslation(x, BACK_H, z)
-        .setRestitution(0.1).setFriction(0.9).setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Min));
+        .setRestitution(0.4).setFriction(0.9).setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Min));   // lively enough that a recycled ball rebounds off the perimeter (robots stay at restitution 0 via Min)
     back(BACK_T, IN + WALL_T + BACK_T,  IN + BACK_T, 0);
     back(BACK_T, IN + WALL_T + BACK_T, -IN - BACK_T, 0);
     back(IN + WALL_T + BACK_T, BACK_T, 0,  IN + BACK_T);
@@ -1256,26 +1259,28 @@
       for (let i = 0; i < N_ROLL; i++) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.03, 12), intakeMat); r.position.y = -shaftLen*0.42 + i*(shaftLen*0.84/(N_ROLL-1)); intakeRoller.add(r); }
       intakePivot.add(intakeRoller);
 
-      // hopper: open-top bin (holds up to 20 balls) between the intake and the rear bumper; the black
-      // paddle-wheel indexer spans its full width so it can index balls both directions (intake / eject)
-      const hopperZ = -0.02, hopperW = FR * 0.7, hopperD = 0.20, hopperH = 0.16, wallT = 0.006;
-      const hopFloorY = F + 0.02;
-      const hopMat = new THREE.MeshStandardMaterial({ color: 0x384252, roughness: 0.55, metalness: 0.25, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
-      bx(hopperW, wallT, hopperD, 0, hopFloorY, hopperZ, partMat);
-      bx(wallT, hopperH, hopperD, -hopperW/2, hopFloorY + hopperH/2, hopperZ, hopMat);
-      bx(wallT, hopperH, hopperD,  hopperW/2, hopFloorY + hopperH/2, hopperZ, hopMat);
-      bx(hopperW, hopperH, wallT, 0, hopFloorY + hopperH/2, hopperZ - hopperD/2, hopMat);
+      // ---- DUMP BED: an inclined bed pivoting at the rear (~14"), low toward the front intake (~1.5").
+      // At rest it slopes down to the front so balls collect against the front lip; dump() tilts it up
+      // and past horizontal so balls roll back and spill off the OPEN rear (pivot) end at ~14".
+      const hopperZ = -0.02, hopperW = FR * 0.7, hopFloorY = F + 0.02;   // kept only for the control-hub/dome placement below
+      const bedW = FR * 0.72, bedLen = 0.32, bedThick = 0.008, railH = 0.03;
+      const pivotY = F + 0.28;                                          // pivot ~11" above the mat (lower, cleaner stance); front slopes down to ~2"
+      const bedPivot = new THREE.Object3D();
+      bedPivot.position.set(0, pivotY, -half + 0.012);                  // hinge at the rear, held up by the two posts below
+      group.add(bedPivot);
+      const bed = new THREE.Group(); bedPivot.add(bed);                 // bed.rotation.x animates the tilt
+      const bedMat  = new THREE.MeshStandardMaterial({ color: 0x3a4658, roughness: 0.5, metalness: 0.3 });
+      const railMat = new THREE.MeshStandardMaterial({ color: 0x2b3442, roughness: 0.6, metalness: 0.3 });
+      const bb = (w, h, d, x, y, z, m) => { const e = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); e.position.set(x, y, z); bed.add(e); return e; };
+      bb(bedW, bedThick, bedLen, 0, 0, bedLen/2, bedMat);               // bed floor: extends +Z (toward the front) from the pivot
+      bb(bedThick, railH, bedLen, -bedW/2, railH/2, bedLen/2, railMat); // left rail
+      bb(bedThick, railH, bedLen,  bedW/2, railH/2, bedLen/2, railMat); // right rail
+      bb(bedW, railH, bedThick, 0, railH/2, bedLen, railMat);          // FRONT lip (far/+Z end); rear/pivot end stays open to spill
+      bed.rotation.x = BED_REST;
+      // two vertical posts (one per side) rising from the base plate to the hinge, so the pivot is supported
+      for (const sx of [-1, 1]) bx(0.018, pivotY - (F + 0.02), 0.018, sx * (bedW/2 + 0.014), (F + 0.02 + pivotY) / 2, -half + 0.012, railMat);
 
-      // black paddle-wheel indexer, spanning to the hopper's sides (runs forward to feed the hopper,
-      // backward to meter balls out to the intake mouth for a small-range eject)
-      const feederPivot = mkPivot(0, hopFloorY + hopperH * 0.55, hopperZ, Math.PI/2);
-      const feederWheel = new THREE.Group();
-      const idxShaft = hopperW * 0.92;
-      feederWheel.add(new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, idxShaft, 10), partMat));
-      for (let k = 0; k < 3; k++) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.09, idxShaft * 0.87, 0.006), partMat); b.rotation.y = k*Math.PI/3; feederWheel.add(b); }
-      feederPivot.add(feederWheel);
-
-      // REV Control Hubs, mounted vertically on the hopper's outer sides (real 145 x 83 x 37 mm envelope)
+      // REV Control Hubs, mounted low on the chassis sides (real 145 x 83 x 37 mm envelope)
       const hubBoxW = 0.037, hubBoxH = 0.145, hubBoxD = 0.083;
       for (const sx of [-1, 1]) bx(hubBoxW, hubBoxH, hubBoxD, sx*(hopperW/2 + hubBoxW/2 + 0.004), hopFloorY + hubBoxH/2, hopperZ, hubMat);
       const ledMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x16a34a, emissiveIntensity: 1.3 });
@@ -1286,15 +1291,16 @@
       const dome = new THREE.Mesh(new THREE.SphereGeometry(0.014, 12, 8), domeMat);
       dome.position.set(hopperW/2 + hubBoxW + 0.004, hopFloorY + hubBoxH + 0.012, hopperZ); group.add(dome);
 
-      // internal ball store: pollen picked up by the intake appears stacked in the hopper (count-matched, no physics)
+      // internal ball store: pollen picked up by the intake rides on the bed near the low front end
+      // (count-matched, no physics) and tilts with the bed until dump() spills it out the back
       const store = [];
-      const SCOLS = 5;
+      const SCOLS = 4;
       for (let i = 0; i < 20; i++) {
-        const cx = ((i % SCOLS) - (SCOLS - 1) / 2) * (hopperW * 0.85 / SCOLS);
-        const layer = Math.floor(i / SCOLS);
+        const col = i % SCOLS, layer = Math.floor(i / SCOLS);
+        const cx = (col - (SCOLS - 1) / 2) * (bedW * 0.82 / SCOLS);
         const s = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 12, 9), storeMat);
-        s.position.set(cx, hopFloorY + BALL_R + layer * (BALL_R * 1.15), hopperZ);
-        s.visible = false; group.add(s); store.push(s);
+        s.position.set(cx, BALL_R + railH*0.3, bedLen - BALL_R*1.6 - layer * (BALL_R * 1.9));  // stacked from the front lip backward
+        s.visible = false; bed.add(s); store.push(s);
       }
 
       // four mecanum wheels (axle along X); yellow tires with faked diagonal rollers, dark hub cap
@@ -1309,7 +1315,7 @@
         group.add(w); wheels.push({ o: w, sx, sz });
       }
       const wheelTrack = (outerHalf - ww/2) + half*0.6;           // (Ly+Lx) lever: yaw rate -> wheel surface speed
-      return { group, intakeRoller, feederWheel, wheels, store, wheelR: wr, track: wheelTrack };
+      return { group, intakeRoller, bed, wheels, store, wheelR: wr, track: wheelTrack };
     }
 
     // mecanum inverse kinematics: contact speed per wheel from ACTUAL chassis velocity (m/s, rad/s), so
@@ -1370,6 +1376,14 @@
         if (Math.abs(w.y) > wc) body.setAngvel({ x: w.x, y: Math.sign(w.y) * wc, z: w.z }, true);
       }
     }
+    // ease the dump bed toward its commanded tilt (servo dump=0.5 carry .. 0.75 dump); smoothing gives
+    // the ~0.75s visual travel even though the sim servo snaps to its target instantly
+    function animateBed(g, M, dt) {
+      if (!g.bed) return;
+      const t = Math.max(0, Math.min(1, (M.dump - 0.5) / 0.25));
+      const target = BED_REST + t * (BED_DUMP - BED_REST);
+      g.bed.rotation.x += (target - g.bed.rotation.x) * Math.min(1, dt * 6);
+    }
     // copy a body's pose to its render group and spin mechanisms from its alliance's mech state
     function syncRobot(body, g, a, dt) {
       const cp = body.translation(), cr = body.rotation();
@@ -1377,7 +1391,7 @@
       g.group.quaternion.set(cr.x, cr.y, cr.z, cr.w);
       const M = a.mech;
       g.intakeRoller.rotation.y += M.intake  * 10  * dt;   // visual cue only; intake motor is REVERSEd, so forward power is negative -> sweeps pollen inward
-      g.feederWheel.rotation.y  += M.feeder  * 7   * dt;
+      animateBed(g, M, dt);
       const lv = localVel(body);
       spinWheels(g, lv.fwd, lv.strafe, lv.turn, dt);
     }
@@ -1435,27 +1449,75 @@
         const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4; return tex;
       }
       const BALL_MAT = new THREE.MeshStandardMaterial({ map: makeWiffleTexture(), color: 0xffffff, roughness: 0.6, metalness: 0.0 });
-      let recycled = 0, spawnA = 0;
+      let recycled = 0, spawnA = 0, onScore = null;
 
-      // central HIVE: hexagonal bin, one side open (mouth faces +Z toward the robot)
-      const a = C.HIVE_R, hH = C.HIVE_H, ht = 0.03, side = 1.1547 * a;
-      const hiveMat = new THREE.MeshStandardMaterial({ color: 0xffb020, transparent: true, opacity: 0.82, roughness: 0.4 });
-      const MOUTH = 1;                                    // skip the side at phi=90deg (+Z) = the opening
+      // central HIVE: hexagonal bin split down the middle by a partition. Driver-left half (-X) scores
+      // RED, driver-right half (+X) scores BLUE -- by zone, no matter which robot put the ball there.
+      // Two floors: a ground bin (1 pt) entered from the two sides adjacent to the driver, and an
+      // elevated deck at ~10" (3 pt) that dumped balls land on. The old +Z mouth is now a closed wall.
+      const a = C.HIVE_R, ht = 0.03, side = 1.1547 * a, deckY = C.DECK_Y;
+      // alliance-colored FLOORS only: the hex walls are all black; each scoring floor is split red (-X) | blue (+X).
+      const redMat   = new THREE.MeshStandardMaterial({ color: 0xd11e28, roughness: 0.5, side: THREE.DoubleSide });
+      const blueMat  = new THREE.MeshStandardMaterial({ color: 0x1f6dd6, roughness: 0.5, side: THREE.DoubleSide });
+      const blackMat = new THREE.MeshStandardMaterial({ color: 0x101317, roughness: 0.7 });
+      const OPEN = { 0: true, 2: true };                 // the two sides flanking the (now closed) +Z mouth are the ground-floor entrances
       for (let k = 0; k < 6; k++) {
-        if (k === MOUTH) continue;
+        if (OPEN[k]) continue;                           // leave the entrance sides open
         const phi = Math.PI/6 + k * Math.PI/3;           // 30deg + 60deg*k
         const beta = Math.PI/2 - phi;                    // yaw so the panel's long axis is tangent
         const cx = a * Math.cos(phi), cz = a * Math.sin(phi);
         world.createCollider(
-          RAPIER.ColliderDesc.cuboid(side/2, hH/2, ht/2)
-            .setTranslation(cx, hH/2, cz).setRotation({ x:0, y:Math.sin(beta/2), z:0, w:Math.cos(beta/2) })
+          RAPIER.ColliderDesc.cuboid(side/2, deckY/2, ht/2)
+            .setTranslation(cx, deckY/2, cz).setRotation({ x:0, y:Math.sin(beta/2), z:0, w:Math.cos(beta/2) })
             .setRestitution(0.2));
-        const panel = new THREE.Mesh(new THREE.BoxGeometry(side, hH, ht), hiveMat);
-        panel.position.set(cx, hH/2, cz); panel.rotation.y = beta; scene.add(panel);
+        const panel = new THREE.Mesh(new THREE.BoxGeometry(side, deckY, ht), blackMat);
+        panel.position.set(cx, deckY/2, cz); panel.rotation.y = beta; scene.add(panel);
       }
-      const hiveFloor = new THREE.Mesh(new THREE.CylinderGeometry(a, a, 0.012, 6),
-        new THREE.MeshStandardMaterial({ color: 0x7a4d00, roughness: 0.85 }));
-      hiveFloor.rotation.y = Math.PI/6; hiveFloor.position.y = 0.006; scene.add(hiveFloor);
+      // partition wall down x=0 (red -X | blue +X), tall enough to divide both the ground bin and the deck
+      const partH = deckY + 0.05, partLenZ = 2 * a * 0.95;
+      world.createCollider(
+        RAPIER.ColliderDesc.cuboid(ht/2, partH/2, partLenZ/2).setTranslation(0, partH/2, 0).setRestitution(0.2));
+      const partition = new THREE.Mesh(new THREE.BoxGeometry(ht, partH, partLenZ), blackMat);
+      partition.position.set(0, partH/2, 0); scene.add(partition);
+      // The hex corners sit on the X axis (left/right) with flat top/bottom edges -- that's how the walls are
+      // placed (centers at phi=30,90,... => corners at 0,60,120,...). Both the black base and the color pads are
+      // built from THOSE SAME corner angles so every seam lands on a wall, and the partition splits them at x=0.
+      const hexPts = R => { const p = []; for (let k = 0; k < 6; k++) { const ang = k * Math.PI/3; p.push([R*Math.cos(ang), R*Math.sin(ang)]); } return p; };
+      const hexMesh = (R, y, mat) => {                    // flat filled hexagon aligned to the walls (world x->sx, world z->-sy)
+        const sh = new THREE.Shape();
+        hexPts(R).forEach(([x, z], k) => k ? sh.lineTo(x, -z) : sh.moveTo(x, -z));
+        sh.closePath();
+        const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), mat); m.rotation.x = -Math.PI/2; m.position.y = y; scene.add(m); return m;
+      };
+      // two half-hexagon pads (red -X, blue +X): far point is the hex's left/right corner, cut edge runs up the partition
+      function hivePads(y) {
+        const R = side, A = 0.866 * R;                    // A = apothem (top/bottom flat edge is at world |z| = A)
+        for (const sgn of [-1, 1]) {
+          const sh = new THREE.Shape();
+          sh.moveTo(0, A); sh.lineTo(sgn * 0.5 * R, A); sh.lineTo(sgn * R, 0); sh.lineTo(sgn * 0.5 * R, -A); sh.lineTo(0, -A); sh.closePath();
+          const pad = new THREE.Mesh(new THREE.ShapeGeometry(sh), sgn < 0 ? redMat : blueMat);
+          pad.rotation.x = -Math.PI/2; pad.position.y = y; pad.renderOrder = 1; scene.add(pad);
+        }
+      }
+      // FLOOR 1 (1 pt): black hex base + bright red/blue halves, so the low ground bin is obvious through the entrances
+      hexMesh(side, 0.006, blackMat);
+      hivePads(0.015);
+      // FLOOR 2 (3 pt): elevated deck at ~10" -- black hex base + red/blue halves, low lip corrals landed balls
+      hexMesh(side * 0.995, deckY - 0.002, blackMat);
+      hivePads(deckY + 0.008);
+      world.createCollider(RAPIER.ColliderDesc.cuboid(a*0.9, 0.006, a*0.9).setTranslation(0, deckY, 0).setRestitution(0.15).setFriction(0.9));
+      const lipH = 0.03;                                  // small walls around the deck edge to corral landed balls
+      for (let k = 0; k < 6; k++) {
+        const phi = Math.PI/6 + k * Math.PI/3, beta = Math.PI/2 - phi;
+        const cx = a * Math.cos(phi), cz = a * Math.sin(phi);
+        world.createCollider(
+          RAPIER.ColliderDesc.cuboid(side/2, lipH/2, ht/2)
+            .setTranslation(cx, deckY + lipH/2, cz).setRotation({ x:0, y:Math.sin(beta/2), z:0, w:Math.cos(beta/2) })
+            .setRestitution(0.2));
+        const lip = new THREE.Mesh(new THREE.BoxGeometry(side, lipH, ht), blackMat);
+        lip.position.set(cx, deckY + lipH/2, cz); lip.rotation.y = beta; scene.add(lip);
+      }
+
 
       function spawnPoint() {
         spawnA += 2.399963;                              // golden angle -> spread recycled balls out
@@ -1468,7 +1530,7 @@
             .setCcdEnabled(true)                        // sweep fast/heavy balls so they can't tunnel through walls
             .setLinearDamping(0.8).setAngularDamping(0.8));
         world.createCollider(
-          RAPIER.ColliderDesc.ball(C.BALL_R).setRestitution(0.35).setFriction(0.6).setDensity(50), body);
+          RAPIER.ColliderDesc.ball(C.BALL_R).setRestitution(0.45).setFriction(0.6).setDensity(50), body);
         const mesh = new THREE.Mesh(new THREE.SphereGeometry(C.BALL_R, 18, 14), BALL_MAT);
         scene.add(mesh); bodies.push(body); meshes.push(mesh); held.push(false);
       }
@@ -1485,11 +1547,11 @@
           makeBall(Math.cos(ang) * rad, Math.sin(ang) * rad);
         }
       }
-      function recycle(i) {                              // deposited ball -> re-enter play elsewhere
-        const p = spawnPoint();
-        bodies[i].setTranslation({ x: p.x, y: C.BALL_R + 0.02, z: p.z }, true);
-        bodies[i].setLinvel({ x:0, y:0, z:0 }, true);
-        bodies[i].setAngvel({ x:0, y:0, z:0 }, true);
+      function recycle(i) {                              // scored ball -> back into play: sprayed hard toward the back wall (-Z) so it reaches it and rebounds
+        bodies[i].setTranslation({ x: (Math.random() - 0.5) * 0.5, y: C.BALL_R + 0.06, z: -C.HIVE_R - 0.06 }, true);
+        const vx = (Math.random() - 0.5) * 3.4, vz = -(3.6 + Math.random() * 2.0);   // wide lateral fan + strong rearward launch
+        bodies[i].setLinvel({ x: vx, y: 0.2 + Math.random() * 0.35, z: vz }, true);   // slight loft so it clears settled pollen on the way to the wall
+        bodies[i].setAngvel({ x: (Math.random()-0.5)*8, y: 0, z: (Math.random()-0.5)*8 }, true);
         recycled++;
       }
       // a ball that clipped out (or fell through) is dropped back into the open ring with a gentle
@@ -1552,13 +1614,43 @@
         }
         return spawned;
       }
+      // dump: meter held balls off the OPEN rear of the tilted bed, out the back of the robot at `height`,
+      // with a randomized backward vector (mirrors the reverse-intake eject, but rearward and from up high)
+      function dumpBalls(body, n, height) {
+        const p = body.translation(), q = body.rotation();
+        const yaw = 2 * Math.atan2(q.y, q.w), fs = Math.sin(yaw), fc = Math.cos(yaw);
+        const bkx = -fs, bkz = -fc;                                  // robot back = -forward
+        let spawned = 0;
+        for (let i = 0; i < bodies.length && spawned < n; i++) {
+          if (!held[i]) continue;
+          held[i] = false; meshes[i].visible = true;
+          const spread = (Math.random() - 0.5) * 0.9;
+          const ex = bkx * Math.cos(spread) + bkz * Math.sin(spread);
+          const ez = bkz * Math.cos(spread) - bkx * Math.sin(spread);
+          const speed = 0.7 + Math.random() * 0.8;
+          bodies[i].setTranslation({ x: p.x + bkx * (C.CH + C.BALL_R * 1.5), y: height, z: p.z + bkz * (C.CH + C.BALL_R * 1.5) }, true);
+          bodies[i].setLinvel({ x: ex * speed, y: 0.15 + Math.random() * 0.2, z: ez * speed }, true);
+          bodies[i].setAngvel({ x: 0, y: 0, z: 0 }, true);
+          spawned++;
+        }
+        return spawned;
+      }
+      // which scoring zone (if any) a settled ball is in: deck (3 pt) vs ground bin (1 pt), colored by side
+      function scoreZone(p) {
+        if (Math.hypot(p.x, p.z) > a * 0.98) return null;            // outside the hive footprint
+        const color = p.x < 0 ? 'red' : 'blue';                      // -X = driver-left = red, +X = right = blue
+        if (p.y > deckY + C.BALL_R * 0.4) return { color, pts: 3 };  // resting on the elevated deck
+        if (p.y < deckY - C.BALL_R)        return { color, pts: 1 };  // in the ground bin under the deck
+        return null;                                                 // mid-air between the two -- not scored yet
+      }
       function step(dt) {
-        const inner = a - C.BALL_R, OUT = C.HALF + 0.02;
+        const OUT = C.HALF + 0.02;
         for (let i = 0; i < bodies.length; i++) {
           if (held[i]) continue;
           const p = bodies[i].translation();
           if (Math.abs(p.x) > OUT || Math.abs(p.z) > OUT || p.y < -0.1) { respawnStray(i); continue; }
-          if (p.y < hH && Math.hypot(p.x, p.z) < inner) recycle(i);
+          const z = scoreZone(p);
+          if (z) { if (onScore) onScore(z.color, z.pts); recycle(i); }
         }
       }
       function sync() {
@@ -1570,9 +1662,13 @@
           meshes[i].quaternion.set(r.x, r.y, r.z, r.w);
         }
       }
-      return { id: 'biobuzz', reset, sync, step, serviceIntake, ejectBalls, get recycled(){ return recycled; } };
+      return { id: 'biobuzz', reset, sync, step, serviceIntake, ejectBalls, dumpBalls,
+               set onScore(fn){ onScore = fn; }, get recycled(){ return recycled; } };
     }
-    const game = createBioBuzzGame(world, scene, THREE, RAPIER, { HALF, CH, CUBE, BALL_R, N_BALLS, HIVE_R, HIVE_H });
+    const game = createBioBuzzGame(world, scene, THREE, RAPIER, { HALF, CH, CUBE, BALL_R, N_BALLS, HIVE_R, HIVE_H, DECK_Y });
+    // zone-based scoring: a ball in the red (-X) hive half scores red, the blue (+X) half scores blue,
+    // regardless of who dumped it. Ground bin = 1 pt, elevated deck = 3 pt.
+    game.onScore = (color, pts) => { matchScore[color] += pts; updateMatchClock(); };
     game.reset();
 
     // ==================== FMS match controller (M8a) ====================
@@ -1995,6 +2091,7 @@
         btns = padButtons(gp);
       }
       if (keys['x']) btns |= (1 << 2);   // keyboard X == gamepad X (TeleOp field/robot-centric toggle)
+      if (keys['y']) btns |= (1 << 3);   // keyboard Y == gamepad Y (dumper) -- lets keyboard-only students run the dump
       sim.pad.ly = ly; sim.pad.lx = lx; sim.pad.rx = rx;
       sim.pad.ry = ry; sim.pad.lt = lt; sim.pad.rt = rt; sim.pad.rb = rb; sim.pad.btns = btns;
     }
@@ -2046,8 +2143,8 @@
     function Java_sim_OpModeHost_publish(lib, slot, vx, vy, omega){
       const a = sel(slot); a.calls++; a.cmd.vx = vx; a.cmd.vy = vy; a.cmd.omega = omega;
     }
-    function Java_sim_OpModeHost_mech(lib, slot, intake, feeder, shooter, hood){
-      const a = sel(slot); a.calls++; a.mech.intake = intake; a.mech.feeder = feeder; a.mech.shooter = shooter; a.mech.hood = hood;
+    function Java_sim_OpModeHost_mech(lib, slot, intake, feeder, shooter, hood, dump){
+      const a = sel(slot); a.calls++; a.mech.intake = intake; a.mech.feeder = feeder; a.mech.shooter = shooter; a.mech.hood = hood; a.mech.dump = dump;
     }
     const teleEl = document.getElementById('tele');
     // each alliance's telemetry -> its own Driver Hub panel (+ the Pit test-stand drawer for the sim)
@@ -2192,6 +2289,13 @@
         sim.captured -= game.ejectBalls(robot, Math.min(sim.captured, 1 + Math.floor(Math.random() * 3)));
         sim.ejectTimer = 0.1 + Math.random() * 0.3;    // 0.1-0.4s gap -> a full 20-ball hopper empties in ~2-4s
       }
+      // dump: while the bed is tilted up (servo past mid-travel), cascade held balls off the rear at ~14"
+      const dumping = M.dump > 0.6;
+      sim.dumpTimer = dumping ? sim.dumpTimer - dt : 0;
+      if (dumping && sim.captured > 0 && sim.dumpTimer <= 0) {
+        sim.captured -= game.dumpBalls(robot, Math.min(sim.captured, 1 + Math.floor(Math.random() * 3)), DUMP_H);
+        sim.dumpTimer = 0.12 + Math.random() * 0.18;
+      }
       if (debugIntake) mainRobot.intakeRoller.rotation.y -= 10 * dt; // spin the roller so the test reads (forward dir)
       renderStore(mainRobot, sim.captured);
       if (upMode === 2) {
@@ -2201,6 +2305,12 @@
         if (ejectingB && alliances.blue.captured > 0 && alliances.blue.ejectTimer <= 0) {
           alliances.blue.captured -= game.ejectBalls(robotBlue, Math.min(alliances.blue.captured, 1 + Math.floor(Math.random() * 3)));
           alliances.blue.ejectTimer = 0.1 + Math.random() * 0.3;
+        }
+        const dumpingB = alliances.blue.mech.dump > 0.6;
+        alliances.blue.dumpTimer = dumpingB ? alliances.blue.dumpTimer - dt : 0;
+        if (dumpingB && alliances.blue.captured > 0 && alliances.blue.dumpTimer <= 0) {
+          alliances.blue.captured -= game.dumpBalls(robotBlue, Math.min(alliances.blue.captured, 1 + Math.floor(Math.random() * 3)), DUMP_H);
+          alliances.blue.dumpTimer = 0.12 + Math.random() * 0.18;
         }
         renderStore(blueRobot, alliances.blue.captured);
       }
@@ -2212,7 +2322,7 @@
       if (document.getElementById('tab-pit').classList.contains('active')) {
         resizeBench();
         benchRobot.intakeRoller.rotation.y += M.intake  * 10  * dt;
-        benchRobot.feederWheel.rotation.y  += M.feeder  * 7   * dt;
+        animateBed(benchRobot, M, dt);
         const bv = localVel(robot);
         spinWheels(benchRobot, bv.fwd, bv.strafe, bv.turn, dt);
         renderStore(benchRobot, sim.captured);
