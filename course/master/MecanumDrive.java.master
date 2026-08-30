@@ -271,6 +271,21 @@ public class MecanumDrive extends LinearOpMode {
             telemetry.addData("Dumper", robot.dumper.getState());
             // @end(12_dumper)
             // @end(12_dumper)
+            // @begin(13_localization)
+            // ===============================================
+            // Localization : Telemetry
+            // Do not remove this comment
+            // Show where the robot thinks it is below
+            // ===============================================
+            // @fill(13_localization)
+            telemetry.addData("Has Pinpoint", robot.localization.hasPinpoint());
+            telemetry.addData("Heading (deg)", "%.1f", robot.localization.getHeadingDegrees());
+            telemetry.addData("Position (in)", "x %.1f  y %.1f",
+                robot.localization.getXInches(), robot.localization.getYInches());
+            telemetry.addData("Distance from start (in)", "%.1f",
+                robot.localization.getDistanceFromStartInches());
+            // @end(13_localization)
+            // @end(13_localization)
             // @end(09_drivebase)
 
             telemetry.update();

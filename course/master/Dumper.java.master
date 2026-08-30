@@ -47,9 +47,10 @@ public class Dumper implements Subsystem {
 
     // TUNING CONSTANTS. `static final` is Java's version of a labeled #define:
     // named values that never change. Tune the dumper by editing THESE lines.
-    // SERVO POSITIONS are always between 0.0 and 1.0.
-    private static final double CARRY_POSITION = 0.5;    // bucket level (holding)
-    private static final double DUMP_POSITION  = 0.75;   // bucket tilted (dumping)
+    // SERVO POSITIONS are always between 0.0 and 1.0. Because this servo is
+    // REVERSED (see the constructor), a bigger number tilts the bucket UP.
+    private static final double CARRY_POSITION = 0.9;    // bucket level (stowed/holding)
+    private static final double DUMP_POSITION  = 0.3;    // bucket tilted (dumping)
 
     // TIMINGS in milliseconds -- how long each moving/holding step lasts. If the
     // bucket does not finish moving in time on the real robot, make the number
@@ -92,6 +93,11 @@ public class Dumper implements Subsystem {
         }
         servo = foundServo;
         if (servo != null) {
+            // Reverse the servo so a bigger position number tilts the bucket UP,
+            // just like reversing a drive motor flips which way it spins. This
+            // mirrors every position around 0.5 (a command of p now lands where
+            // 1 - p used to), so the tuning constants above are set accordingly.
+            servo.setDirection(Servo.Direction.REVERSE);
             servo.setPosition(CARRY_POSITION);
         }
     }

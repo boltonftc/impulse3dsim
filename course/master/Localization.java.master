@@ -1,0 +1,153 @@
+// @begin(13_localization)
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+
+/*
+ * ============================================================================
+ *  Localization  --  "Where am I on the field?"
+ * ============================================================================
+ *  Up to now the robot could FEEL which way it was facing (the IMU gives us a
+ *  heading). But it had no idea WHERE it was standing. Localization fixes that.
+ *
+ *  We use a goBILDA Pinpoint: a little computer wired to two "dead wheels"
+ *  (unpowered tracking wheels) and its own gyro. As the robot rolls, the
+ *  Pinpoint keeps a running total of how far it has gone and reports back a
+ *  POSE -- three numbers bundled together:
+ *
+ *        x        how far to the side of the start   (inches)
+ *        y        how far forward/back from the start (inches)
+ *        heading  which way it is facing              (an angle)
+ *
+ *  This is just like a subsystem you have already built: it implements
+ *  Subsystem, so the scheduler calls its update() once every loop. The one new
+ *  idea is that a smart sensor is STALE until you read it -- exactly like a
+ *  stopwatch that only shows a new time when you glance at it. So update()
+ *  asks the Pinpoint for fresh numbers, and the rest of the robot reads those
+ *  numbers through the getter methods below.
+ * ============================================================================
+ */
+public class Localization implements Subsystem {
+
+    // The odometry computer. `private` so only this class touches it. It is
+    // `null` if this robot has no "pinpoint" configured -- then the whole
+    // subsystem quietly does nothing instead of crashing.
+    private final GoBildaPinpointDriver pinpoint;
+
+    // The most recent reading, refreshed once per loop in update(). A Pose2D
+    // holds x, y, and heading together in one object ("pose" = position + facing).
+    private Pose2D latestPose = new Pose2D(DistanceUnit.INCH, 0, 0, AngleUnit.RADIANS, 0);
+
+    /*
+     * CONSTRUCTOR -- runs once while Robot is being built, during INIT.
+     * It looks up the Pinpoint and sets up its tracking wheels. The same
+     * null-guard you saw in the Intake and Dumper protects code that runs on a
+     * robot without a Pinpoint (or in a test): if the sensor is not there, we
+     * store null and skip everything else.
+     */
+    public Localization(HardwareMap hardwareMap) {
+        GoBildaPinpointDriver found = null;
+        try {
+            found = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+        } catch (IllegalArgumentException e) {
+            found = null;   // no "pinpoint" in the configuration -- run without it
+        }
+        pinpoint = found;
+
+        if (pinpoint != null) {
+            // Describe the physical odometry pods to the Pinpoint. You would only
+            // change these if you moved the tracking wheels on the real robot.
+            pinpoint.setOffsets(0.0, 0.0, DistanceUnit.MM);
+            pinpoint.setEncoderResolution(
+                GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+            pinpoint.setEncoderDirections(
+                GoBildaPinpointDriver.EncoderDirection.FORWARD,
+                GoBildaPinpointDriver.EncoderDirection.FORWARD);
+
+            // Zero everything: this spot becomes (0, 0) facing 0. It also
+            // calibrates the gyro, so HOLD THE ROBOT STILL during INIT.
+            pinpoint.resetPosAndIMU();
+        }
+    }
+
+    /*
+     * update() -- the scheduler calls this once per loop. Its whole job is to
+     * pull fresh numbers off the Pinpoint and stash them in latestPose.
+     */
+    @Override
+    public void update() {
+        // ===============================================
+        // Localization : Read
+        // Do not remove this comment
+        // Read fresh data from the Pinpoint below
+        // ===============================================
+        // @fill(13_localization)
+        if (pinpoint == null) {
+            return;   // no sensor -- nothing to read
+        }
+        pinpoint.update();                 // pull the newest numbers over the wire
+        latestPose = pinpoint.getPosition();
+        // @end(13_localization)
+    }
+
+    // ===============================================
+    // Localization : Getters
+    // Do not remove this comment
+    // Add the methods that hand out heading, x, y, and distance below
+    // ===============================================
+    // @fill(13_localization)
+    /** Heading in RADIANS. 0 is the way the robot faced at reset. Driving/auto use this. */
+    public double getHeadingRadians() {
+        return latestPose.getHeading(AngleUnit.RADIANS);
+    }
+
+    /** The same heading in DEGREES -- easier for a human to read on telemetry. */
+    public double getHeadingDegrees() {
+        return latestPose.getHeading(AngleUnit.DEGREES);
+    }
+
+    /** Position along the field's X axis (side to side from the start), in inches. */
+    public double getXInches() {
+        return latestPose.getX(DistanceUnit.INCH);
+    }
+
+    /** Position along the field's Y axis (forward/back from the start), in inches. */
+    public double getYInches() {
+        return latestPose.getY(DistanceUnit.INCH);
+    }
+
+    /*
+     * Straight-line distance from the start point. This is the Pythagorean
+     * theorem: for a right triangle with legs x and y, the hypotenuse is
+     *
+     *        distance = sqrt(x * x + y * y)
+     *
+     * Math.hypot(x, y) does exactly that (and avoids overflow). Drive the robot
+     * out and then back to where it started, and watch this shrink toward 0.
+     */
+    public double getDistanceFromStartInches() {
+        return Math.hypot(getXInches(), getYInches());
+    }
+    // @end(13_localization)
+
+    /** True if a real Pinpoint was found. Lets telemetry warn you if it is missing. */
+    public boolean hasPinpoint() {
+        return pinpoint != null;
+    }
+
+    /*
+     * reset() -- make the robot's current spot the new (0, 0) origin, facing 0.
+     * HOLD THE ROBOT STILL when you call this (it recalibrates the gyro too).
+     */
+    public void reset() {
+        if (pinpoint != null) {
+            pinpoint.resetPosAndIMU();
+        }
+    }
+}
+// @end(13_localization)

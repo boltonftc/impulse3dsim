@@ -1,0 +1,200 @@
+<h1>Where Am I? Pinpoint Localization</h1>
+
+<p>Your robot can already <em>feel</em> which way it's facing &mdash; the IMU gives you a heading. But ask it
+<em>&ldquo;where are you standing on the field?&rdquo;</em> and it has no clue. In this lesson you give the robot that
+missing sense: <strong>localization</strong>, the ability to track its own position as it drives.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">A pose is three numbers</div>
+  <p>To describe where a robot is, you need three facts bundled together &mdash; a <strong>pose</strong>:</p>
+  <ul>
+    <li><code>x</code> &mdash; how far to the <em>side</em> of the start (inches)</li>
+    <li><code>y</code> &mdash; how far <em>forward or back</em> from the start (inches)</li>
+    <li><code>heading</code> &mdash; which way it's <em>facing</em> (an angle)</li>
+  </ul>
+  <p>That's the same idea as a point on a graph in math class: <code>(x, y)</code> tells you the spot, and the
+  heading is the direction of an arrow drawn on it.</p>
+</div>
+
+<hr>
+
+<h2>The sensor: a goBILDA Pinpoint</h2>
+
+<p>We track position with a <strong>Pinpoint</strong> &mdash; a small computer wired to two unpowered
+&ldquo;dead wheels&rdquo; and its own gyro. As the robot rolls, the Pinpoint quietly adds up how far it has gone and
+keeps a running <code>pose</code>. Your job is <em>not</em> to do the math &mdash; the sensor does that. Your job is to
+<strong>read</strong> it and share the answer with the rest of the robot.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Smart sensors are &ldquo;stale until you look&rdquo;</div>
+  <p>A Pinpoint is like a stopwatch on the wall: it's always running, but the number you <em>remember</em> only
+  changes the moment you glance at it. In code, &ldquo;glancing&rdquo; is calling <code>pinpoint.update()</code>. If you
+  forget it, every reading is frozen at the last value. So <strong>read once, at the top of every loop</strong> &mdash;
+  the exact same rhythm the scheduler already uses.</p>
+</div>
+
+<p>Good news: <code>Localization</code> is just another <strong>subsystem</strong>, the same shape you built for the intake
+and dumper. It implements <code>Subsystem</code>, so the scheduler calls its <code>update()</code> for you every loop.</p>
+
+<hr>
+
+<h2>Meet <code>Localization.java</code></h2>
+
+<p>A new file appeared: <code>Localization.java</code>. Open it and read the top. The <code>pinpoint</code> field, the
+<code>latestPose</code> field, and the constructor are already written. The constructor finds the sensor, describes
+its tracking wheels, and zeroes it &mdash; and it uses the <em>same</em> null-guard you've seen before, so a robot
+without a Pinpoint simply does nothing instead of crashing. Two pieces are missing, and you'll add them.</p>
+
+<hr>
+
+<h2>Part A &mdash; Read the sensor every loop</h2>
+
+<p>Inside <code>update()</code>, first bail out if there's no sensor (the null-guard), then take one fresh reading and
+store it in <code>latestPose</code>. That's the whole job &mdash; and it returns instantly, so the robot never stalls.</p>
+
+<span class="act" data-action="open_file" data-arg="Localization.java|Localization : Read">&#9656; Localization.java : Localization : Read</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Localization.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>if (pinpoint == null) {
+    return;   // no sensor -- nothing to read
+}
+pinpoint.update();                 // pull the newest numbers over the wire
+latestPose = pinpoint.getPosition();</code></pre>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Guard first, then work</div>
+  <p>That early <code>return</code> is a <strong>logic guard</strong>: &ldquo;if there's nothing to do, stop right here.&rdquo; It
+  keeps the rest of the method simple, because after that line you <em>know</em> <code>pinpoint</code> is real and safe
+  to use. Checking the special case first and returning is a habit that keeps code from crashing.</p>
+</div>
+
+<hr>
+
+<h2>Part B &mdash; Hand out the answers (getters)</h2>
+
+<p>The rest of the robot shouldn't poke at the Pinpoint directly &mdash; it should ask <code>Localization</code> polite
+questions. Add these <strong>getter</strong> methods. Each one just reads a number out of <code>latestPose</code> in the
+units the caller wants.</p>
+
+<span class="act" data-action="open_file" data-arg="Localization.java|Localization : Getters">&#9656; Localization.java : Localization : Getters</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Localization.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>public double getHeadingRadians() {
+    return latestPose.getHeading(AngleUnit.RADIANS);
+}
+
+public double getHeadingDegrees() {
+    return latestPose.getHeading(AngleUnit.DEGREES);
+}
+
+public double getXInches() {
+    return latestPose.getX(DistanceUnit.INCH);
+}
+
+public double getYInches() {
+    return latestPose.getY(DistanceUnit.INCH);
+}
+
+public double getDistanceFromStartInches() {
+    return Math.hypot(getXInches(), getYInches());
+}</code></pre>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Two ways to say the same angle: radians vs. degrees</div>
+  <p>Notice heading comes in two flavors. A full circle is <strong>360 degrees</strong> &mdash; or, the way the math of
+  motion prefers it, <strong>2&pi; radians</strong> (about 6.28). Neither is &ldquo;more correct&rdquo;; they're two units for
+  the same turn, like inches and centimeters. Humans read <em>degrees</em> easily, so telemetry uses that;
+  driving and autonomous math want <em>radians</em>. Asking the pose for the unit you need means <strong>no
+  conversion mistakes</strong> in your own code.</p>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">The math hook: distance is the Pythagorean theorem</div>
+  <p><code>getDistanceFromStartInches()</code> answers &ldquo;as the crow flies, how far am I from where I started?&rdquo;
+  Picture a right triangle: one leg is <code>x</code>, the other is <code>y</code>, and the straight-line distance is the
+  <strong>hypotenuse</strong>:</p>
+  <p style="text-align:center"><code>distance = &radic;(x&sup2; + y&sup2;)</code></p>
+  <p><code>Math.hypot(x, y)</code> computes exactly that. So if the robot is 3&nbsp;inches over and 4&nbsp;inches up,
+  it's <code>&radic;(9 + 16) = &radic;25 = 5</code> inches from home &mdash; the classic 3-4-5 triangle, live on your robot.</p>
+</div>
+
+<hr>
+
+<h2>Part C &mdash; Add localization to the robot</h2>
+
+<p>Just like every subsystem, <code>Robot</code> needs to know about it &mdash; two small edits.</p>
+
+<h3>1. Declare the field</h3>
+
+<span class="act" data-action="open_file" data-arg="Robot.java|Localization : Field">&#9656; Robot.java : Localization : Field</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>public final Localization localization;</code></pre>
+</div>
+
+<h3>2. Build it (and add it to the scheduler)</h3>
+
+<p>That second line is what makes <code>robot.update()</code> call localization's <code>update()</code> every loop &mdash;
+without it, the pose would never refresh.</p>
+
+<span class="act" data-action="open_file" data-arg="Robot.java|Localization : Setup">&#9656; Robot.java : Localization : Setup</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>localization = new Localization(hardwareMap);
+subsystems.add(localization);</code></pre>
+</div>
+
+<hr>
+
+<h2>Part D &mdash; Put your position on the screen</h2>
+
+<p>Now show it off. In the OpMode's telemetry, add a few lines that report what localization knows. Because
+<code>robot.update()</code> already refreshes the pose at the top of the loop, these always show the latest numbers.</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Localization : Telemetry">&#9656; MecanumDrive.java : Localization : Telemetry</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>telemetry.addData("Has Pinpoint", robot.localization.hasPinpoint());
+telemetry.addData("Heading (deg)", "%.1f", robot.localization.getHeadingDegrees());
+telemetry.addData("Position (in)", "x %.1f  y %.1f",
+    robot.localization.getXInches(), robot.localization.getYInches());
+telemetry.addData("Distance from start (in)", "%.1f",
+    robot.localization.getDistanceFromStartInches());</code></pre>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">The <code>"%.1f"</code> trick</div>
+  <p>Raw sensor numbers have a long tail of decimals, like <code>12.837401&hellip;</code>. The <code>"%.1f"</code> is a
+  <strong>format string</strong>: it rounds to one digit after the point (<code>12.8</code>) so the driver-station screen
+  stays clean and readable while the robot is moving.</p>
+</div>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li><strong>Part A:</strong> in <code>Localization.java</code>, fill in <code>update()</code> to read the Pinpoint each loop.</li>
+    <li><strong>Part B:</strong> add the five getters, including the Pythagorean <code>getDistanceFromStartInches()</code>.</li>
+    <li><strong>Part C:</strong> in <code>Robot.java</code>, declare and build <code>localization</code> (both lines!).</li>
+    <li><strong>Part D:</strong> in <code>MecanumDrive.java</code>, add the telemetry lines.</li>
+    <li><strong>Build &amp; Init</strong> (hold still while it calibrates), <strong>Start</strong>, then drive around and watch
+    <code>x</code>, <code>y</code>, and heading change as you move.</li>
+    <li><strong>Prove the math:</strong> drive out, then return to your starting spot &mdash; the
+    <strong>Distance from start</strong> should shrink back toward <code>0</code>.</li>
+  </ul>
+</div>
+
+<p>Your robot now knows <em>where</em> it is, not just which way it faces. That's the missing ingredient for a
+robot that can drive itself &mdash; and driving to a spot on its own is exactly where we're headed with
+<strong>autonomous</strong> next.</p>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>
