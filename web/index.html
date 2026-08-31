@@ -484,7 +484,7 @@
       </div>
       <div class="pit-sheet-body" id="pit-sheet-body"></div>
       <div class="pit-sheet-foot">
-        <button class="pit-btn ghost" id="pit-sheet-cancel">Cancel</button>
+        <button class="pit-btn ghost" id="pit-sheet-cancel">Close</button>
         <button class="pit-btn go" id="pit-sheet-go">Action ▸</button>
       </div>
     </div>
@@ -3492,7 +3492,19 @@
         for (const e of alt.endpoints){ if (e.type === 'bulk' && e.direction === 'in') epIn = e.endpointNumber; if (e.type === 'bulk' && e.direction === 'out') epOut = e.endpointNumber; }
         usb = { dev, ifaceNum: iface.interfaceNumber, epIn, epOut, maxData: 256 * 1024 }; nextLocalId = 1;
         await sendMsg(A.CNXN, 0x01000000, 256 * 1024, enc.encode('host::features=cmd,shell_v2\0'));
-        const pkt = await recvMsg(8000);
+        // A prior session can leave stray packets (WRTE/CLSE/OKAY) in the pipe that arrive
+        // before the CNXN banner; read past them instead of failing, so one click works
+        // rather than needing a second Deploy attempt.
+        let pkt = null;
+        const deadline = Date.now() + 8000;
+        while (Date.now() < deadline){
+          try { pkt = await recvMsg(Math.max(200, deadline - Date.now())); }
+          catch (e){ pkt = null; break; }
+          if (pkt.command === A.CNXN || pkt.command === A.AUTH) break;
+          if (pkt.command === A.WRTE){ try { await sendMsg(A.OKAY, pkt.arg1, pkt.arg0); } catch(_){} }  // ack & discard leftover stream data
+          pkt = null;
+        }
+        if (!pkt) throw new Error('No connection banner from robot — unplug and replug the USB cable, then try again.');
         if (pkt.command === A.AUTH) throw new Error('This robot has secure ADB enabled and needs on-device authorization.');
         if (pkt.command !== A.CNXN) throw new Error('Unexpected reply from robot: ' + cmdName(pkt.command));
         usb.maxData = (pkt.arg1 >>> 0) || 256 * 1024;
