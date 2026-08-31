@@ -9,17 +9,21 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 // sim and the real robot -- it only ever calls the standard DcMotor.setPower() interface.
 // Autonomous uses THIS (closed-loop path following); TeleOp drives the same four motors
 // directly from gamepad sticks. Motor names must match your hardware configuration:
-// leftFront, rightFront, leftBack, rightBack.
+// front_left_motor, front_right_motor, back_left_motor, back_right_motor.
 public class MecanumDrivetrainSubsystem extends Drivetrain {
 
     private final DcMotor leftFront, rightFront, leftBack, rightBack;
     private volatile double xVel = 0, yVel = 0;
 
     public MecanumDrivetrainSubsystem(HardwareMap hardwareMap) {
-        leftFront  = hardwareMap.get(DcMotor.class, "leftFront");
-        rightFront = hardwareMap.get(DcMotor.class, "rightFront");
-        leftBack   = hardwareMap.get(DcMotor.class, "leftBack");
-        rightBack  = hardwareMap.get(DcMotor.class, "rightBack");
+        leftFront  = hardwareMap.get(DcMotor.class, "front_left_motor");
+        rightFront = hardwareMap.get(DcMotor.class, "front_right_motor");
+        leftBack   = hardwareMap.get(DcMotor.class, "back_left_motor");
+        rightBack  = hardwareMap.get(DcMotor.class, "back_right_motor");
+
+        // Left-side motors are mounted mirror-image, so reverse them (same as TeleOp).
+        leftFront.setDirection(DcMotor.Direction.REVERSE);
+        leftBack.setDirection(DcMotor.Direction.REVERSE);
     }
 
     // Pedro sums three control vectors (field-frame) into a movement command; we rotate that
