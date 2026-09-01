@@ -3437,6 +3437,11 @@
       const OB_PKG = 'ob', OB_TAG = ' OB';
       const enc = new TextEncoder();
       let usb = null, nextLocalId = 1;
+      // A physical unplug/power-cycle invalidates the device; drop our handle so the sheet
+      // offers Connect again instead of a Deploy that fails with "device was disconnected".
+      if (navigator.usb && navigator.usb.addEventListener){
+        navigator.usb.addEventListener('disconnect', e => { if (usb && e.device === usb.dev) usb = null; });
+      }
       function withTimeout(promise, ms, label){ let t; const to = new Promise((_, rej) => { t = setTimeout(() => rej(new Error('Timed out after ' + ms + 'ms during ' + label)), ms); }); return Promise.race([promise, to]).finally(() => clearTimeout(t)); }
       function adbSum(p){ let s = 0; for (let i = 0; i < p.length; i++) s = (s + p[i]) >>> 0; return s; }
       function concatBytes(){ const arrs = [].slice.call(arguments); let n = 0; for (const a of arrs) n += a.length; const out = new Uint8Array(n); let k = 0; for (const a of arrs){ out.set(a, k); k += a.length; } return out; }
@@ -3513,7 +3518,7 @@
         if (log) log('Connected to ' + model + '. Click again to continue.', 'ok');
         return model;
       }
-      function isConnected(){ return !!usb; }
+      function isConnected(){ if (usb && usb.dev && usb.dev.opened === false) usb = null; return !!usb; }
       async function deployFiles(files, obMode, log){
         if (!usb) throw new Error('Connect to the robot first.');
         const names = Object.keys(files).filter(n => n.endsWith('.java'));
