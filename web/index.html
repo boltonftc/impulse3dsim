@@ -3519,6 +3519,27 @@
         return model;
       }
       function isConnected(){ if (usb && usb.dev && usb.dev.opened === false) usb = null; return !!usb; }
+      // Remove .java files left on the robot from a previous deploy that aren't in this one.
+      // Scoped strictly to the tool-managed on-bot (.ob) sandbox so a student's other OpModes
+      // are never touched. Fixes stale files (e.g. a deleted SimpleAuto) breaking the build.
+      async function pruneObStale(keep, log){
+        const OB_DIR = TEAMCODE_ROOT + OB_PKG + '/';
+        const tree = await httpRequest('GET', '/java/file/tree');
+        if (tree.status !== 200) return;
+        let entries = [];
+        try { entries = JSON.parse(tree.body).src || []; } catch(e){ return; }
+        const norm = p => p.startsWith('/src') ? p : '/src' + (p.startsWith('/') ? p : '/' + p);
+        const stale = entries
+          .filter(p => typeof p === 'string' && !p.endsWith('/'))
+          .map(norm)
+          .filter(p => p.startsWith(OB_DIR) && p.toLowerCase().endsWith('.java') && !keep.has(p));
+        if (!stale.length) return;
+        log('Removing ' + stale.length + ' stale file' + (stale.length === 1 ? '' : 's') + ' left from a previous deploy…', 'warn');
+        const body = 'delete=' + encodeURIComponent(JSON.stringify(stale));
+        const r = await httpRequest('POST', '/java/file/delete', { body });
+        if (r.status === 200){ for (const p of stale) log('  \uD83D\uDDD1 ' + p, 'ok'); }
+        else log('  Could not delete stale files (' + r.status + ') — remove them in OnBotJava if the build fails.', 'warn');
+      }
       async function deployFiles(files, obMode, log){
         if (!usb) throw new Error('Connect to the robot first.');
         const names = Object.keys(files).filter(n => n.endsWith('.java'));
@@ -3527,15 +3548,18 @@
         if (obMode) log('On-bot test mode: deploying into the .ob package (OpMode names get " OB").', 'dim');
         log('Uploading ' + names.length + ' file' + (names.length === 1 ? '' : 's') + '…', 'warn');
         let failed = 0;
+        const uploaded = new Set();
         for (const name of names){
           const src = files[name];
           const outText = obMode ? toOb(src) : src;
           const devPath = devicePathFor(src, name);
           const outPath = obMode ? obDevicePath(devPath) : devPath;
           const ok = await saveOne(outPath, outText);
+          uploaded.add(outPath);
           log((ok ? '  ✓ ' : '  ✗ ') + outPath, ok ? 'ok' : 'err'); if (!ok) failed++;
         }
         if (failed) throw new Error(failed + ' file(s) failed to upload.');
+        if (obMode) await pruneObStale(uploaded, log);
         log('Starting the build on the robot…');
         const s = await httpRequest('GET', '/java/build/start'); if (s.status !== 200) throw new Error('Could not start build: ' + s.status + ' ' + s.statusText);
         log('Compiling (first build can take a minute)…', 'warn');
