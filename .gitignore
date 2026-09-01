@@ -18,6 +18,9 @@ __pycache__/
 .venv/
 venv/
 
+# CheerpJ self-host mirror: keep the runtime files, drop only in-flight temp files.
+/web/cj/**/*.part
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db

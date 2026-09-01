@@ -24,12 +24,13 @@
     }
   </script>
   <script>
-    // Local dev serves CheerpJ same-origin via the range_server /cj/ proxy; a static
-    // host (GitHub Pages) has no proxy, so load the runtime from the CheerpJ CDN.
+    // CheerpJ runtime is self-hosted alongside the app under ./cj/ (mirrored into
+    // web/cj/). Loading the loader by a RELATIVE url makes it and its runtime files
+    // resolve correctly whether served from the domain root (localhost dev) or a
+    // project subpath (GitHub Pages project site), and lets the service worker cache
+    // them same-origin so the installed app works offline.
     (function () {
-      var local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-      var src = local ? '/cj/loader.js' : 'https://cjrtnc.leaningtech.com/4.3/loader.js';
-      document.write('<script src="' + src + '"><\/script>');
+      document.write('<script src="cj/loader.js"><\/script>');
     })();
   </script>
   <style>
