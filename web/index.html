@@ -3492,37 +3492,48 @@
       }
       async function connect(log){
         if (!navigator.usb) throw new Error('This browser can\u2019t access USB — use Chrome or Edge on a computer.');
+        // A previous attempt (or page state) can leave a half-open handle claimed; releasing it first
+        // avoids 'transfer error' failures caused by claiming an interface that's already held.
+        if (usb && usb.dev){ try { await usb.dev.close(); } catch(_){} usb = null; }
         const dev = await navigator.usb.requestDevice({ filters: [{ classCode: 0xff, subclassCode: 0x42, protocolCode: 1 }] });
-        await dev.open();
-        if (dev.configuration === null) await dev.selectConfiguration(dev.configurations[0].configurationValue);
-        let iface = null, alt = null;
-        for (const cfg of dev.configurations) for (const i of cfg.interfaces) for (const a of i.alternates) if (a.interfaceClass === 0xff && a.interfaceSubclass === 0x42 && a.interfaceProtocol === 1){ iface = i; alt = a; }
-        if (!iface) throw new Error('No ADB interface on this device — is USB debugging on?');
-        await dev.claimInterface(iface.interfaceNumber);
-        let epIn = null, epOut = null;
-        for (const e of alt.endpoints){ if (e.type === 'bulk' && e.direction === 'in') epIn = e.endpointNumber; if (e.type === 'bulk' && e.direction === 'out') epOut = e.endpointNumber; }
-        usb = { dev, ifaceNum: iface.interfaceNumber, epIn, epOut, maxData: 256 * 1024 }; nextLocalId = 1;
-        await sendMsg(A.CNXN, 0x01000000, 256 * 1024, enc.encode('host::features=cmd,shell_v2\0'));
-        // A prior session can leave stray packets (WRTE/CLSE/OKAY) in the pipe that arrive
-        // before the CNXN banner; read past them instead of failing, so one click works
-        // rather than needing a second Deploy attempt.
-        let pkt = null;
-        const deadline = Date.now() + 8000;
-        while (Date.now() < deadline){
-          try { pkt = await recvMsg(Math.max(200, deadline - Date.now())); }
-          catch (e){ pkt = null; break; }
-          if (pkt.command === A.CNXN || pkt.command === A.AUTH) break;
-          if (pkt.command === A.WRTE){ try { await sendMsg(A.OKAY, pkt.arg1, pkt.arg0); } catch(_){} }  // ack & discard leftover stream data
-          pkt = null;
+        try {
+          await dev.open();
+          if (dev.configuration === null) await dev.selectConfiguration(dev.configurations[0].configurationValue);
+          let iface = null, alt = null;
+          for (const cfg of dev.configurations) for (const i of cfg.interfaces) for (const a of i.alternates) if (a.interfaceClass === 0xff && a.interfaceSubclass === 0x42 && a.interfaceProtocol === 1){ iface = i; alt = a; }
+          if (!iface) throw new Error('No ADB interface on this device — is USB debugging on?');
+          await dev.claimInterface(iface.interfaceNumber);
+          let epIn = null, epOut = null;
+          for (const e of alt.endpoints){ if (e.type === 'bulk' && e.direction === 'in') epIn = e.endpointNumber; if (e.type === 'bulk' && e.direction === 'out') epOut = e.endpointNumber; }
+          usb = { dev, ifaceNum: iface.interfaceNumber, epIn, epOut, maxData: 256 * 1024 }; nextLocalId = 1;
+          await sendMsg(A.CNXN, 0x01000000, 256 * 1024, enc.encode('host::features=cmd,shell_v2\0'));
+          // A prior session can leave stray packets (WRTE/CLSE/OKAY) in the pipe that arrive
+          // before the CNXN banner; read past them instead of failing, so one click works
+          // rather than needing a second Deploy attempt.
+          let pkt = null;
+          const deadline = Date.now() + 8000;
+          while (Date.now() < deadline){
+            try { pkt = await recvMsg(Math.max(200, deadline - Date.now())); }
+            catch (e){ pkt = null; break; }
+            if (pkt.command === A.CNXN || pkt.command === A.AUTH) break;
+            if (pkt.command === A.WRTE){ try { await sendMsg(A.OKAY, pkt.arg1, pkt.arg0); } catch(_){} }  // ack & discard leftover stream data
+            pkt = null;
+          }
+          if (!pkt) throw new Error('No connection banner from robot — unplug and replug the USB cable, then try again.');
+          if (pkt.command === A.AUTH) throw new Error('This robot has secure ADB enabled and needs on-device authorization.');
+          if (pkt.command !== A.CNXN) throw new Error('Unexpected reply from robot: ' + cmdName(pkt.command));
+          usb.maxData = (pkt.arg1 >>> 0) || 256 * 1024;
+          const banner = new TextDecoder().decode(pkt.payload).replace(/[^\x20-\x7e]/g, '.');
+          const model = (/ro\.product\.model=([^;]+)/.exec(banner) || [])[1] || 'robot';
+          if (log) log('Connected to ' + model + '. Click again to continue.', 'ok');
+          return model;
+        } catch (err){
+          // Don't leave a poisoned/claimed handle behind — the next Connect must start clean.
+          try { await dev.close(); } catch(_){}
+          usb = null;
+          if (/transfer error/i.test(err && err.message || '')) throw new Error('USB transfer error — close any running adb/Android Studio, then unplug and replug the cable and try again.');
+          throw err;
         }
-        if (!pkt) throw new Error('No connection banner from robot — unplug and replug the USB cable, then try again.');
-        if (pkt.command === A.AUTH) throw new Error('This robot has secure ADB enabled and needs on-device authorization.');
-        if (pkt.command !== A.CNXN) throw new Error('Unexpected reply from robot: ' + cmdName(pkt.command));
-        usb.maxData = (pkt.arg1 >>> 0) || 256 * 1024;
-        const banner = new TextDecoder().decode(pkt.payload).replace(/[^\x20-\x7e]/g, '.');
-        const model = (/ro\.product\.model=([^;]+)/.exec(banner) || [])[1] || 'robot';
-        if (log) log('Connected to ' + model + '. Click again to continue.', 'ok');
-        return model;
       }
       function isConnected(){ if (usb && usb.dev && usb.dev.opened === false) usb = null; return !!usb; }
       // Physical unplug/power-cycle can't be detected from usb.dev.opened (it stays true) and the
@@ -3534,9 +3545,13 @@
         if (usb.dev.opened === false){ usb = null; return false; }
         try {
           const devs = await navigator.usb.getDevices();
-          if (!devs.includes(usb.dev)){ try { await usb.dev.close(); } catch(_){} usb = null; return false; }
+          // Match by identity fields, not object reference — a live device may be a different
+          // instance than our handle, and we must NOT close/drop a working connection here.
+          const present = devs.some(d => d === usb.dev || (d.vendorId === usb.dev.vendorId
+              && d.productId === usb.dev.productId && d.serialNumber === usb.dev.serialNumber));
+          if (!present){ usb = null; return false; }   // truly unplugged
           return true;
-        } catch(_){ usb = null; return false; }
+        } catch(_){ return !!usb; }   // transient getDevices error: keep the existing handle
       }
       // Remove .java files left on the robot from a previous deploy that aren't in this one.
       // Scoped strictly to the tool-managed on-bot (.ob) sandbox so a student's other OpModes
