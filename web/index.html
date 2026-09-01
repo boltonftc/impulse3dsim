@@ -4378,25 +4378,14 @@
         push('        if (isStopRequested()) return;');
         push('');
         push('        follower.update();');
+        push('        // A real Pinpoint\'s setPosition() needs a few I2C update cycles to report the');
+        push('        // declared start pose, so settle the localizer before following. No "drive to');
+        push('        // start" correction: with no absolute sensor the declared start IS ground truth,');
+        push('        // and driving to it only chased localizer lag -- causing a spurious lunge + spin.');
+        push('        for (int i = 0; i < 10 && opModeIsActive(); i++) { follower.update(); sleep(20); }');
         push('        Pose actualStart = follower.getPose();');
-        push('        double startErrorIn = Math.hypot(actualStart.getX() - startPose.getX(), actualStart.getY() - startPose.getY());');
         push('        telemetry.addData("Actual pose at START", "(%.1f, %.1f, %.1f deg)", actualStart.getX(), actualStart.getY(), Math.toDegrees(actualStart.getHeading()));');
-        push('        telemetry.addData("Start error (in)", "%.2f", startErrorIn);');
         push('        telemetry.update();');
-        push('        // if the physical placement drifted from the declared start, close that gap before chain 1');
-        push('        if (startErrorIn > 1.0) {');
-        push('            PathChain driveToStart = follower.pathBuilder()');
-        push('                    .addPath(new BezierLine(actualStart, startPose))');
-        push('                    .setLinearHeadingInterpolation(actualStart.getHeading(), startPose.getHeading())');
-        push('                    .build();');
-        push('            follower.followPath(driveToStart, SPEED, true);');
-        push('            while (opModeIsActive() && follower.isBusy()) {');
-        push('                follower.update();');
-        push('                robot.update();');
-        push('                telemetry.addData("Phase", "Drive to declared start");');
-        push('                telemetryPose(follower, startPose.getX(), startPose.getY(), Math.toDegrees(startPose.getHeading()));');
-        push('            }');
-        push('        }');
         push('');
 
         segments.forEach((seg, si) => {
