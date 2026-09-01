@@ -3387,13 +3387,19 @@
             + '<div class="pit-logbox" id="pit-sheet-log"></div>',
         onGo: () => runRobot(isDeploy)
       });
+      // isConnected() is a best-effort guess for the initial label; confirm against the live
+      // device list and fix the button to 'Connect' if the cable was pulled since last time.
+      RobotUSB.isLive().then(live => {
+        const go = document.getElementById('pit-sheet-go');
+        if (go && !live) go.textContent = 'Connect ▸';
+      });
     }
     async function runRobot(isDeploy){
       const go = document.getElementById('pit-sheet-go');
       const log = (m, c) => sheetLog(m, c);
       try {
-        if (!RobotUSB.isConnected()){
-          go.disabled = true; log('Opening device picker — choose the Control Hub…');
+        if (!(await RobotUSB.isLive())){
+          go.disabled = true; go.textContent = 'Connect ▸'; log('Opening device picker — choose the Control Hub…');
           await RobotUSB.connect(log);
           go.disabled = false; go.textContent = isDeploy ? 'Deploy ▸' : 'Import ▸';
           return;
@@ -3519,6 +3525,19 @@
         return model;
       }
       function isConnected(){ if (usb && usb.dev && usb.dev.opened === false) usb = null; return !!usb; }
+      // Physical unplug/power-cycle can't be detected from usb.dev.opened (it stays true) and the
+      // 'disconnect' event doesn't fire reliably on every host. getDevices() only lists devices that
+      // are currently attached, so if ours isn't in it, the cable was pulled — drop the handle so the
+      // sheet asks to Connect again instead of a Deploy that dies mid-transfer.
+      async function isLive(){
+        if (!usb || !usb.dev) return false;
+        if (usb.dev.opened === false){ usb = null; return false; }
+        try {
+          const devs = await navigator.usb.getDevices();
+          if (!devs.includes(usb.dev)){ try { await usb.dev.close(); } catch(_){} usb = null; return false; }
+          return true;
+        } catch(_){ usb = null; return false; }
+      }
       // Remove .java files left on the robot from a previous deploy that aren't in this one.
       // Scoped strictly to the tool-managed on-bot (.ob) sandbox so a student's other OpModes
       // are never touched. Fixes stale files (e.g. a deleted SimpleAuto) breaking the build.
@@ -3585,7 +3604,7 @@
         log('Pulled ' + Object.keys(files).length + ' file' + (Object.keys(files).length === 1 ? '' : 's') + (failed ? ', ' + failed + ' failed' : '') + '.', failed ? 'warn' : 'ok');
         return files;
       }
-      return { connect, isConnected, deployFiles, pullFiles };
+      return { connect, isConnected, isLive, deployFiles, pullFiles };
     })();
 
     // ---- Lessons engine (M6a): markdown + ACTION cross-links + progress ----
