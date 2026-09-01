@@ -93,10 +93,12 @@ likely multi-session.
 
 ## 3. GitHub Pages publishing prep
 Mostly a checklist, but with one real open question:
-- **Licensing**: CheerpJ's own boot banner states "COMMUNITY EDITION — FOR PERSONAL AND
-  NON-BUSINESS USE ONLY, any other use requires a license." A public-facing team website may or
-  may not qualify as personal/non-business use. This is a decision for the user (possibly worth
-  contacting Leaning Technologies) — flag explicitly, don't silently proceed.
+- **Licensing — RESOLVED (2026-08-31)**: Leaning Technologies granted this project free, unrestricted
+  use of CheerpJ under the **Community License** (<https://cheerpj.com/licensing>) — email from Waqas
+  confirms free non-commercial educational use (no ads, no paid content) is exactly the intended use,
+  and covers a public-facing site. **One standing obligation:** showcase the **CheerpJ logo** on the
+  pages where the app runs (the logo, not just the current text credit in the splash). Add the logo
+  asset to `web/assets/` and render it persistently before public ship.
 - Repo visibility: user wants the possibility of a PUBLIC Pages site backed by a PRIVATE repo,
   until the project is further along — need to confirm this is supported by their GitHub plan
   (public Pages from a private repo requires GitHub Pro/Team/Enterprise, or a paid personal plan —
@@ -106,6 +108,24 @@ Mostly a checklist, but with one real open question:
 - COOP/COEP note (from the M4 perf entry in v2_roadmap): if a Web Worker + `SharedArrayBuffer`
   move is ever pursued for perf, GH Pages can't natively set the required headers — would need the
   `coi-serviceworker` workaround (still fully static, no server changes needed).
+
+## 4. Offline use / installable PWA — IN PROGRESS (started 2026-08-31)
+Pybricks-style: install once, then the whole tool (IDE + CheerpJ compile + sim + lessons + USB
+deploy) works with **no internet**. Two-layer cache model (application shell vs. independently
+versioned environment packages like "FTC 2026 Standard" / "Pedro 2.0.6") + service worker + web app
+manifest. The #1 blocker is the CDN-hosted CheerpJ runtime (self-host it same-origin) and the SW
+Range responder (206 synthesis) needed by the JVM classpath. Full executable plan:
+**[OFFLINE_PWA_PLAN.md](OFFLINE_PWA_PLAN.md)**. Licensing — CLEARED (CheerpJ Community License
+granted, self-host OK; only obligation = show the CheerpJ logo where the app runs, same as #3).
+
+## 5. USB↔Robot Wi-Fi via a local system-tray helper — NOT STARTED
+A small resident local app (system tray) that bridges the browser to the Control Hub over **Wi-Fi**
+(`192.168.43.1:8080`), punching through the CORS wall that blocks a pure-browser `fetch()` to
+OnBotJava. Complements (does not replace) the existing zero-install WebUSB deploy. Design fork:
+localhost CORS-proxy vs. a helper that also speaks ADB-over-USB (both transports in one binary);
+packaging for a Windows classroom (Go/Rust single-binary + tray vs. Tauri/Electron). Shares a client
+layer with the USB deploy work (see agent memory `usb_onbotjava_spike`). Needs its own design pass —
+parked until offline (#4) lands.
 
 ---
 Recommended starting point (agreed 2026-08-14): **Graphics polish (#1)** — fastest visible win, no

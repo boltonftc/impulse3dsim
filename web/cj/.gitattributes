@@ -1,0 +1,5 @@
+# CheerpJ self-hosted runtime mirror. Treat every file as binary so Git never
+# applies EOL/text normalization: converting line endings would corrupt the wasm
+# and JImage (17/lib/modules) and change byte lengths that HTTP Range and
+# Content-Length depend on when the JVM streams the runtime.
+* binary

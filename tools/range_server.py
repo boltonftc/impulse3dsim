@@ -8,6 +8,7 @@ import http.server
 import os
 import re
 import socketserver
+import threading
 import urllib.request
 import urllib.error
 
@@ -15,12 +16,28 @@ PORT = 8972
 
 # Serve the publishable site root (web/), one level up from this tools/ dir.
 WEB_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web")
+WEB_ROOT_ABS = os.path.abspath(WEB_ROOT)
 
 # Reverse-proxy the CheerpJ CDN so its runtime (loader.js, c.html, c.js, jars)
 # is served same-origin. This avoids cross-origin iframe/COEP problems and lets
 # automated browsers that abort third-party document loads run the JVM.
+#
+# CACHING MIRROR: on a cache miss we download the FULL upstream file into
+# web/cj/<path> and thereafter serve it from disk (with Range support). Warming
+# up the app (compile + run) thus builds a complete, committable self-hosted
+# runtime under web/cj/ so the published GitHub Pages build can work offline.
 CJ_PREFIX = "/cj/"
 CJ_ORIGIN = "https://cjrtnc.leaningtech.com/4.3/"
+_cj_locks = {}
+_cj_locks_guard = threading.Lock()
+
+
+def _cj_lock(rel):
+    with _cj_locks_guard:
+        lk = _cj_locks.get(rel)
+        if lk is None:
+            lk = _cj_locks[rel] = threading.Lock()
+        return lk
 
 
 class RangeRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -32,6 +49,50 @@ class RangeRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Cross-Origin-Opener-Policy", "same-origin")
             self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
         super().end_headers()
+
+    def _cj_rel(self):
+        rel = self.path[len(CJ_PREFIX):].split("?", 1)[0].split("#", 1)[0]
+        parts = [p for p in rel.split("/") if p not in ("", ".", "..")]
+        return "/".join(parts)
+
+    def _cj_local_path(self):
+        rel = self._cj_rel()
+        if not rel:
+            return None
+        return os.path.join(WEB_ROOT_ABS, "cj", *rel.split("/"))
+
+    def _ensure_cj_cached(self):
+        """Download the full upstream file into web/cj/ if we don't have it yet.
+
+        Returns True when a local mirror file exists afterward (so the normal
+        static handler can serve it with Range support); False for anything not
+        worth mirroring (upstream 404 probes, dirs, network errors) -- those are
+        proxied straight through instead.
+        """
+        local = self._cj_local_path()
+        if not local:
+            return False
+        if os.path.isfile(local):
+            return True
+        rel = self._cj_rel()
+        with _cj_lock(rel):
+            if os.path.isfile(local):
+                return True
+            upstream = CJ_ORIGIN + rel
+            try:
+                resp = urllib.request.urlopen(urllib.request.Request(upstream), timeout=60)
+                if resp.status != 200:
+                    return False
+                data = resp.read()
+            except Exception:
+                return False
+            os.makedirs(os.path.dirname(local), exist_ok=True)
+            tmp = local + ".part"
+            with open(tmp, "wb") as fh:
+                fh.write(data)
+            os.replace(tmp, local)
+            print(f"[cj-mirror] {rel} ({len(data):,} bytes)")
+            return True
 
     def _proxy_cj(self):
         upstream = CJ_ORIGIN + self.path[len(CJ_PREFIX):]
@@ -63,12 +124,18 @@ class RangeRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.startswith(CJ_PREFIX):
+            if self._ensure_cj_cached():
+                super().do_GET()  # serve the mirrored web/cj/ file (Range-capable)
+                return
             self._proxy_cj()
             return
         super().do_GET()
 
     def do_HEAD(self):
         if self.path.startswith(CJ_PREFIX):
+            if self._ensure_cj_cached():
+                super().do_HEAD()
+                return
             self._proxy_cj()
             return
         super().do_HEAD()
