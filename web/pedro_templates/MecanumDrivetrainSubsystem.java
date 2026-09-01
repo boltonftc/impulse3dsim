@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.pedropathing.Drivetrain;
+import com.pedropathing.follower.Follower;
 import com.pedropathing.math.Vector;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -92,5 +93,31 @@ public class MecanumDrivetrainSubsystem extends Drivetrain {
     public String debugString() {
         return "MecanumDrivetrainSubsystem[FL=" + leftFront.getPower() + " FR=" + rightFront.getPower()
                 + " BL=" + leftBack.getPower() + " BR=" + rightBack.getPower() + "]";
+    }
+
+    // -- Simulator path visualization (optional, silent no-op on a real robot) --
+
+    /** Register the Follower so the simulator can draw its planned path. */
+    public static void registerForVisualization(HardwareMap hardwareMap, Follower follower) {
+        try {
+            Class<?> registryClass = Class.forName("sim.FollowerRegistry");
+            java.lang.reflect.Method method = registryClass.getMethod("register", int.class, Follower.class);
+            int robotIdx = (int) hardwareMap.getClass().getMethod("getRobotIndex").invoke(hardwareMap);
+            method.invoke(null, robotIdx, follower);
+        } catch (Throwable ignored) {
+            // Not running in the simulator -- visualization unavailable.
+        }
+    }
+
+    /** Stop drawing the path (call during OpMode cleanup). */
+    public static void unregisterVisualization(HardwareMap hardwareMap) {
+        try {
+            Class<?> registryClass = Class.forName("sim.FollowerRegistry");
+            java.lang.reflect.Method method = registryClass.getMethod("unregister", int.class);
+            int robotIdx = (int) hardwareMap.getClass().getMethod("getRobotIndex").invoke(hardwareMap);
+            method.invoke(null, robotIdx);
+        } catch (Throwable ignored) {
+            // Not running in the simulator -- nothing to clean up.
+        }
     }
 }
