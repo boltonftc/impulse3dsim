@@ -46,9 +46,38 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('message', (e) => {
-  if (e.data === 'SKIP_WAITING') self.skipWaiting();
-  if (e.data === 'CLEAR_CACHES') caches.keys().then((ks) => ks.forEach((k) => caches.delete(k)));
+  const data = e.data;
+  if (data === 'SKIP_WAITING') { self.skipWaiting(); return; }
+  if (data === 'CLEAR_CACHES' || (data && data.type === 'CLEAR_CACHES')) {
+    e.waitUntil(caches.keys()
+      .then((ks) => Promise.all(ks.map((k) => caches.delete(k))))
+      .then(() => { if (e.ports && e.ports[0]) e.ports[0].postMessage({ ok: true }); }));
+    return;
+  }
+  if (data && data.type === 'CACHE_STATUS') {
+    e.waitUntil(cacheStatus().then((s) => { if (e.ports && e.ports[0]) e.ports[0].postMessage(s); }));
+  }
 });
+
+// Summarize what's cached so the UI can show an "offline-ready" indicator. runtimeReady means the
+// CheerpJ loader + core wasm + JDK JImage + at least one classpath jar are present — i.e. an offline
+// compile should succeed.
+async function cacheStatus() {
+  let shell = 0, runtime = 0, loader = false, wasm = false, jimage = false, anyJar = false;
+  try {
+    shell = (await (await caches.open(SHELL)).keys()).length;
+    const rk = await (await caches.open(RUNTIME)).keys();
+    runtime = rk.length;
+    for (const req of rk) {
+      const p = new URL(req.url).pathname;
+      if (p.endsWith('cj/loader.js')) loader = true;
+      else if (p.endsWith('cj3.wasm')) wasm = true;
+      else if (p.endsWith('17/lib/modules')) jimage = true;
+      if (p.endsWith('.jar')) anyJar = true;
+    }
+  } catch (_) {}
+  return { version: APP_VERSION, shell, runtime, runtimeReady: loader && wasm && jimage && anyJar };
+}
 
 function isRuntime(url) { return url.pathname.includes('/cj/') || url.pathname.endsWith('.jar'); }
 function cacheFor(url) { return isRuntime(url) ? RUNTIME : SHELL; }
