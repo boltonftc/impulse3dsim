@@ -55,17 +55,39 @@ public class PinpointLocalizer implements Localizer {
     // this is exactly what a real Pinpoint-based localizer does; no extra offset math needed here.
     @Override
     public void setStartPose(Pose pose) {
-        pinpoint.setPosition(new Pose2D(DistanceUnit.INCH, pose.getX(), pose.getY(), AngleUnit.RADIANS, pose.getHeading()));
-        pinpoint.update();
+        // A real Pinpoint keeps calibrating for ~0.25-0.5s after resetPosAndIMU() (constructor) and
+        // silently zeroes any setPosition() issued during that window -- which left the robot thinking
+        // it started at (0,0,0) and caused a phantom lunge + spin. Retry until the device echoes the
+        // pose back so the start anchor actually sticks. The simulated Pinpoint applies it instantly,
+        // so this exits on the first pass.
+        Pose2D target = new Pose2D(DistanceUnit.INCH, pose.getX(), pose.getY(), AngleUnit.RADIANS, pose.getHeading());
+        long deadline = System.currentTimeMillis() + 1500;
+        while (true) {
+            pinpoint.setPosition(target);
+            pinpoint.update();
+            double xIn = DistanceUnit.INCH.fromMm(pinpoint.getPosX(DistanceUnit.MM));
+            double yIn = DistanceUnit.INCH.fromMm(pinpoint.getPosY(DistanceUnit.MM));
+            double dh = pinpoint.getHeading(AngleUnit.RADIANS) - pose.getHeading();
+            while (dh > Math.PI) dh -= 2 * Math.PI;
+            while (dh < -Math.PI) dh += 2 * Math.PI;
+            boolean stuck = Math.abs(xIn - pose.getX()) < 1.0 && Math.abs(yIn - pose.getY()) < 1.0
+                    && Math.abs(dh) < Math.toRadians(5);
+            if (stuck || System.currentTimeMillis() > deadline) break;
+            try { Thread.sleep(20); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+        }
         currentPose = pose;
         lastHeadingRad = pose.getHeading();
     }
 
-    // Re-anchor to an arbitrary pose mid-match (e.g. an AprilTag correction) -- identical to
-    // setStartPose(); a real Pinpoint's setPosition() is the same call either way.
+    // Re-anchor to an arbitrary pose mid-match (e.g. an AprilTag correction). The IMU is long past
+    // calibration by now, so a single setPosition() is enough -- no retry loop that would stall the
+    // control loop mid-path.
     @Override
     public void setPose(Pose pose) {
-        setStartPose(pose);
+        pinpoint.setPosition(new Pose2D(DistanceUnit.INCH, pose.getX(), pose.getY(), AngleUnit.RADIANS, pose.getHeading()));
+        pinpoint.update();
+        currentPose = pose;
+        lastHeadingRad = pose.getHeading();
     }
 
     // Called by Follower each tick.
