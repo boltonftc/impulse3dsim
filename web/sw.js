@@ -100,7 +100,12 @@ async function networkFirst(req, url) {
   } catch (err) {
     const cached = (await caches.match(key)) || (await caches.match(req));
     if (cached) return cached;
-    throw err;
+    // Offline with nothing cached: return a synthetic 404 (what the server would send for a
+    // missing file) rather than letting the fetch reject. CheerpJ probes JDK dirs that don't
+    // exist in the mirror (e.g. /cj/17/lib/ext for ECJ's -extdirs); online those 404 cleanly and
+    // ECJ copes, but a rejected fetch reads as an I/O error and NPEs handleExtdirs. A 404 keeps
+    // offline behavior identical to online.
+    return new Response(null, { status: 404, statusText: 'Not Found (offline)' });
   }
 }
 
@@ -121,7 +126,7 @@ async function rangeStrategy(url, range) {
   if (full) return buildPartial(full, range);           // offline-capable slice from cached whole file
   let netRange;
   try { netRange = await fetch(url.href, { headers: { Range: range } }); } // online: unchanged behavior
-  catch (e) { return new Response(null, { status: 504, statusText: 'Offline' }); }
+  catch (e) { return new Response(null, { status: 404, statusText: 'Not Found (offline)' }); } // ENOENT, not a hang
   fetchFullAndCache(url, key);                            // populate cache for future offline slices
   return netRange;
 }
