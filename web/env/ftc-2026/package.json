@@ -1,0 +1,11 @@
+{
+  "id": "ftc-2026",
+  "name": "FTC 2026 Standard",
+  "version": "2026.0",
+  "kind": "ftc",
+  "description": "Base FTC SDK shims only (always available). No PedroPathing library.",
+  "libs": [],
+  "classpathJars": [],
+  "templates": null,
+  "files": []
+}

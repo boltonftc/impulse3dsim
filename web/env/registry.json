@@ -1,0 +1,6 @@
+{
+  "packages": [
+    { "id": "ftc-2026", "manifest": "env/ftc-2026/package.json" },
+    { "id": "pedro-2.0.6", "manifest": "env/pedro-2.0.6/package.json" }
+  ]
+}
