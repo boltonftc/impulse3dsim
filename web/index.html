@@ -16,10 +16,39 @@
       window.__installPrompt = e;
       window.dispatchEvent(new Event('impulse-installable'));
     });
-    // Register the offline service worker (versioned cache via ?v=).
+    // Register the offline service worker (versioned cache via ?v=). Also wire update
+    // detection: when a newer SW (bumped APP_VERSION) installs while this page is already
+    // controlled by an old one, fire 'impulse-update-ready' so the top bar can offer a reload.
     if ('serviceWorker' in navigator) {
+      window.__swReg = null;
+      window.__swRefreshing = false;
+      window.__applyUpdate = function () {
+        var reg = window.__swReg;
+        if (reg && reg.waiting) { window.__swRefreshing = true; reg.waiting.postMessage('SKIP_WAITING'); }
+        else { location.reload(); }
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (window.__swRefreshing) location.reload();
+      });
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js?v=' + window.APP_VERSION).catch(function () {});
+        navigator.serviceWorker.register('sw.js?v=' + window.APP_VERSION).then(function (reg) {
+          window.__swReg = reg;
+          function announceIfReady() {
+            if (reg.waiting && navigator.serviceWorker.controller) {
+              window.dispatchEvent(new Event('impulse-update-ready'));
+            }
+          }
+          announceIfReady();
+          reg.addEventListener('updatefound', function () {
+            var sw = reg.installing;
+            if (!sw) return;
+            sw.addEventListener('statechange', function () {
+              if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+                window.dispatchEvent(new Event('impulse-update-ready'));
+              }
+            });
+          });
+        }).catch(function () {});
       });
     }
   </script>
@@ -45,6 +74,14 @@
     #topbar .dlbtn.done{background:#14532d;border-color:#22c55e;color:#dcfce7;cursor:default}
     #topbar .verbadge{color:#e2e8f0;font-weight:bold;font-size:.82rem;white-space:nowrap;letter-spacing:.02em;flex:0 0 auto}
     #topbar .verbadge .vtag{color:#7dd3fc}
+    #topbar .netpill{font-size:.72rem;font-weight:bold;white-space:nowrap;flex:0 0 auto;padding:.08rem .42rem;
+                     border-radius:10px;border:1px solid #24324d;background:#0b1220;color:#9fb3d1}
+    #topbar .netpill.online{color:#4ade80;border-color:#166534}
+    #topbar .netpill.offline{color:#fbbf24;border-color:#92400e}
+    #topbar .updpill{font-family:monospace;font-size:.74rem;font-weight:bold;white-space:nowrap;flex:0 0 auto;cursor:pointer;
+                     background:#7c2d12;color:#fed7aa;border:1px solid #f59e0b;border-radius:5px;padding:.18rem .55rem}
+    #topbar .updpill:hover{background:#9a3412}
+    #topbar .updpill[hidden]{display:none}
     #topbar .sp{flex:1}
     #topbar .cjbadge{display:flex;align-items:center;background:#fff;border:1px solid #d6dae2;border-radius:6px;
                      padding:0 7px;height:26px;box-sizing:border-box;text-decoration:none;flex:0 0 auto}
@@ -182,6 +219,8 @@
     .camsel{display:inline-flex;gap:4px;flex-wrap:wrap}
     .camsel button{font-size:.72rem;padding:.15rem .45rem;background:#131c30;color:#9fb3d1;border:1px solid #24324d}
     .camsel button.active{background:#1d4ed8;color:#eff6ff;border-color:#3b82f6}
+    .offstat{font-size:.74rem;color:#9fb3d1}
+    .offstat.ready{color:#4ade80;font-weight:bold}
     /* ---- Driver Hub (REV-style device) ---- */
     .hub-tab{width:auto;max-width:none;padding:0;background:transparent;border:none}
     #dh-wrap{display:flex;gap:16px;align-items:flex-start}
@@ -542,6 +581,8 @@
   <div id="topbar">
     <button id="dlbtn" class="dlbtn" title="Install Impulse3DSim to run fully offline">⬇ Download Impulse3DSim V2 For Offline Use</button>
     <span class="verbadge">Impulse3DSim&nbsp;<span class="vtag" id="verlabel">v?.?.?</span></span>
+    <span id="netpill" class="netpill" title="Network status">● Online</span>
+    <button id="updpill" class="updpill" hidden title="A new version is ready — reload to update">⟳ Update ready — Reload</button>
     <span class="sp"></span>
     <div id="status">STATUS: init…</div>
     <a class="cjbadge" href="https://cheerpj.com" target="_blank" rel="noopener" title="Powered by CheerpJ — Leaning Technologies"><img src="assets/cheerpj_logo.png" alt="CheerpJ"></a>
@@ -573,6 +614,89 @@
         }
       });
     })();
+  </script>
+
+  <script>
+    // ---- Offline / update status UX (Phase 5) ----
+    // Network pill (online/offline), the "Update ready" pill, and the Settings offline
+    // section (cache-ready status + a reset/reinstall escape hatch). Wired on DOMContentLoaded
+    // so the Settings-panel elements exist by the time we look them up.
+    window.addEventListener('DOMContentLoaded', function () {
+      // network status pill
+      var netpill = document.getElementById('netpill');
+      function paintNet() {
+        if (!netpill) return;
+        var on = navigator.onLine;
+        netpill.textContent = on ? '● Online' : '○ Offline';
+        netpill.classList.toggle('online', on);
+        netpill.classList.toggle('offline', !on);
+        netpill.title = on ? 'Connected to the network' : 'No network — running from the offline cache';
+      }
+      paintNet();
+      window.addEventListener('online', paintNet);
+      window.addEventListener('offline', paintNet);
+
+      // "update ready" pill
+      var upd = document.getElementById('updpill');
+      window.addEventListener('impulse-update-ready', function () { if (upd) upd.hidden = false; });
+      if (upd) upd.addEventListener('click', function () { if (window.__applyUpdate) window.__applyUpdate(); });
+
+      // ask the service worker what it has cached (via a MessageChannel reply port)
+      function queryCacheStatus() {
+        return new Promise(function (resolve) {
+          var sw = navigator.serviceWorker;
+          if (!sw || !sw.controller) { resolve(null); return; }
+          var ch = new MessageChannel();
+          var done = false;
+          ch.port1.onmessage = function (ev) { if (!done) { done = true; resolve(ev.data); } };
+          try { sw.controller.postMessage({ type: 'CACHE_STATUS' }, [ch.port2]); }
+          catch (e) { resolve(null); return; }
+          setTimeout(function () { if (!done) { done = true; resolve(null); } }, 2000);
+        });
+      }
+
+      // Settings: offline-ready status line
+      var offstat = document.getElementById('offstat');
+      function refreshOffStat() {
+        if (!offstat) return;
+        queryCacheStatus().then(function (s) {
+          if (!s) {
+            offstat.textContent = ('serviceWorker' in navigator) ? 'preparing…' : 'not supported in this browser';
+            offstat.classList.remove('ready');
+          } else if (s.runtimeReady) {
+            offstat.textContent = '✓ Ready to use offline';
+            offstat.classList.add('ready');
+          } else {
+            offstat.textContent = 'caching… open the sim once online to finish';
+            offstat.classList.remove('ready');
+          }
+        });
+      }
+      refreshOffStat();
+      setInterval(refreshOffStat, 5000);
+
+      // Settings: reset / reinstall escape hatch (clears every cache + unregisters the SW)
+      var offreset = document.getElementById('off-reset');
+      if (offreset) offreset.addEventListener('click', function () {
+        if (!confirm('Clear all cached offline data and reload?\n\nThe app will re-download the next time it is used online.')) return;
+        (async function () {
+          try {
+            var sw = navigator.serviceWorker;
+            if (sw && sw.controller) {
+              await new Promise(function (res) {
+                var ch = new MessageChannel();
+                ch.port1.onmessage = function () { res(); };
+                sw.controller.postMessage({ type: 'CLEAR_CACHES' }, [ch.port2]);
+                setTimeout(res, 3000);
+              });
+            }
+            if (window.caches) { var ks = await caches.keys(); await Promise.all(ks.map(function (k) { return caches.delete(k); })); }
+            if (sw && sw.getRegistrations) { var regs = await sw.getRegistrations(); await Promise.all(regs.map(function (r) { return r.unregister(); })); }
+          } catch (e) {}
+          location.reload();
+        })();
+      });
+    });
   </script>
 
   <!-- MATCH PLAY: top-centre drop-down holding the FMS audience scoreboard -->
@@ -677,6 +801,11 @@
       </span>
       <button id="reset">Reset code</button>
       <span>mode <b id="mode">manual</b></span>
+    </div>
+    <div class="row">
+      <span>offline</span>
+      <span id="offstat" class="offstat">checking…</span>
+      <button id="off-reset" title="Clear cached offline data and reload">Reset offline data</button>
     </div>
     <div style="font-size:.72rem;color:#9fb3d1">Free view: drag to orbit · wheel to zoom · middle/Shift-drag to pan &nbsp;·&nbsp; <kbd>W/A/S/D</kbd> drive+strafe &nbsp;<kbd>Q/E</kbd> turn &nbsp;<kbd>Space</kbd> auto/manual</div>
   </div>
