@@ -221,6 +221,16 @@
     .camsel button.active{background:#1d4ed8;color:#eff6ff;border-color:#3b82f6}
     .offstat{font-size:.74rem;color:#9fb3d1}
     .offstat.ready{color:#4ade80;font-weight:bold}
+    .envlist{display:flex;flex-direction:column;gap:4px;font-size:.74rem}
+    .env-item{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .env-item .env-name{color:#e2e8f0;font-weight:bold}
+    .env-item .env-ver{color:#7dd3fc}
+    .env-item .env-badge{color:#4ade80;font-size:.68rem;border:1px solid #166534;border-radius:8px;padding:0 5px}
+    .env-item .env-act{display:inline-flex;align-items:center;gap:3px;color:#9fb3d1;cursor:pointer}
+    .env-item button{font-size:.7rem;padding:.12rem .5rem;background:#131c30;color:#9fb3d1;border:1px solid #24324d;cursor:pointer}
+    .env-item button:disabled{opacity:.6;cursor:default}
+    .env-note{font-size:.72rem;color:#fbbf24}
+    .env-note a{color:#7dd3fc}
     /* ---- Driver Hub (REV-style device) ---- */
     .hub-tab{width:auto;max-width:none;padding:0;background:transparent;border:none}
     #dh-wrap{display:flex;gap:16px;align-items:flex-start}
@@ -617,6 +627,96 @@
   </script>
 
   <script>
+    // ---- Environment-package manager (Phase 4) ----
+    // Robot-runtime targets (PedroPathing / base FTC SDK) as independently installable, versioned
+    // packages. Each installed package gets its own Cache (impulse-env-<id>-v<ver>) so a new season's
+    // library can be added/removed without touching the app shell. An IndexedDB registry tracks what's
+    // installed and which is active; the active package drives the sim classpath, USB-deploy libraries,
+    // and Path-Capture templates. If nothing is installed/active the built-in DEFAULT (Pedro 2.0.6) is
+    // used, so the app behaves exactly as before for anyone who never opens the environment UI.
+    window.envMgr = (function () {
+      const DB = 'impulse-env', STORE = 'packages', DBV = 1;
+      const DEFAULT = {
+        id: 'pedro-2.0.6', name: 'PedroPathing 2.0.6', version: '2.0.6', kind: 'pedro',
+        libs: [{ file: 'PedroPathing-core-2.0.6.jar', url: 'pedro-core.jar', requiredWhenImport: 'com.pedropathing' }],
+        classpathJars: ['pedro-core.jar'],
+        templates: { dir: 'pedro_templates/', system: ['PinpointLocalizer.java', 'MecanumDrivetrainSubsystem.java'], student: ['Subsystem.java', 'Robot.java', 'Intake.java'] }
+      };
+      let active = null;      // resolved manifest of the active INSTALLED package (null => DEFAULT)
+      let installed = {};     // id -> registry row {id,name,version,files,installedAt,active}
+
+      function idb() {
+        return new Promise((resolve, reject) => {
+          const r = indexedDB.open(DB, DBV);
+          r.onupgradeneeded = () => { const db = r.result; if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' }); };
+          r.onsuccess = () => resolve(r.result);
+          r.onerror = () => reject(r.error);
+        });
+      }
+      function store(db, mode) { return db.transaction(STORE, mode).objectStore(STORE); }
+      function allRows() { return idb().then(db => new Promise((res, rej) => { const rq = store(db, 'readonly').getAll(); rq.onsuccess = () => res(rq.result || []); rq.onerror = () => rej(rq.error); })); }
+      function putRow(row) { return idb().then(db => new Promise((res, rej) => { const rq = store(db, 'readwrite').put(row); rq.onsuccess = () => res(); rq.onerror = () => rej(rq.error); })); }
+      function delRow(id) { return idb().then(db => new Promise((res, rej) => { const rq = store(db, 'readwrite').delete(id); rq.onsuccess = () => res(); rq.onerror = () => rej(rq.error); })); }
+
+      function cacheName(row) { return 'impulse-env-' + row.id + '-v' + row.version; }
+      function appDir() { return location.pathname.replace(/[^/]*$/, ''); }  // '/impulse3dsim/' or '/'
+
+      async function fetchManifest(id) {
+        const r = await fetch('env/' + id + '/package.json', { cache: 'no-store' });
+        if (!r.ok) throw new Error('manifest ' + id + ' HTTP ' + r.status);
+        return r.json();
+      }
+      async function listAvailable() {
+        try {
+          const r = await fetch('env/registry.json', { cache: 'no-store' }); if (!r.ok) return [];
+          const reg = await r.json(); const out = [];
+          for (const p of (reg.packages || [])) { try { out.push(await fetchManifest(p.id)); } catch (_) {} }
+          return out;
+        } catch (_) { return []; }
+      }
+      async function init() {
+        try {
+          const rows = await allRows(); installed = {}; rows.forEach(r => installed[r.id] = r);
+          const act = rows.find(r => r.active);
+          if (act) { try { active = await fetchManifest(act.id); } catch (_) { active = null; } } else active = null;
+        } catch (_) { installed = {}; active = null; }
+      }
+      function getActive() { return active || DEFAULT; }
+      function activeId() { return (active && active.id) || DEFAULT.id; }
+      function templates() { const t = getActive().templates; return t || DEFAULT.templates; }  // Path-Capture always needs Pedro templates
+      function isInstalled(id) { return !!installed[id]; }
+      function getInstalled() { return Object.keys(installed).map(k => installed[k]); }
+
+      async function install(id, onProgress) {
+        const man = await fetchManifest(id);
+        const files = man.files || [];
+        const row = { id: man.id, name: man.name, version: man.version, files: files.slice(), installedAt: Date.now(), active: false };
+        if (files.length) {
+          const cache = await caches.open(cacheName(row));
+          for (let i = 0; i < files.length; i++) {
+            const u = appDir() + files[i];
+            try { const resp = await fetch(u, { cache: 'no-store' }); if (resp && resp.ok) await cache.put(u, resp); } catch (_) {}
+            if (onProgress) onProgress(i + 1, files.length, files[i]);
+          }
+        }
+        await putRow(row); installed[id] = row; return row;
+      }
+      async function remove(id) {
+        const row = installed[id];
+        if (row) { try { await caches.delete(cacheName(row)); } catch (_) {} }
+        await delRow(id); delete installed[id];
+        if (active && active.id === id) active = null;
+      }
+      async function setActive(id) {
+        const rows = await allRows();
+        for (const r of rows) { const want = (r.id === id); if (r.active !== want) { r.active = want; await putRow(r); installed[r.id] = r; } }
+        if (id && installed[id]) { try { active = await fetchManifest(id); } catch (_) { active = null; } } else active = null;
+      }
+      return { init, listAvailable, getActive, activeId, templates, isInstalled, getInstalled, install, remove, setActive, DEFAULT };
+    })();
+  </script>
+
+  <script>
     // ---- Offline / update status UX (Phase 5) ----
     // Network pill (online/offline), the "Update ready" pill, and the Settings offline
     // section (cache-ready status + a reset/reinstall escape hatch). Wired on DOMContentLoaded
@@ -696,6 +796,57 @@
           location.reload();
         })();
       });
+
+      // ---- environment packages (Phase 4): list / install / remove / select-active ----
+      var envNote = document.getElementById('env-note');
+      var envReload = document.getElementById('env-reload');
+      var bootEnvId = null;
+      if (envReload) envReload.addEventListener('click', function (e) { e.preventDefault(); location.reload(); });
+      function showEnvNote() { if (envNote) envNote.hidden = !(window.envMgr && bootEnvId != null && envMgr.activeId() !== bootEnvId); }
+
+      function renderEnvList() {
+        var host = document.getElementById('envlist');
+        if (!host || !window.envMgr) return Promise.resolve();
+        return envMgr.listAvailable().then(function (avail) {
+          var curActive = envMgr.activeId();
+          host.innerHTML = '';
+          if (!avail.length) { host.textContent = '(no packages available)'; return; }
+          avail.forEach(function (m) {
+            var inst = envMgr.isInstalled(m.id);
+            var isAct = (m.id === curActive);
+            var canActivate = inst || (m.id === envMgr.DEFAULT.id);
+            var files = (m.files && m.files.length) ? (' · ' + m.files.length + ' files') : '';
+            var item = document.createElement('div'); item.className = 'env-item';
+            item.innerHTML =
+              '<label class="env-act" title="' + (canActivate ? 'Use as the robot-runtime target' : 'Install first to make active') + '">' +
+                '<input type="radio" name="envact" value="' + m.id + '"' + (isAct ? ' checked' : '') + (canActivate ? '' : ' disabled') + '> active</label>' +
+              '<span class="env-name">' + m.name + '</span> <span class="env-ver">v' + m.version + '</span>' + files +
+              (inst ? ' <span class="env-badge">installed</span>' : '') +
+              (inst
+                ? ' <button class="env-rm" data-id="' + m.id + '">Remove</button>'
+                : ' <button class="env-inst" data-id="' + m.id + '">Install</button>');
+            host.appendChild(item);
+          });
+          host.querySelectorAll('input[name=envact]').forEach(function (r) {
+            r.addEventListener('change', function () { envMgr.setActive(r.value).then(showEnvNote); });
+          });
+          host.querySelectorAll('.env-inst').forEach(function (b) {
+            b.addEventListener('click', function () {
+              b.disabled = true; b.textContent = 'Installing…';
+              envMgr.install(b.dataset.id, function (i, n) { b.textContent = 'Installing ' + i + '/' + n; })
+                .then(function () { return renderEnvList(); })
+                .catch(function () { b.disabled = false; b.textContent = 'Install failed — retry'; });
+            });
+          });
+          host.querySelectorAll('.env-rm').forEach(function (b) {
+            b.addEventListener('click', function () {
+              if (!confirm('Remove this environment package and free its cache?')) return;
+              envMgr.remove(b.dataset.id).then(function () { return renderEnvList(); }).then(showEnvNote);
+            });
+          });
+        });
+      }
+      if (window.envMgr) envMgr.init().then(function () { bootEnvId = envMgr.activeId(); return renderEnvList(); });
     });
   </script>
 
@@ -806,6 +957,13 @@
       <span>offline</span>
       <span id="offstat" class="offstat">checking…</span>
       <button id="off-reset" title="Clear cached offline data and reload">Reset offline data</button>
+    </div>
+    <div class="row" style="align-items:flex-start">
+      <span>environment</span>
+      <span style="display:flex;flex-direction:column;gap:4px">
+        <span id="envlist" class="envlist">loading…</span>
+        <span id="env-note" class="env-note" hidden>↻ <a href="#" id="env-reload">Reload</a> to apply the active target to the simulator.</span>
+      </span>
     </div>
     <div style="font-size:.72rem;color:#9fb3d1">Free view: drag to orbit · wheel to zoom · middle/Shift-drag to pan &nbsp;·&nbsp; <kbd>W/A/S/D</kbd> drive+strafe &nbsp;<kbd>Q/E</kbd> turn &nbsp;<kbd>Space</kbd> auto/manual</div>
   </div>
@@ -3675,10 +3833,12 @@
       async function saveOne(path, text){ const body = 'f=' + encodeURIComponent(path) + '&data=' + encodeURIComponent(text); const r = await httpRequest('POST', '/java/file/save', { body }); return r.status === 200; }
       // Add-on libraries pushed to OnBotJava's External Libraries before building. A jar is uploaded only
       // when a deployed file imports its package, and only if it isn't already on the robot (one-time, idempotent).
+      // Sourced from the active environment package (Phase 4); DEPLOY_LIBS is the built-in Pedro 2.0.6 fallback.
       const DEPLOY_LIBS = [{ file: 'PedroPathing-core-2.0.6.jar', url: 'pedro-core.jar', requiredWhenImport: 'com.pedropathing' }];
       async function ensureLibraries(files, log){
         const srcs = Object.keys(files).map(n => files[n]);
-        const wanted = DEPLOY_LIBS.filter(l => !l.requiredWhenImport || srcs.some(t => t.includes(l.requiredWhenImport)));
+        const libs = (window.envMgr && envMgr.getActive().libs) || DEPLOY_LIBS;
+        const wanted = libs.filter(l => !l.requiredWhenImport || srcs.some(t => t.includes(l.requiredWhenImport)));
         if (!wanted.length) return;
         const tree = await httpRequest('GET', '/java/file/tree');
         const treeText = tree.status === 200 ? tree.body : '';
@@ -4667,14 +4827,17 @@
         // System templates (localizer + drivetrain) are NOT meant to be student-edited and carry the
         // coordinate-frame math, so always re-fetch them -- otherwise a stale copy from an earlier export
         // silently breaks path following. Student-editable templates are only fetched when missing.
-        const systemTemplates = ['PinpointLocalizer.java', 'MecanumDrivetrainSubsystem.java'];
-        const studentTemplates = ['Subsystem.java', 'Robot.java', 'Intake.java'];
+        // Template set + directory come from the active environment package (Phase 4).
+        const tpl = (window.envMgr && envMgr.templates()) || { dir: 'pedro_templates/', system: ['PinpointLocalizer.java', 'MecanumDrivetrainSubsystem.java'], student: ['Subsystem.java', 'Robot.java', 'Intake.java'] };
+        const tplDir = tpl.dir || 'pedro_templates/';
+        const systemTemplates = tpl.system || [];
+        const studentTemplates = tpl.student || [];
         for (const f of systemTemplates) {
-          try { p.files[f] = await (await fetch('pedro_templates/' + f)).text(); } catch (e) { if (!p.files[f]) p.files[f] = ''; }
+          try { p.files[f] = await (await fetch(tplDir + f)).text(); } catch (e) { if (!p.files[f]) p.files[f] = ''; }
         }
         for (const f of studentTemplates) {
           if (!p.files[f]) {
-            try { p.files[f] = await (await fetch('pedro_templates/' + f)).text(); } catch (e) { p.files[f] = ''; }
+            try { p.files[f] = await (await fetch(tplDir + f)).text(); } catch (e) { p.files[f] = ''; }
           }
         }
 
@@ -4799,6 +4962,7 @@
 
     (async function(){
       try {
+        try { if (window.envMgr) await envMgr.init(); } catch(e){}   // resolve active env package before building the classpath
         await loadPackages();   // fetch/seed packages — no JVM needed, so do it first
         loadMatch();            // restore the carried match snapshot, if any
         renderAll();
@@ -4822,7 +4986,9 @@
         // subdirectory, not at the origin root. Derive the page's directory from the
         // URL so the classpath works both locally ("") and under a subpath.
         const appDir = location.pathname.replace(/[^/]*$/, '').replace(/^\/+/, '');
-        const cp = ['app.jar', 'ecj.jar', 'pedro-core.jar']
+        // Extra classpath jars come from the active environment package (Phase 4); defaults to Pedro 2.0.6.
+        const extraJars = (window.envMgr ? (envMgr.getActive().classpathJars || []) : ['pedro-core.jar']);
+        const cp = ['app.jar', 'ecj.jar'].concat(extraJars)
           .map(j => '/app/' + appDir + j).join(':');
         // appDir arg lets the Java host build its ECJ bootclasspath/classpath under the same subpath
         cheerpjRunMain('sim.OpModeHost', cp, appDir)

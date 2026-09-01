@@ -1,0 +1,24 @@
+{
+  "id": "pedro-2.0.6",
+  "name": "PedroPathing 2.0.6",
+  "version": "2.0.6",
+  "kind": "pedro",
+  "description": "PedroPathing 2.0.6 core library + path-following code templates (Pinpoint localizer, mecanum drivetrain).",
+  "libs": [
+    { "file": "PedroPathing-core-2.0.6.jar", "url": "pedro-core.jar", "requiredWhenImport": "com.pedropathing" }
+  ],
+  "classpathJars": ["pedro-core.jar"],
+  "templates": {
+    "dir": "pedro_templates/",
+    "system": ["PinpointLocalizer.java", "MecanumDrivetrainSubsystem.java"],
+    "student": ["Subsystem.java", "Robot.java", "Intake.java"]
+  },
+  "files": [
+    "pedro-core.jar",
+    "pedro_templates/PinpointLocalizer.java",
+    "pedro_templates/MecanumDrivetrainSubsystem.java",
+    "pedro_templates/Subsystem.java",
+    "pedro_templates/Robot.java",
+    "pedro_templates/Intake.java"
+  ]
+}
