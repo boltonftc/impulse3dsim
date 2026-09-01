@@ -1,0 +1,16 @@
+{
+  "name": "Impulse3DSim v2",
+  "short_name": "Impulse3DSim",
+  "description": "In-browser FTC robot programming IDE and 3D simulator (Java via CheerpJ). Works offline once installed.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#050608",
+  "theme_color": "#0d1526",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

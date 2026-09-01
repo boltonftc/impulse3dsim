@@ -3,6 +3,26 @@
 <head>
   <meta charset="utf-8" />
   <title>impulse_3dsim v2 — Mecanum TeleOp (student Java on Rapier3D)</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0d1526">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <script>
+    // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
+    window.APP_VERSION = '2.1.0';
+    // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
+    window.__installPrompt = null;
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      window.__installPrompt = e;
+      window.dispatchEvent(new Event('impulse-installable'));
+    });
+    // Register the offline service worker (versioned cache via ?v=).
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js?v=' + window.APP_VERSION).catch(function () {});
+      });
+    }
+  </script>
   <script>
     // Local dev serves CheerpJ same-origin via the range_server /cj/ proxy; a static
     // host (GitHub Pages) has no proxy, so load the runtime from the CheerpJ CDN.
@@ -18,6 +38,12 @@
     #topbar{position:fixed;top:0;left:0;right:0;height:38px;display:flex;align-items:center;gap:.5rem;
             padding:0 .6rem;background:#0d1526ee;border-bottom:1px solid #24324d;z-index:20}
     #topbar .brand{color:#e2e8f0;font-weight:bold;font-size:.85rem}
+    #topbar .dlbtn{font-family:monospace;background:#1d4ed8;color:#eff6ff;border:1px solid #3b82f6;border-radius:5px;
+                   padding:.22rem .6rem;cursor:pointer;font-size:.78rem;font-weight:bold;white-space:nowrap;flex:0 0 auto}
+    #topbar .dlbtn:hover{background:#2563eb}
+    #topbar .dlbtn.done{background:#14532d;border-color:#22c55e;color:#dcfce7;cursor:default}
+    #topbar .verbadge{color:#e2e8f0;font-weight:bold;font-size:.82rem;white-space:nowrap;letter-spacing:.02em;flex:0 0 auto}
+    #topbar .verbadge .vtag{color:#7dd3fc}
     #topbar .sp{flex:1}
     #topbar .cjbadge{display:flex;align-items:center;background:#fff;border:1px solid #d6dae2;border-radius:6px;
                      padding:0 7px;height:26px;box-sizing:border-box;text-decoration:none;flex:0 0 auto}
@@ -513,11 +539,40 @@
   </div>
 
   <div id="topbar">
-    <span class="brand">impulse_3dsim v2</span>
+    <button id="dlbtn" class="dlbtn" title="Install Impulse3DSim to run fully offline">⬇ Download Impulse3DSim V2 For Offline Use</button>
+    <span class="verbadge">Impulse3DSim&nbsp;<span class="vtag" id="verlabel">v?.?.?</span></span>
     <span class="sp"></span>
     <div id="status">STATUS: init…</div>
     <a class="cjbadge" href="https://cheerpj.com" target="_blank" rel="noopener" title="Powered by CheerpJ — Leaning Technologies"><img src="assets/cheerpj_logo.png" alt="CheerpJ"></a>
   </div>
+  <script>
+    (function () {
+      var ver = document.getElementById('verlabel');
+      if (ver) ver.textContent = 'v' + (window.APP_VERSION || '?');
+      var btn = document.getElementById('dlbtn');
+      var standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+      function markInstalled() {
+        if (!btn) return;
+        btn.textContent = '✓ Offline Ready';
+        btn.classList.add('done');
+        btn.title = 'Installed — runs offline in this browser';
+      }
+      if (standalone) markInstalled();
+      window.addEventListener('appinstalled', markInstalled);
+      if (btn) btn.addEventListener('click', async function () {
+        var p = window.__installPrompt;
+        if (p) {
+          p.prompt();
+          try { await p.userChoice; } catch (e) {}
+          window.__installPrompt = null;
+        } else if (standalone) {
+          markInstalled();
+        } else {
+          alert('To install for offline use: open your browser menu and choose “Install app” (Chrome/Edge).\n\nOnce this page has loaded online once, it also runs offline in this browser.');
+        }
+      });
+    })();
+  </script>
 
   <!-- MATCH PLAY: top-centre drop-down holding the FMS audience scoreboard -->
   <div id="panel-matchplay" class="edgepanel dock-top">
