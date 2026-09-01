@@ -8,6 +8,7 @@ import http.server
 import os
 import re
 import socketserver
+import sys
 import threading
 import urllib.request
 import urllib.error
@@ -84,7 +85,11 @@ class RangeRequestHandler(http.server.SimpleHTTPRequestHandler):
                 if resp.status != 200:
                     return False
                 data = resp.read()
-            except Exception:
+            except Exception as e:
+                # Upstream unreachable or the pinned CheerpJ revision moved: warn and
+                # continue. Production never hits the CDN (web/cj/ is committed), so this
+                # only affects a developer re-mirroring a not-yet-cached file.
+                sys.stderr.write(f"[cj-mirror] WARN upstream fetch failed for {rel}: {e}\n")
                 return False
             os.makedirs(os.path.dirname(local), exist_ok=True)
             tmp = local + ".part"
