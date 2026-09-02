@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.1.1';
+    window.APP_VERSION = '2.1.2';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -4968,7 +4968,13 @@
         renderAll();
         if (!sim.loaded) carryToHub(true, true);   // first run: deploy the current package, nothing pre-selected
         statusEl.textContent = 'STATUS: cheerpjInit…';
-        await cheerpjInit({ version: 17, status: 'none', natives: {
+        await cheerpjInit({ version: 17, status: 'none',
+          // Force ECJ's -extdirs probe to a no-op: with java.ext.dirs empty, Main.handleExtdirs skips
+          // the JDK ext-dir scan entirely. CheerpJ points java.ext.dirs at a runtime-mount path that
+          // 404s cleanly online (ECJ copes) but reads as an I/O error offline -> NPE in handleExtdirs.
+          // The extension mechanism was removed in Java 9, so clearing it is harmless for the JVM.
+          javaProperties: ['java.ext.dirs='],
+          natives: {
           Java_sim_OpModeHost_gpLeftX, Java_sim_OpModeHost_gpLeftY, Java_sim_OpModeHost_gpRightX,
           Java_sim_OpModeHost_gpRightY, Java_sim_OpModeHost_gpLeftTrigger, Java_sim_OpModeHost_gpRightTrigger,
           Java_sim_OpModeHost_gpRightBumper, Java_sim_OpModeHost_gpButtons,
