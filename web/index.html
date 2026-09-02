@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.1.5';
+    window.APP_VERSION = '2.1.6';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -1019,7 +1019,7 @@
           <label>Deploy to</label>
           <select id="deploy-dest" class="pit-destsel">
             <option value="sim">Simulator</option>
-            <option value="robot">Real Robot (USB)</option>
+            <option value="robot">Real Robot (USB / WiFi)</option>
             <option value="github">GitHub (push)</option>
             <option value="zip">Zip file</option>
           </select>
@@ -1029,7 +1029,7 @@
           <span class="spacer"></span>
           <label>Import from</label>
           <select id="import-src" class="pit-destsel">
-            <option value="robot">Real Robot (USB)</option>
+            <option value="robot">Real Robot (USB / WiFi)</option>
             <option value="github">GitHub (pull)</option>
             <option value="zip">Zip file</option>
           </select>
@@ -3761,6 +3761,7 @@
         sub: isDeploy ? 'Push OpModes to the Control Hub — USB or WiFi' : 'Pull OpModes from the Control Hub — USB or WiFi',
         go: 'Connect ▸',
         body: '<div id="pit-xport">Looking for your robot…</div>'
+            + '<div id="pit-wifi"></div>'
             + '<p style="font-size:12px;color:#93c5fd;margin:6px 0">' + (isDeploy ? 'Sends the live package to the physical Control Hub.' : 'Reads the source tree off the Control Hub into a new package.') + '</p>'
             + (isDeploy ? '<div class="pit-chkline"><input type="checkbox" id="sheet-ob" checked> <label for="sheet-ob">On-bot test mode (<code>.ob</code>) — avoids class collisions, reversed on import</label></div>' : '')
             + '<div class="pit-logbox" id="pit-sheet-log"></div>',
@@ -3794,8 +3795,60 @@
           + pill('wifi', 'WiFi (bridge)', !wifiUp ? 'helper not running' : (wifiLive ? ((wifi.robot || 'robot') + ' ready') : 'ready to connect'), wifiLive);
         box.querySelectorAll('button[data-x]').forEach(b => b.addEventListener('click', () => { robotXport = b.getAttribute('data-x'); refreshRobotSheet(isDeploy, true); }));
       }
+      renderWifiPairing(isDeploy, (robotXport === 'wifi') ? wifi : null);
       const go = document.getElementById('pit-sheet-go');
       if (go){ const live = await robotBackend().isLive(); go.textContent = live ? (isDeploy ? 'Deploy ▸' : 'Import ▸') : 'Connect ▸'; }
+    }
+
+    // WiFi pairing panel: pick the robot's SSID once (the whitelist key), optionally
+    // enable auto-connect. Only shown when WiFi is the chosen transport and the bridge
+    // is up; a plain USB flow never sees it.
+    async function renderWifiPairing(isDeploy, wifi){
+      const el = document.getElementById('pit-wifi');
+      if (!el) return;
+      if (!wifi){ el.style.display = 'none'; el.innerHTML = ''; return; }
+      el.style.cssText = 'display:block;margin:4px 0 2px;padding:8px 10px;border:1px solid #223047;border-radius:8px;background:#0b1424';
+      const w = wifi.wifi || {};
+      const chip = (txt, ok) => '<span style="font-size:11px;color:' + (ok ? '#34a853' : '#93c5fd') + '">' + txt + '</span>';
+      if (w.paired){
+        const badge = w.joined ? chip('● on this WiFi', true) : (w.inRange ? chip('● in range', true) : chip('○ not in range', false));
+        el.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'
+          + '<div><b style="font-size:13px;color:#e5edf7">📶 ' + w.ssid + '</b> &nbsp;' + badge + '</div>'
+          + '<button type="button" id="wifi-forget" style="background:none;border:none;color:#93c5fd;font-size:11px;cursor:pointer;text-decoration:underline">Forget</button></div>'
+          + '<label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:#cbd5e1;cursor:pointer">'
+          + '<input type="checkbox" id="wifi-auto"' + (w.autoConnect ? ' checked' : '') + '> Auto-connect when this robot is in range</label>';
+        el.querySelector('#wifi-forget').addEventListener('click', async () => { await RobotWiFi.unpair(); refreshRobotSheet(isDeploy, true); });
+        el.querySelector('#wifi-auto').addEventListener('change', async (e) => {
+          try { await RobotWiFi.pair(w.ssid, wifi.host || '192.168.43.1', e.target.checked); } catch(err){ sheetLog('Could not save preference: ' + err.message, 'err'); }
+        });
+        return;
+      }
+      // Not paired yet — offer an SSID picker (scan) with a manual fallback.
+      el.innerHTML = '<div style="font-size:12px;color:#cbd5e1;margin-bottom:6px">Pair your robot once — pick its WiFi network:</div>'
+        + '<div id="wifi-pick" style="font-size:12px;color:#93c5fd">Scanning for networks…</div>';
+      const res = await RobotWiFi.scan();
+      const pick = el.querySelector('#wifi-pick');
+      if (!pick) return;
+      const ssids = (res && res.ssids) || [];
+      const opts = ssids.map(s => '<option value="' + s.replace(/"/g, '&quot;') + '"' + (s === res.current ? ' selected' : '') + '>' + s + (s === res.current ? '  (connected)' : '') + '</option>').join('');
+      const scanNote = (res && res.ok) ? '' : '<div style="font-size:11px;color:#f59e0b;margin-bottom:6px">' + ((res && res.error) || 'Could not scan') + '</div>';
+      pick.outerHTML = '<div id="wifi-pick">' + scanNote
+        + '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+        + (ssids.length ? '<select id="wifi-ssid" style="flex:1;min-width:150px;background:#0b1424;color:#e5edf7;border:1px solid #334155;border-radius:6px;padding:5px">' + opts + '</select>' : '')
+        + '<input id="wifi-ssid-manual" placeholder="or type SSID (e.g. 12345-RC)" style="flex:1;min-width:150px;background:#0b1424;color:#e5edf7;border:1px solid #334155;border-radius:6px;padding:5px">'
+        + '<button type="button" id="wifi-pairbtn" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px">Pair ▸</button>'
+        + '</div>'
+        + '<label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:#cbd5e1;cursor:pointer"><input type="checkbox" id="wifi-auto-new"> Auto-connect when this robot is in range</label></div>';
+      const btn = el.querySelector('#wifi-pairbtn');
+      if (btn) btn.addEventListener('click', async () => {
+        const sel = el.querySelector('#wifi-ssid');
+        const man = el.querySelector('#wifi-ssid-manual');
+        const ssid = (man && man.value.trim()) || (sel && sel.value) || '';
+        if (!ssid){ sheetLog('Pick or type your robot\u2019s WiFi name first.', 'warn'); return; }
+        const auto = !!(el.querySelector('#wifi-auto-new') || {}).checked;
+        try { await RobotWiFi.pair(ssid, '192.168.43.1', auto); sheetLog('Paired with ' + ssid + '.', 'ok'); refreshRobotSheet(isDeploy, true); }
+        catch(err){ sheetLog('Pairing failed: ' + err.message, 'err'); }
+      });
     }
 
     async function runRobot(isDeploy){
@@ -4058,22 +4111,39 @@
       async function reachable(){ return (await status()) != null; }
       async function isLive(){ const s = await status(); return !!(s && s.state === 'connected'); }
       function isConnected(){ return !!(lastState && lastState.state === 'connected'); }
-      async function connect(log, host){
-        let s = await status();
-        if (!s) throw new Error('The WiFi bridge isn\u2019t running on this laptop — download and start impulse-wifi-bridge.exe, then try again.');
-        if (s.state === 'connected'){ if (log) log('Robot already connected over WiFi (' + (s.robot || 'robot') + ').', 'ok'); return s.robot || 'robot'; }
-        host = host || s.host || '192.168.43.1';
-        if (log) log('Asking the bridge to reach the robot at ' + host + '\u2026', 'warn');
-        const r = await fetch(BASE + '/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ host: host }) });
-        if (!r.ok) throw new Error('The bridge refused the connect request (' + r.status + ').');
-        const deadline = Date.now() + 30000;
+      // Wi-Fi pairing: SSID is the whitelist key (FTC rules make it unique per team).
+      async function scan(){ try { const r = await fetch(BASE + '/wifi/scan', { method: 'POST' }); return r.ok ? await r.json() : { ok:false, error:'bridge error' }; } catch(_){ return { ok:false, error:'bridge not running' }; } }
+      async function pair(ssid, host, auto){ const r = await fetch(BASE + '/pair', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ssid: ssid, host: host || '', autoConnect: !!auto }) }); const j = r.ok ? await r.json() : { ok:false }; if (!j.ok) throw new Error(j.error || 'Pairing failed.'); return j; }
+      async function unpair(){ try { await fetch(BASE + '/unpair', { method:'POST' }); } catch(_){} }
+      // Poll /status until the ADB link comes up (or errors / times out).
+      async function pollConnected(log, ms){
+        const deadline = Date.now() + (ms || 30000);
         while (Date.now() < deadline){
           await new Promise(res => setTimeout(res, 1000));
-          s = await status();
+          const s = await status();
           if (s && s.state === 'connected'){ if (log) log('Connected to ' + (s.robot || 'robot') + ' over WiFi.', 'ok'); return s.robot || 'robot'; }
           if (s && s.state === 'error'){ throw new Error(s.detail || 'The bridge reported an error.'); }
         }
         throw new Error('Timed out reaching the robot over WiFi — is this laptop joined to the robot\u2019s WiFi?');
+      }
+      async function connect(log, host){
+        let s = await status();
+        if (!s) throw new Error('The WiFi bridge isn\u2019t running on this laptop — download and start impulse-wifi-bridge.exe, then try again.');
+        if (s.state === 'connected'){ if (log) log('Robot already connected over WiFi (' + (s.robot || 'robot') + ').', 'ok'); return s.robot || 'robot'; }
+        // Paired: let the bridge join the robot's WiFi (switching networks if needed) then link.
+        if (s.wifi && s.wifi.paired){
+          if (log) log('Reaching ' + s.wifi.ssid + (s.wifi.joined ? '' : ' — switching WiFi') + '\u2026', 'warn');
+          const r = await fetch(BASE + '/wifi/join', { method: 'POST' });
+          const j = r.ok ? await r.json() : { ok:false, error:'The bridge refused the join request (' + r.status + ').' };
+          if (!j.ok) throw new Error(j.error || 'Could not join the robot\u2019s WiFi.');
+          return pollConnected(log, 40000);
+        }
+        // Unpaired fallback: dial a raw host directly.
+        host = host || s.host || '192.168.43.1';
+        if (log) log('Asking the bridge to reach the robot at ' + host + '\u2026', 'warn');
+        const r = await fetch(BASE + '/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ host: host }) });
+        if (!r.ok) throw new Error('The bridge refused the connect request (' + r.status + ').');
+        return pollConnected(log, 30000);
       }
       async function httpRequest(method, path, opts){
         opts = opts || {};
@@ -4088,7 +4158,7 @@
         return { status: j.status, statusText: j.statusText || '', headers: j.headers || {}, body: dec.decode(bytes), raw: bytes };
       }
       const ops = makeOnBot({ httpRequest, assertReady: function(){ if (!isConnected()) throw new Error('Connect to the robot over WiFi first.'); } });
-      return { status, reachable, isLive, isConnected, connect, deployFiles: ops.deployFiles, pullFiles: ops.pullFiles, transport: 'wifi' };
+      return { status, reachable, isLive, isConnected, connect, scan, pair, unpair, deployFiles: ops.deployFiles, pullFiles: ops.pullFiles, transport: 'wifi' };
     })();
 
     // ---- Lessons engine (M6a): markdown + ACTION cross-links + progress ----
