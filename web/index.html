@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.1.4';
+    window.APP_VERSION = '2.1.5';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -3749,32 +3749,66 @@
         }
       });
     }
+    // Deploy transport: 'usb' (WebUSB cable) or 'wifi' (local bridge helper). Auto-picked
+    // per sheet open — a plugged-in cable wins (fastest/most reliable), else the WiFi bridge.
+    let robotXport = 'usb';
+    function robotBackend(){ return robotXport === 'wifi' ? RobotWiFi : RobotUSB; }
+
     function sheetRobot(mode){
       const isDeploy = mode === 'deploy';
       openSheet({
         ic: '🤖', title: isDeploy ? 'Deploy → Real Robot' : 'Import ← Real Robot',
-        sub: isDeploy ? 'Push OpModes to the Control Hub over USB' : 'Pull OpModes from the Control Hub over USB',
-        go: RobotUSB.isConnected() ? (isDeploy ? 'Deploy ▸' : 'Import ▸') : 'Connect ▸',
-        body: '<p>' + (isDeploy ? 'Sends the live package to the physical Control Hub via USB.' : 'Reads the source tree off the Control Hub via USB into a new package.') + ' <b>Chrome / Edge only.</b></p>'
+        sub: isDeploy ? 'Push OpModes to the Control Hub — USB or WiFi' : 'Pull OpModes from the Control Hub — USB or WiFi',
+        go: 'Connect ▸',
+        body: '<div id="pit-xport">Looking for your robot…</div>'
+            + '<p style="font-size:12px;color:#93c5fd;margin:6px 0">' + (isDeploy ? 'Sends the live package to the physical Control Hub.' : 'Reads the source tree off the Control Hub into a new package.') + '</p>'
             + (isDeploy ? '<div class="pit-chkline"><input type="checkbox" id="sheet-ob" checked> <label for="sheet-ob">On-bot test mode (<code>.ob</code>) — avoids class collisions, reversed on import</label></div>' : '')
             + '<div class="pit-logbox" id="pit-sheet-log"></div>',
-        onGo: () => runRobot(isDeploy)
-      });
-      // isConnected() is a best-effort guess for the initial label; confirm against the live
-      // device list and fix the button to 'Connect' if the cable was pulled since last time.
-      RobotUSB.isLive().then(live => {
-        const go = document.getElementById('pit-sheet-go');
-        if (go && !live) go.textContent = 'Connect ▸';
+        onGo: () => runRobot(isDeploy),
+        onOpen: () => refreshRobotSheet(isDeploy, false)
       });
     }
+
+    // Probe both transports and render a chooser. When keepChoice is false (sheet open) the
+    // best transport is auto-selected; when true (user tapped a pill) the manual choice stands.
+    async function refreshRobotSheet(isDeploy, keepChoice){
+      const box = document.getElementById('pit-xport');
+      const [usbLive, wifi] = await Promise.all([ RobotUSB.isLive(), RobotWiFi.status() ]);
+      const wifiUp = !!wifi;
+      const wifiLive = !!(wifi && wifi.state === 'connected');
+      if (!keepChoice){
+        if (usbLive) robotXport = 'usb';
+        else if (wifiUp) robotXport = 'wifi';
+        else robotXport = 'usb';
+      }
+      function pill(id, label, sub, ok){
+        const on = robotXport === id;
+        return '<button type="button" data-x="' + id + '" style="flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:8px 10px;border-radius:8px;cursor:pointer;'
+          + 'border:1px solid ' + (on ? '#3b82f6' : '#334155') + ';background:' + (on ? '#12233f' : '#0b1424') + ';color:#e5edf7">'
+          + '<span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:' + (ok ? '#34a853' : '#6b7280') + '"></span><b style="font-size:13px">' + label + '</b></span>'
+          + '<small style="color:#93c5fd;font-size:11px">' + sub + '</small></button>';
+      }
+      if (box){
+        box.style.cssText = 'display:flex;gap:8px;margin:2px 0 4px';
+        box.innerHTML = pill('usb', 'USB cable', usbLive ? 'connected' : 'plug in & connect', usbLive)
+          + pill('wifi', 'WiFi (bridge)', !wifiUp ? 'helper not running' : (wifiLive ? ((wifi.robot || 'robot') + ' ready') : 'ready to connect'), wifiLive);
+        box.querySelectorAll('button[data-x]').forEach(b => b.addEventListener('click', () => { robotXport = b.getAttribute('data-x'); refreshRobotSheet(isDeploy, true); }));
+      }
+      const go = document.getElementById('pit-sheet-go');
+      if (go){ const live = await robotBackend().isLive(); go.textContent = live ? (isDeploy ? 'Deploy ▸' : 'Import ▸') : 'Connect ▸'; }
+    }
+
     async function runRobot(isDeploy){
       const go = document.getElementById('pit-sheet-go');
       const log = (m, c) => sheetLog(m, c);
+      const be = robotBackend();
       try {
-        if (!(await RobotUSB.isLive())){
-          go.disabled = true; go.textContent = 'Connect ▸'; log('Opening device picker — choose the Control Hub…');
-          await RobotUSB.connect(log);
-          go.disabled = false; go.textContent = isDeploy ? 'Deploy ▸' : 'Import ▸';
+        if (!(await be.isLive())){
+          go.disabled = true; go.textContent = 'Connecting…';
+          if (be.transport === 'usb') log('Opening device picker — choose the Control Hub…');
+          await be.connect(log);
+          go.disabled = false;
+          await refreshRobotSheet(isDeploy, true);
           return;
         }
         go.disabled = true;
@@ -3782,9 +3816,9 @@
           writeActive();
           const p = curPkg(); if (!p){ log('No package selected.', 'err'); return; }
           const ob = (document.getElementById('sheet-ob') || {}).checked;
-          await RobotUSB.deployFiles(p.files, ob, log);
+          await be.deployFiles(p.files, ob, log);
         } else {
-          const files = await RobotUSB.pullFiles(log);
+          const files = await be.pullFiles(log);
           let nn = prompt('Save pulled code as package:', 'robot_pull'); if (nn == null) return; nn = nn.trim(); if (!nn) return;
           if (store.packages[nn] && !confirm('Replace existing package "' + nn + '"?')) return;
           store.packages[nn] = { files, active: Object.keys(files)[0] };
@@ -3809,30 +3843,19 @@
       else if (src === 'zip') sheetZip('import');
     });
 
-    // ---- WebUSB → ADB → OnBotJava bridge (ported from website/programming/deploy) ----
-    const RobotUSB = (function(){
-      const A = { CNXN: 0x4e584e43, OPEN: 0x4e45504f, OKAY: 0x59414b4f, WRTE: 0x45545257, CLSE: 0x45534c43, AUTH: 0x48545541 };
+    // ---- OnBotJava deploy/pull pipeline (transport-agnostic) ----
+    // The whole robot workflow — .ob namespacing, one-time library upload, stale-file
+    // prune, compile + wait — rides on ONE primitive: httpRequest(method, path, opts).
+    // USB (WebUSB→ADB) and WiFi (local bridge→ADB) each supply their own httpRequest,
+    // so there is a single source of truth for how student code reaches the Control Hub.
+    function makeOnBot(io){
+      const httpRequest = io.httpRequest;
+      const assertReady = io.assertReady || function(){};
+      const enc = new TextEncoder();
       const TEAMCODE_ROOT = '/src/org/firstinspires/ftc/teamcode/';
       const OB_PKG = 'ob', OB_TAG = ' OB';
-      const enc = new TextEncoder();
-      let usb = null, nextLocalId = 1;
-      // A physical unplug/power-cycle invalidates the device; drop our handle so the sheet
-      // offers Connect again instead of a Deploy that fails with "device was disconnected".
-      if (navigator.usb && navigator.usb.addEventListener){
-        navigator.usb.addEventListener('disconnect', e => { if (usb && e.device === usb.dev) usb = null; });
-      }
-      function withTimeout(promise, ms, label){ let t; const to = new Promise((_, rej) => { t = setTimeout(() => rej(new Error('Timed out after ' + ms + 'ms during ' + label)), ms); }); return Promise.race([promise, to]).finally(() => clearTimeout(t)); }
-      function adbSum(p){ let s = 0; for (let i = 0; i < p.length; i++) s = (s + p[i]) >>> 0; return s; }
       function concatBytes(){ const arrs = [].slice.call(arguments); let n = 0; for (const a of arrs) n += a.length; const out = new Uint8Array(n); let k = 0; for (const a of arrs){ out.set(a, k); k += a.length; } return out; }
       function buildMultipart(fieldName, filename, bytes, mime){ const boundary = '----BoltonDeploy' + Math.random().toString(16).slice(2); const pre = enc.encode('--' + boundary + '\r\nContent-Disposition: form-data; name="' + fieldName + '"; filename="' + filename + '"\r\nContent-Type: ' + mime + '\r\n\r\n'); const post = enc.encode('\r\n--' + boundary + '--\r\n'); return { body: concatBytes(pre, bytes, post), contentType: 'multipart/form-data; boundary=' + boundary }; }
-      function cmdName(c){ return ({ 0x4e584e43:'CNXN', 0x48545541:'AUTH', 0x4e45504f:'OPEN', 0x59414b4f:'OKAY', 0x45534c43:'CLSE', 0x45545257:'WRTE' })[c] || ('0x' + (c >>> 0).toString(16)); }
-      async function sendMsg(command, arg0, arg1, payload){ payload = payload || new Uint8Array(0); const hdr = new DataView(new ArrayBuffer(24)); hdr.setUint32(0, command, true); hdr.setUint32(4, arg0 >>> 0, true); hdr.setUint32(8, arg1 >>> 0, true); hdr.setUint32(12, payload.length, true); hdr.setUint32(16, adbSum(payload), true); hdr.setUint32(20, (command ^ 0xffffffff) >>> 0, true); await usb.dev.transferOut(usb.epOut, hdr.buffer); if (payload.length) await usb.dev.transferOut(usb.epOut, payload); }
-      async function recvMsg(timeoutMs){ timeoutMs = timeoutMs || 20000; const h = await withTimeout(usb.dev.transferIn(usb.epIn, 24), timeoutMs, 'read header'); if (!h.data || h.data.byteLength < 24) throw new Error('short/empty ADB header'); const dv = h.data; const command = dv.getUint32(0, true), arg0 = dv.getUint32(4, true), arg1 = dv.getUint32(8, true), len = dv.getUint32(12, true); let payload = new Uint8Array(0); if (len > 0){ const p = await withTimeout(usb.dev.transferIn(usb.epIn, len), timeoutMs, 'read payload'); payload = new Uint8Array(p.data.buffer.slice(0, p.data.byteLength)); } return { command, arg0, arg1, payload }; }
-      async function openStream(service){ const localId = nextLocalId++; await sendMsg(A.OPEN, localId, 0, enc.encode(service + '\0')); while (true){ const p = await recvMsg(); if (p.arg1 !== localId) continue; if (p.command === A.OKAY) return { localId, remoteId: p.arg0 }; if (p.command === A.CLSE) throw new Error('stream refused for ' + service + ' (is the Robot Controller app running?)'); } }
-      function indexOfCRLFCRLF(b){ for (let i = 0; i + 3 < b.length; i++){ if (b[i] === 13 && b[i+1] === 10 && b[i+2] === 13 && b[i+3] === 10) return i; } return -1; }
-      function dechunk(bytes){ const out = []; let i = 0; while (i < bytes.length){ let j = i; while (j + 1 < bytes.length && !(bytes[j] === 13 && bytes[j+1] === 10)) j++; const sizeHex = new TextDecoder('ascii').decode(bytes.subarray(i, j)).trim(); const size = parseInt(sizeHex, 16); if (!Number.isFinite(size) || size <= 0) break; const start = j + 2; out.push(bytes.subarray(start, start + size)); i = start + size + 2; } let len = 0; for (const c of out) len += c.length; const merged = new Uint8Array(len); let off = 0; for (const c of out){ merged.set(c, off); off += c.length; } return merged; }
-      function parseHttp(raw){ const sep = indexOfCRLFCRLF(raw); if (sep < 0) return { status: 0, statusText: 'no headers', headers: {}, body: '', raw }; const headText = new TextDecoder('ascii').decode(raw.subarray(0, sep)); const bodyBytes = raw.subarray(sep + 4); const lines = headText.split('\r\n'); const statusLine = lines.shift() || ''; const m = statusLine.match(/^HTTP\/\d\.\d\s+(\d+)\s*(.*)$/); const status = m ? parseInt(m[1], 10) : 0; const statusText = m ? m[2] : statusLine; const headers = {}; for (const line of lines){ const idx = line.indexOf(':'); if (idx > 0) headers[line.slice(0, idx).trim().toLowerCase()] = line.slice(idx + 1).trim(); } let bodyOut; if ((headers['transfer-encoding'] || '').toLowerCase().includes('chunked')) bodyOut = new TextDecoder().decode(dechunk(bodyBytes)); else bodyOut = new TextDecoder().decode(bodyBytes); return { status, statusText, headers, body: bodyOut, raw }; }
-      async function httpRequest(method, path, opts){ opts = opts || {}; const body = opts.body != null ? opts.body : null; const contentType = opts.contentType || 'application/x-www-form-urlencoded'; const readTimeout = opts.readTimeout || 20000; if (!usb) throw new Error('not connected'); const bodyBytes = body == null ? null : (typeof body === 'string' ? enc.encode(body) : body); let head = method + ' ' + path + ' HTTP/1.1\r\nHost: localhost:8080\r\nUser-Agent: impulse-deploy\r\nAccept: */*\r\nConnection: close\r\n'; if (bodyBytes) head += 'Content-Type: ' + contentType + '\r\nContent-Length: ' + bodyBytes.length + '\r\n'; head += '\r\n'; const reqBytes = bodyBytes ? concatBytes(enc.encode(head), bodyBytes) : enc.encode(head); const stream = await openStream('tcp:8080'); const localId = stream.localId, remoteId = stream.remoteId; const respChunks = []; let closed = false; const max = Math.max(1, Math.min(usb.maxData, 0x40000)); for (let off = 0; off < reqBytes.length && !closed; off += max){ await sendMsg(A.WRTE, localId, remoteId, reqBytes.subarray(off, off + max)); let acked = false; while (!acked){ const p = await recvMsg(readTimeout); if (p.arg1 !== localId) continue; if (p.command === A.OKAY) acked = true; else if (p.command === A.WRTE){ respChunks.push(p.payload); await sendMsg(A.OKAY, localId, remoteId); } else if (p.command === A.CLSE){ closed = true; acked = true; } } } while (!closed){ const p = await recvMsg(readTimeout); if (p.arg1 !== localId) continue; if (p.command === A.WRTE){ respChunks.push(p.payload); await sendMsg(A.OKAY, localId, remoteId); } else if (p.command === A.CLSE) closed = true; } try { await sendMsg(A.CLSE, localId, remoteId); } catch(e){} return parseHttp(concatBytes.apply(null, respChunks)); }
       function toOb(text){ let out = text.replace(/\borg\.firstinspires\.ftc\.teamcode\b(?!\.ob\b)/g, 'org.firstinspires.ftc.teamcode.ob'); out = out.replace(/(@(?:TeleOp|Autonomous)\s*\(\s*name\s*=\s*")([^"]*)(")/g, (m, pre, nm, post) => nm.endsWith(OB_TAG) ? m : pre + nm + OB_TAG + post); return out; }
       function fromOb(text){ let out = text.replace(/\borg\.firstinspires\.ftc\.teamcode\.ob\b/g, 'org.firstinspires.ftc.teamcode'); out = out.replace(/(@(?:TeleOp|Autonomous)\s*\(\s*name\s*=\s*")([^"]*)(")/g, (m, pre, nm, post) => nm.endsWith(OB_TAG) ? pre + nm.slice(0, -OB_TAG.length) + post : m); return out; }
       function devicePathFor(text, name){ const m = /(^|\n)\s*package\s+([\w.]+)\s*;/.exec(text); if (m) return '/src/' + m[2].split('.').join('/') + '/' + name; return TEAMCODE_ROOT + name; }
@@ -3865,6 +3888,96 @@
             throw new Error('Library upload failed for ' + lib.file + ': ' + up.status + ' ' + up.statusText + ' ' + detail); }
         }
       }
+      // Remove .java files left on the robot from a previous deploy that aren't in this one.
+      // Scoped strictly to the tool-managed on-bot (.ob) sandbox so a student's other OpModes
+      // are never touched. Fixes stale files (e.g. a deleted SimpleAuto) breaking the build.
+      async function pruneObStale(keep, log){
+        const OB_DIR = TEAMCODE_ROOT + OB_PKG + '/';
+        const tree = await httpRequest('GET', '/java/file/tree');
+        if (tree.status !== 200) return;
+        let entries = [];
+        try { entries = JSON.parse(tree.body).src || []; } catch(e){ return; }
+        const norm = p => p.startsWith('/src') ? p : '/src' + (p.startsWith('/') ? p : '/' + p);
+        const stale = entries
+          .filter(p => typeof p === 'string' && !p.endsWith('/'))
+          .map(norm)
+          .filter(p => p.startsWith(OB_DIR) && p.toLowerCase().endsWith('.java') && !keep.has(p));
+        if (!stale.length) return;
+        log('Removing ' + stale.length + ' stale file' + (stale.length === 1 ? '' : 's') + ' left from a previous deploy…', 'warn');
+        const body = 'delete=' + encodeURIComponent(JSON.stringify(stale));
+        const r = await httpRequest('POST', '/java/file/delete', { body });
+        if (r.status === 200){ for (const p of stale) log('  \uD83D\uDDD1 ' + p, 'ok'); }
+        else log('  Could not delete stale files (' + r.status + ') — remove them in OnBotJava if the build fails.', 'warn');
+      }
+      async function deployFiles(files, obMode, log){
+        assertReady();
+        const names = Object.keys(files).filter(n => n.endsWith('.java'));
+        if (!names.length) throw new Error('No .java files to deploy.');
+        await ensureLibraries(files, log);
+        if (obMode) log('On-bot test mode: deploying into the .ob package (OpMode names get " OB").', 'dim');
+        log('Uploading ' + names.length + ' file' + (names.length === 1 ? '' : 's') + '…', 'warn');
+        let failed = 0;
+        const uploaded = new Set();
+        for (const name of names){
+          const src = files[name];
+          const outText = obMode ? toOb(src) : src;
+          const devPath = devicePathFor(src, name);
+          const outPath = obMode ? obDevicePath(devPath) : devPath;
+          const ok = await saveOne(outPath, outText);
+          uploaded.add(outPath);
+          log((ok ? '  ✓ ' : '  ✗ ') + outPath, ok ? 'ok' : 'err'); if (!ok) failed++;
+        }
+        if (failed) throw new Error(failed + ' file(s) failed to upload.');
+        if (obMode) await pruneObStale(uploaded, log);
+        log('Starting the build on the robot…');
+        const s = await httpRequest('GET', '/java/build/start'); if (s.status !== 200) throw new Error('Could not start build: ' + s.status + ' ' + s.statusText);
+        log('Compiling (first build can take a minute)…', 'warn');
+        const w = await httpRequest('GET', '/java/build/wait', { readTimeout: 300000 });
+        const body = w.body || '';
+        log('── build log ──', 'dim');
+        if (body.trim()) log(body.slice(0, 8000), /error:/i.test(body) ? 'err' : 'dim');
+        if (w.status === 200 && !/error:/i.test(body)){ log('Build successful — restart the OpMode on the Driver Hub to run it.', 'ok'); return true; }
+        log('Build reported problems — fix the errors above and deploy again.', 'warn'); return false;
+      }
+      async function pullFiles(log){
+        assertReady();
+        log('Reading the file list from the robot…');
+        const tree = await httpRequest('GET', '/java/file/tree'); if (tree.status !== 200) throw new Error('Could not read files: ' + tree.status + ' ' + tree.statusText);
+        let entries = [];
+        try { const parsed = JSON.parse(tree.body); entries = (parsed.src || []).filter(p => typeof p === 'string' && !p.endsWith('/') && !p.startsWith('<') && !p.includes('EXTERNAL_LIBRARIES')); }
+        catch(e){ throw new Error('Robot returned an unexpected file list.'); }
+        const javaEntries = entries.filter(e => e.toLowerCase().endsWith('.java'));
+        if (!javaEntries.length) throw new Error('No source files found on the robot.');
+        log('Robot has ' + javaEntries.length + ' file' + (javaEntries.length === 1 ? '' : 's') + '. Pulling…');
+        const files = {}; let failed = 0;
+        for (const e of javaEntries){ const getPath = '/src' + (e.startsWith('/') ? e : '/' + e); const r = await httpRequest('GET', '/java/file/get?f=' + encodeURIComponent(getPath)); if (r.status !== 200){ log('  ✗ ' + e + ' (' + r.status + ')', 'err'); failed++; continue; } const base = e.split('/').pop(); files[base] = fromOb(r.body); log('  ✓ ' + base, 'ok'); }
+        log('Pulled ' + Object.keys(files).length + ' file' + (Object.keys(files).length === 1 ? '' : 's') + (failed ? ', ' + failed + ' failed' : '') + '.', failed ? 'warn' : 'ok');
+        return files;
+      }
+      return { deployFiles, pullFiles, toOb, fromOb };
+    }
+
+    // ---- USB transport: WebUSB → ADB (ported from website/programming/deploy) ----
+    const RobotUSB = (function(){
+      const A = { CNXN: 0x4e584e43, OPEN: 0x4e45504f, OKAY: 0x59414b4f, WRTE: 0x45545257, CLSE: 0x45534c43, AUTH: 0x48545541 };
+      const enc = new TextEncoder();
+      let usb = null, nextLocalId = 1;
+      // A physical unplug/power-cycle invalidates the device; drop our handle so the sheet
+      // offers Connect again instead of a Deploy that fails with "device was disconnected".
+      if (navigator.usb && navigator.usb.addEventListener){
+        navigator.usb.addEventListener('disconnect', e => { if (usb && e.device === usb.dev) usb = null; });
+      }
+      function withTimeout(promise, ms, label){ let t; const to = new Promise((_, rej) => { t = setTimeout(() => rej(new Error('Timed out after ' + ms + 'ms during ' + label)), ms); }); return Promise.race([promise, to]).finally(() => clearTimeout(t)); }
+      function adbSum(p){ let s = 0; for (let i = 0; i < p.length; i++) s = (s + p[i]) >>> 0; return s; }
+      function concatBytes(){ const arrs = [].slice.call(arguments); let n = 0; for (const a of arrs) n += a.length; const out = new Uint8Array(n); let k = 0; for (const a of arrs){ out.set(a, k); k += a.length; } return out; }
+      function cmdName(c){ return ({ 0x4e584e43:'CNXN', 0x48545541:'AUTH', 0x4e45504f:'OPEN', 0x59414b4f:'OKAY', 0x45534c43:'CLSE', 0x45545257:'WRTE' })[c] || ('0x' + (c >>> 0).toString(16)); }
+      async function sendMsg(command, arg0, arg1, payload){ payload = payload || new Uint8Array(0); const hdr = new DataView(new ArrayBuffer(24)); hdr.setUint32(0, command, true); hdr.setUint32(4, arg0 >>> 0, true); hdr.setUint32(8, arg1 >>> 0, true); hdr.setUint32(12, payload.length, true); hdr.setUint32(16, adbSum(payload), true); hdr.setUint32(20, (command ^ 0xffffffff) >>> 0, true); await usb.dev.transferOut(usb.epOut, hdr.buffer); if (payload.length) await usb.dev.transferOut(usb.epOut, payload); }
+      async function recvMsg(timeoutMs){ timeoutMs = timeoutMs || 20000; const h = await withTimeout(usb.dev.transferIn(usb.epIn, 24), timeoutMs, 'read header'); if (!h.data || h.data.byteLength < 24) throw new Error('short/empty ADB header'); const dv = h.data; const command = dv.getUint32(0, true), arg0 = dv.getUint32(4, true), arg1 = dv.getUint32(8, true), len = dv.getUint32(12, true); let payload = new Uint8Array(0); if (len > 0){ const p = await withTimeout(usb.dev.transferIn(usb.epIn, len), timeoutMs, 'read payload'); payload = new Uint8Array(p.data.buffer.slice(0, p.data.byteLength)); } return { command, arg0, arg1, payload }; }
+      async function openStream(service){ const localId = nextLocalId++; await sendMsg(A.OPEN, localId, 0, enc.encode(service + '\0')); while (true){ const p = await recvMsg(); if (p.arg1 !== localId) continue; if (p.command === A.OKAY) return { localId, remoteId: p.arg0 }; if (p.command === A.CLSE) throw new Error('stream refused for ' + service + ' (is the Robot Controller app running?)'); } }
+      function indexOfCRLFCRLF(b){ for (let i = 0; i + 3 < b.length; i++){ if (b[i] === 13 && b[i+1] === 10 && b[i+2] === 13 && b[i+3] === 10) return i; } return -1; }
+      function dechunk(bytes){ const out = []; let i = 0; while (i < bytes.length){ let j = i; while (j + 1 < bytes.length && !(bytes[j] === 13 && bytes[j+1] === 10)) j++; const sizeHex = new TextDecoder('ascii').decode(bytes.subarray(i, j)).trim(); const size = parseInt(sizeHex, 16); if (!Number.isFinite(size) || size <= 0) break; const start = j + 2; out.push(bytes.subarray(start, start + size)); i = start + size + 2; } let len = 0; for (const c of out) len += c.length; const merged = new Uint8Array(len); let off = 0; for (const c of out){ merged.set(c, off); off += c.length; } return merged; }
+      function parseHttp(raw){ const sep = indexOfCRLFCRLF(raw); if (sep < 0) return { status: 0, statusText: 'no headers', headers: {}, body: '', raw }; const headText = new TextDecoder('ascii').decode(raw.subarray(0, sep)); const bodyBytes = raw.subarray(sep + 4); const lines = headText.split('\r\n'); const statusLine = lines.shift() || ''; const m = statusLine.match(/^HTTP\/\d\.\d\s+(\d+)\s*(.*)$/); const status = m ? parseInt(m[1], 10) : 0; const statusText = m ? m[2] : statusLine; const headers = {}; for (const line of lines){ const idx = line.indexOf(':'); if (idx > 0) headers[line.slice(0, idx).trim().toLowerCase()] = line.slice(idx + 1).trim(); } let bodyOut; if ((headers['transfer-encoding'] || '').toLowerCase().includes('chunked')) bodyOut = new TextDecoder().decode(dechunk(bodyBytes)); else bodyOut = new TextDecoder().decode(bodyBytes); return { status, statusText, headers, body: bodyOut, raw }; }
+      async function httpRequest(method, path, opts){ opts = opts || {}; const body = opts.body != null ? opts.body : null; const contentType = opts.contentType || 'application/x-www-form-urlencoded'; const readTimeout = opts.readTimeout || 20000; if (!usb) throw new Error('not connected'); const bodyBytes = body == null ? null : (typeof body === 'string' ? enc.encode(body) : body); let head = method + ' ' + path + ' HTTP/1.1\r\nHost: localhost:8080\r\nUser-Agent: impulse-deploy\r\nAccept: */*\r\nConnection: close\r\n'; if (bodyBytes) head += 'Content-Type: ' + contentType + '\r\nContent-Length: ' + bodyBytes.length + '\r\n'; head += '\r\n'; const reqBytes = bodyBytes ? concatBytes(enc.encode(head), bodyBytes) : enc.encode(head); const stream = await openStream('tcp:8080'); const localId = stream.localId, remoteId = stream.remoteId; const respChunks = []; let closed = false; const max = Math.max(1, Math.min(usb.maxData, 0x40000)); for (let off = 0; off < reqBytes.length && !closed; off += max){ await sendMsg(A.WRTE, localId, remoteId, reqBytes.subarray(off, off + max)); let acked = false; while (!acked){ const p = await recvMsg(readTimeout); if (p.arg1 !== localId) continue; if (p.command === A.OKAY) acked = true; else if (p.command === A.WRTE){ respChunks.push(p.payload); await sendMsg(A.OKAY, localId, remoteId); } else if (p.command === A.CLSE){ closed = true; acked = true; } } } while (!closed){ const p = await recvMsg(readTimeout); if (p.arg1 !== localId) continue; if (p.command === A.WRTE){ respChunks.push(p.payload); await sendMsg(A.OKAY, localId, remoteId); } else if (p.command === A.CLSE) closed = true; } try { await sendMsg(A.CLSE, localId, remoteId); } catch(e){} return parseHttp(concatBytes.apply(null, respChunks)); }
       async function connect(log){
         if (!navigator.usb) throw new Error('This browser can\u2019t access USB — use Chrome or Edge on a computer.');
         // A previous attempt (or page state) can leave a half-open handle claimed; releasing it first
@@ -3928,73 +4041,54 @@
           return true;
         } catch(_){ return !!usb; }   // transient getDevices error: keep the existing handle
       }
-      // Remove .java files left on the robot from a previous deploy that aren't in this one.
-      // Scoped strictly to the tool-managed on-bot (.ob) sandbox so a student's other OpModes
-      // are never touched. Fixes stale files (e.g. a deleted SimpleAuto) breaking the build.
-      async function pruneObStale(keep, log){
-        const OB_DIR = TEAMCODE_ROOT + OB_PKG + '/';
-        const tree = await httpRequest('GET', '/java/file/tree');
-        if (tree.status !== 200) return;
-        let entries = [];
-        try { entries = JSON.parse(tree.body).src || []; } catch(e){ return; }
-        const norm = p => p.startsWith('/src') ? p : '/src' + (p.startsWith('/') ? p : '/' + p);
-        const stale = entries
-          .filter(p => typeof p === 'string' && !p.endsWith('/'))
-          .map(norm)
-          .filter(p => p.startsWith(OB_DIR) && p.toLowerCase().endsWith('.java') && !keep.has(p));
-        if (!stale.length) return;
-        log('Removing ' + stale.length + ' stale file' + (stale.length === 1 ? '' : 's') + ' left from a previous deploy…', 'warn');
-        const body = 'delete=' + encodeURIComponent(JSON.stringify(stale));
-        const r = await httpRequest('POST', '/java/file/delete', { body });
-        if (r.status === 200){ for (const p of stale) log('  \uD83D\uDDD1 ' + p, 'ok'); }
-        else log('  Could not delete stale files (' + r.status + ') — remove them in OnBotJava if the build fails.', 'warn');
-      }
-      async function deployFiles(files, obMode, log){
-        if (!usb) throw new Error('Connect to the robot first.');
-        const names = Object.keys(files).filter(n => n.endsWith('.java'));
-        if (!names.length) throw new Error('No .java files to deploy.');
-        await ensureLibraries(files, log);
-        if (obMode) log('On-bot test mode: deploying into the .ob package (OpMode names get " OB").', 'dim');
-        log('Uploading ' + names.length + ' file' + (names.length === 1 ? '' : 's') + '…', 'warn');
-        let failed = 0;
-        const uploaded = new Set();
-        for (const name of names){
-          const src = files[name];
-          const outText = obMode ? toOb(src) : src;
-          const devPath = devicePathFor(src, name);
-          const outPath = obMode ? obDevicePath(devPath) : devPath;
-          const ok = await saveOne(outPath, outText);
-          uploaded.add(outPath);
-          log((ok ? '  ✓ ' : '  ✗ ') + outPath, ok ? 'ok' : 'err'); if (!ok) failed++;
+      const ops = makeOnBot({ httpRequest, assertReady: function(){ if (!usb) throw new Error('Connect to the robot first.'); } });
+      return { connect, isConnected, isLive, deployFiles: ops.deployFiles, pullFiles: ops.pullFiles, transport: 'usb' };
+    })();
+
+    // ---- WiFi transport: the local bridge helper (127.0.0.1:8973) → ADB over WiFi ----
+    // Mirrors RobotUSB's public shape so the Deploy sheet can use either interchangeably.
+    // All OnBotJava smarts are shared via makeOnBot; only the httpRequest hop differs.
+    const RobotWiFi = (function(){
+      const BASE = 'http://127.0.0.1:8973';
+      const enc = new TextEncoder(), dec = new TextDecoder();
+      let lastState = null;
+      function toB64(bytes){ let s = ''; const chunk = 0x8000; for (let i = 0; i < bytes.length; i += chunk) s += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk)); return btoa(s); }
+      function fromB64(b64){ const bin = atob(b64 || ''); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
+      async function status(){ try { const r = await fetch(BASE + '/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); if (!r.ok) return null; lastState = await r.json(); return lastState; } catch(_){ return null; } }
+      async function reachable(){ return (await status()) != null; }
+      async function isLive(){ const s = await status(); return !!(s && s.state === 'connected'); }
+      function isConnected(){ return !!(lastState && lastState.state === 'connected'); }
+      async function connect(log, host){
+        let s = await status();
+        if (!s) throw new Error('The WiFi bridge isn\u2019t running on this laptop — download and start impulse-wifi-bridge.exe, then try again.');
+        if (s.state === 'connected'){ if (log) log('Robot already connected over WiFi (' + (s.robot || 'robot') + ').', 'ok'); return s.robot || 'robot'; }
+        host = host || s.host || '192.168.43.1';
+        if (log) log('Asking the bridge to reach the robot at ' + host + '\u2026', 'warn');
+        const r = await fetch(BASE + '/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ host: host }) });
+        if (!r.ok) throw new Error('The bridge refused the connect request (' + r.status + ').');
+        const deadline = Date.now() + 30000;
+        while (Date.now() < deadline){
+          await new Promise(res => setTimeout(res, 1000));
+          s = await status();
+          if (s && s.state === 'connected'){ if (log) log('Connected to ' + (s.robot || 'robot') + ' over WiFi.', 'ok'); return s.robot || 'robot'; }
+          if (s && s.state === 'error'){ throw new Error(s.detail || 'The bridge reported an error.'); }
         }
-        if (failed) throw new Error(failed + ' file(s) failed to upload.');
-        if (obMode) await pruneObStale(uploaded, log);
-        log('Starting the build on the robot…');
-        const s = await httpRequest('GET', '/java/build/start'); if (s.status !== 200) throw new Error('Could not start build: ' + s.status + ' ' + s.statusText);
-        log('Compiling (first build can take a minute)…', 'warn');
-        const w = await httpRequest('GET', '/java/build/wait', { readTimeout: 300000 });
-        const body = w.body || '';
-        log('── build log ──', 'dim');
-        if (body.trim()) log(body.slice(0, 8000), /error:/i.test(body) ? 'err' : 'dim');
-        if (w.status === 200 && !/error:/i.test(body)){ log('Build successful — restart the OpMode on the Driver Hub to run it.', 'ok'); return true; }
-        log('Build reported problems — fix the errors above and deploy again.', 'warn'); return false;
+        throw new Error('Timed out reaching the robot over WiFi — is this laptop joined to the robot\u2019s WiFi?');
       }
-      async function pullFiles(log){
-        if (!usb) throw new Error('Connect to the robot first.');
-        log('Reading the file list from the robot…');
-        const tree = await httpRequest('GET', '/java/file/tree'); if (tree.status !== 200) throw new Error('Could not read files: ' + tree.status + ' ' + tree.statusText);
-        let entries = [];
-        try { const parsed = JSON.parse(tree.body); entries = (parsed.src || []).filter(p => typeof p === 'string' && !p.endsWith('/') && !p.startsWith('<') && !p.includes('EXTERNAL_LIBRARIES')); }
-        catch(e){ throw new Error('Robot returned an unexpected file list.'); }
-        const javaEntries = entries.filter(e => e.toLowerCase().endsWith('.java'));
-        if (!javaEntries.length) throw new Error('No source files found on the robot.');
-        log('Robot has ' + javaEntries.length + ' file' + (javaEntries.length === 1 ? '' : 's') + '. Pulling…');
-        const files = {}; let failed = 0;
-        for (const e of javaEntries){ const getPath = '/src' + (e.startsWith('/') ? e : '/' + e); const r = await httpRequest('GET', '/java/file/get?f=' + encodeURIComponent(getPath)); if (r.status !== 200){ log('  ✗ ' + e + ' (' + r.status + ')', 'err'); failed++; continue; } const base = e.split('/').pop(); files[base] = fromOb(r.body); log('  ✓ ' + base, 'ok'); }
-        log('Pulled ' + Object.keys(files).length + ' file' + (Object.keys(files).length === 1 ? '' : 's') + (failed ? ', ' + failed + ' failed' : '') + '.', failed ? 'warn' : 'ok');
-        return files;
+      async function httpRequest(method, path, opts){
+        opts = opts || {};
+        let bodyB64 = '';
+        if (opts.body != null){ const bytes = typeof opts.body === 'string' ? enc.encode(opts.body) : opts.body; bodyB64 = toB64(bytes); }
+        const payload = { method: method, path: path, contentType: opts.contentType || 'application/x-www-form-urlencoded', bodyB64: bodyB64, readTimeoutMs: opts.readTimeout || 20000 };
+        const r = await fetch(BASE + '/onbot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!r.ok) throw new Error('Bridge error (' + r.status + ').');
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || 'The robot request failed.');
+        const bytes = fromB64(j.bodyB64);
+        return { status: j.status, statusText: j.statusText || '', headers: j.headers || {}, body: dec.decode(bytes), raw: bytes };
       }
-      return { connect, isConnected, isLive, deployFiles, pullFiles };
+      const ops = makeOnBot({ httpRequest, assertReady: function(){ if (!isConnected()) throw new Error('Connect to the robot over WiFi first.'); } });
+      return { status, reachable, isLive, isConnected, connect, deployFiles: ops.deployFiles, pullFiles: ops.pullFiles, transport: 'wifi' };
     })();
 
     // ---- Lessons engine (M6a): markdown + ACTION cross-links + progress ----
