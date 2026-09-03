@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.1.7';
+    window.APP_VERSION = '2.1.8';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -84,8 +84,8 @@
     #topbar .updpill[hidden]{display:none}
     #topbar .sp{flex:1}
     #topbar .cjbadge{display:flex;align-items:center;background:#fff;border:1px solid #d6dae2;border-radius:6px;
-                     padding:0 7px;height:26px;box-sizing:border-box;text-decoration:none;flex:0 0 auto}
-    #topbar .cjbadge img{height:17px;display:block}
+                     padding:0 8px;height:30px;box-sizing:border-box;text-decoration:none;flex:0 0 auto}
+    #topbar .cjbadge img{height:21px;display:block}
     .tabbtn{font-family:monospace;background:#131c30;color:#9fb3d1;border:1px solid #24324d;border-radius:4px;
             padding:.25rem .7rem;cursor:pointer;font-size:.8rem}
     .tabbtn.active{background:#1d4ed8;color:#eff6ff;border-color:#3b82f6}
@@ -177,7 +177,8 @@
     .bottomsheet h3{margin:.1rem 0 .4rem;font-size:.8rem;color:#cbd5e1;letter-spacing:.05em;text-transform:uppercase}
     body.pit-open .edgepanel{display:none !important}   /* keep the floating hubs/scoreboard out of the full-screen Pit */
     body.pit-open #bottombar .btab[data-panel="diag"],
-    body.pit-open #bottombar .btab[data-panel="settings"]{display:none}   /* in the Pit only the SIM tab shows; DIAG/SETTINGS are simulator-only */
+    body.pit-open #bottombar .btab[data-panel="views"],
+    body.pit-open #bottombar .btab[data-panel="settings"]{display:none}   /* in the Pit only the SIM tab shows; DIAG/VIEWS/SETTINGS are simulator-only */
     /* the Driver Hub cards already carry their own frame/shadow -- don't double-frame them */
     #panel-redhub .panel-body,#panel-bluehub .panel-body{background:transparent;border:none;box-shadow:none;padding:2px 0}
 
@@ -219,6 +220,18 @@
     .camsel{display:inline-flex;gap:4px;flex-wrap:wrap}
     .camsel button{font-size:.72rem;padding:.15rem .45rem;background:#131c30;color:#9fb3d1;border:1px solid #24324d}
     .camsel button.active{background:#1d4ed8;color:#eff6ff;border-color:#3b82f6}
+    /* Views tab: clean segmented camera-view cards */
+    .viewsheet{padding:.7rem .9rem .9rem}
+    .viewgrid{display:flex;gap:10px;flex-wrap:wrap}
+    .viewcard{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;width:82px;
+              padding:13px 6px 11px;background:#0f1830;border:1px solid #24324d;border-radius:16px;color:#9fb3d1;
+              cursor:pointer;transition:transform .13s ease,background .13s ease,border-color .13s ease,box-shadow .13s ease}
+    .viewcard:hover{background:#152241;border-color:#3b82f6;color:#e2e8f0;transform:translateY(-2px)}
+    .viewcard .vi{font-size:1.5rem;line-height:1}
+    .viewcard .vl{font-size:.72rem;letter-spacing:.02em;font-weight:600}
+    .viewcard.active{background:linear-gradient(165deg,#2563eb,#1d4ed8);border-color:#7dd3fc;color:#fff;
+                     box-shadow:0 6px 18px rgba(37,99,235,.4)}
+    .viewhint{margin-top:12px;font-size:.7rem;color:#6b7a95;letter-spacing:.02em}
     .offstat{font-size:.74rem;color:#9fb3d1}
     .offstat.ready{color:#4ade80;font-weight:bold}
     .envlist{display:flex;flex-direction:column;gap:4px;font-size:.74rem}
@@ -593,6 +606,7 @@
     <span class="verbadge">Impulse3DSim&nbsp;<span class="vtag" id="verlabel">v?.?.?</span></span>
     <span id="netpill" class="netpill" title="Network status">● Online</span>
     <button id="updpill" class="updpill" hidden title="A new version is ready — reload to update">⟳ Update ready — Reload</button>
+    <a id="bridge-dl" class="dlbtn" href="./downloads/impulse-wifi-bridge.exe" download="impulse-wifi-bridge.exe" title="Download the WiFi bridge helper. Install it on the laptop that connects to your robot — lets the sim deploy to the robot over WiFi. Works offline.">⬇ WiFi Bridge</a>
     <span class="sp"></span>
     <div id="status">STATUS: init…</div>
     <a class="cjbadge" href="https://cheerpj.com" target="_blank" rel="noopener" title="Powered by CheerpJ — Leaning Technologies"><img src="assets/cheerpj_logo.png" alt="CheerpJ"></a>
@@ -927,6 +941,7 @@
   <!-- BOTTOM TAB BAR: DIAG | SETTINGS | PIT (Pit acts as a button into the full-screen workspace) -->
   <div id="bottombar">
     <button class="btab" data-panel="diag">DIAG</button>
+    <button class="btab" data-panel="views">VIEW</button>
     <button class="btab" data-panel="settings">SETTINGS</button>
     <button class="btab" data-panel="pit">PIT</button>
   </div>
@@ -934,16 +949,6 @@
   <!-- SETTINGS: view + player-count + misc controls (graphics/other settings land here later) -->
   <div id="panel-settings" class="bottomsheet">
     <h3>Settings</h3>
-    <div class="row">
-      <span>view</span>
-      <span id="camsel" class="camsel">
-        <button data-cam="overhead">Overhead</button>
-        <button data-cam="driver" class="active">Driver</button>
-        <button data-cam="chase">Chase</button>
-        <button data-cam="fpv">FPV</button>
-        <button data-cam="free">Free</button>
-      </span>
-    </div>
     <div class="row">
       <span>players</span>
       <span id="upsel" class="camsel">
@@ -958,13 +963,6 @@
       <span id="offstat" class="offstat">checking…</span>
       <button id="off-reset" title="Clear cached offline data and reload">Reset offline data</button>
     </div>
-    <div class="row">
-      <span>robot bridge</span>
-      <a id="bridge-dl" href="./downloads/impulse-wifi-bridge.exe" download="impulse-wifi-bridge.exe"
-         title="Download the WiFi bridge helper. Install it on the laptop that connects to your robot. Cached for offline use."
-         style="font-family:monospace;background:#1d4ed8;color:#eff6ff;border:1px solid #3b82f6;border-radius:5px;padding:3px 9px;text-decoration:none;cursor:pointer">⬇ WiFi Bridge (.exe)</a>
-      <span style="font-size:.72rem;color:#9fb3d1">Install on the laptop connected to your robot · works offline</span>
-    </div>
     <div class="row" style="align-items:flex-start">
       <span>environment</span>
       <span style="display:flex;flex-direction:column;gap:4px">
@@ -973,6 +971,19 @@
       </span>
     </div>
     <div style="font-size:.72rem;color:#9fb3d1">Free view: drag to orbit · wheel to zoom · middle/Shift-drag to pan &nbsp;·&nbsp; <kbd>W/A/S/D</kbd> drive+strafe &nbsp;<kbd>Q/E</kbd> turn &nbsp;<kbd>Space</kbd> auto/manual</div>
+  </div>
+
+  <!-- VIEWS: clean camera-view picker (Apple-style segmented cards) -->
+  <div id="panel-views" class="bottomsheet viewsheet">
+    <h3>Camera View</h3>
+    <div id="camsel" class="viewgrid">
+      <button class="viewcard active" data-cam="driver"><span class="vi">🎮</span><span class="vl">Driver</span></button>
+      <button class="viewcard" data-cam="overhead"><span class="vi">🛰️</span><span class="vl">Overhead</span></button>
+      <button class="viewcard" data-cam="chase"><span class="vi">🎥</span><span class="vl">Chase</span></button>
+      <button class="viewcard" data-cam="fpv"><span class="vi">👁️</span><span class="vl">FPV</span></button>
+      <button class="viewcard" data-cam="free"><span class="vi">🖐️</span><span class="vl">Free</span></button>
+    </div>
+    <div class="viewhint">Free view — drag to orbit · scroll to zoom · middle or Shift-drag to pan</div>
   </div>
 
   <!-- DIAG: live frame/step/host + chassis velocity readouts -->
@@ -2032,14 +2043,15 @@
         bodies[i].setLinvel({ x: -Math.sin(ang) * sp, y: 0, z: Math.cos(ang) * sp }, true);
         bodies[i].setAngvel({ x:0, y:0, z:0 }, true);
       }
-      // intake service: while running, gently suck front pollen toward the intake bar (fake motor force) and,
-      // once a ball reaches the green wheel at the open front, take it into the internal store (parked far below
-      // so it can't clip or fall out). Returns how many balls it swallowed this tick.
+      // intake service: only eat pollen that is actually TOUCHING the intake bar at the open front — no
+      // long-range vacuum. A ball rests against the front face of the chassis at fwd = CH + BALL_R, so we
+      // swallow only on real contact; balls already at the bar but off to one side get a gentle roller nudge
+      // to centre them into the mouth. Returns how many balls it swallowed this tick.
       function serviceIntake(body, active, current, capMax) {
         if (!active) return 0;
         const p = body.translation(), q = body.rotation();
         const yaw = 2 * Math.atan2(q.y, q.w), fs = Math.sin(yaw), fc = Math.cos(yaw);
-        const mx = p.x + fs * (C.CH * 0.15), mz = p.z + fc * (C.CH * 0.15);   // pull target is inside the hopper, not the door -> reads as sucked IN, not just centered
+        const barFwd = C.CH + C.BALL_R;                // forward distance from robot centre to a ball pressed on the bar
         let took = 0;
         for (let i = 0; i < bodies.length; i++) {
           if (held[i]) continue;
@@ -2048,16 +2060,16 @@
           const dx = b.x - p.x, dz = b.z - p.z;
           const fwd = dx * fs + dz * fc, lat = dx * fc - dz * fs;
           if (fwd <= 0) continue;                        // must be ahead of the open face
-          if (current < capMax && fwd < C.CH + C.BALL_R * 2.6 && Math.abs(lat) < C.CUBE * 0.44) {
-            held[i] = true; current++; took++;           // reached the green wheel -> swallow it
+          if (Math.abs(lat) > C.CUBE * 0.44) continue;   // outside the intake mouth
+          if (current < capMax && fwd < barFwd + C.BALL_R * 0.35) {
+            held[i] = true; current++; took++;           // touching the green bar -> swallow it
             bodies[i].setTranslation({ x: 0, y: -10, z: 0 }, true);
             bodies[i].setLinvel({ x:0, y:0, z:0 }, true); bodies[i].setAngvel({ x:0, y:0, z:0 }, true);
             meshes[i].visible = false;
             continue;
           }
-          if (fwd < C.CH + C.BALL_R * 3.0 && Math.abs(lat) < C.CUBE * 0.44) {   // short pull-in: only right at the green/black bar, not a long-range vacuum
-            const d = Math.hypot(mx - b.x, mz - b.z) || 1e-6;
-            bodies[i].applyImpulse({ x: (mx - b.x) / d * 0.0055, y: 0, z: (mz - b.z) / d * 0.0055 }, true);   // strong snap: contact -> yanked in within a frame or two, not a slow drift
+          if (fwd < barFwd + C.BALL_R * 1.2) {           // right at the bar but off-centre: roller guides it to the mouth (contact-only, not a vacuum)
+            bodies[i].applyImpulse({ x: -lat * fc * 0.004, y: 0, z: lat * fs * 0.004 }, true);
           }
         }
         return took;
@@ -2103,13 +2115,17 @@
         }
         return spawned;
       }
-      // which scoring zone (if any) a settled ball is in: deck (3 pt) vs ground bin (1 pt), colored by side
-      function scoreZone(p) {
-        if (Math.hypot(p.x, p.z) > a * 0.98) return null;            // outside the hive footprint
+      // which scoring zone (if any) a SETTLED ball is in: deck (3 pt) vs ground bin (1 pt), colored by side.
+      // only balls that have come to rest inside the hive score, so pollen flying over (or a freshly
+      // recycled ball rocketing back out) can't false-trigger a point.
+      function scoreZone(body) {
+        const p = body.translation();
+        if (Math.hypot(p.x, p.z) > a * 0.98) return null;           // outside the hive footprint
+        const v = body.linvel();
+        if (v.x*v.x + v.y*v.y + v.z*v.z > 0.25) return null;        // still moving (~>0.5 m/s) -> not settled yet
         const color = p.x < 0 ? 'red' : 'blue';                      // -X = driver-left = red, +X = right = blue
-        if (p.y > deckY + C.BALL_R * 0.4) return { color, pts: 3 };  // resting on the elevated deck
-        if (p.y < deckY - C.BALL_R)        return { color, pts: 1 };  // in the ground bin under the deck
-        return null;                                                 // mid-air between the two -- not scored yet
+        if (p.y > deckY - C.BALL_R * 0.5) return { color, pts: 3 };  // resting on the elevated deck
+        return { color, pts: 1 };                                    // otherwise in the ground bin under the deck
       }
       function step(dt) {
         const OUT = C.HALF + 0.02;
@@ -2117,7 +2133,7 @@
           if (held[i]) continue;
           const p = bodies[i].translation();
           if (Math.abs(p.x) > OUT || Math.abs(p.z) > OUT || p.y < -0.1) { respawnStray(i); continue; }
-          const z = scoreZone(p);
+          const z = scoreZone(bodies[i]);
           if (z) { if (onScore) onScore(z.color, z.pts); recycle(i); }
         }
       }
@@ -3011,7 +3027,7 @@
       bluehub:   { panel: 'panel-bluehub',   tab: 'tab-bluehub',   side: 'right' },
       matchplay: { panel: 'panel-matchplay', tab: 'tab-matchplay', side: 'top'   },
     };
-    const SHEET = { settings: 'panel-settings', diag: 'panel-diag' };
+    const SHEET = { settings: 'panel-settings', diag: 'panel-diag', views: 'panel-views' };
 
     function setEdge(id, open){
       const e = EDGE[id]; if (!e) return;
