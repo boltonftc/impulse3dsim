@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.2.0';
+    window.APP_VERSION = '2.2.1';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -4483,8 +4483,8 @@
 
       const capGroup = new THREE.Group(); scene.add(capGroup);
       const MARK_Y = CH + 0.02;              // just above the robot's own floor contact height
-      const DISC_R = 0.052, DISC_H = 0.012;  // pose marker: a flat "hockey puck" with a drawn-on heading arrow (a touch bigger, easier to grab)
-      const BADGE_R = 0.026, BADGE_H = 0.008; // action badge: a smaller puck with the button letter
+      const DISC_R = 0.052, DISC_H = 0.019;  // pose marker: a flat "hockey puck" — thickness just over the path-tube diameter (0.016) so the disc reads a hair thicker than the line joining it
+      const BADGE_R = 0.026, BADGE_H = 0.016; // action badge: a smaller puck — thickness just over the action-connector tube diameter (0.014)
 
       // sim (x,z,yaw) -> FTC/Pedro (x,y,heading): an axis relabel (x_ftc=z, y_ftc=x, heading=yaw) that
       // matches PedroSimDrivetrain/GoBildaPinpointDriverImpl's assumed forward=(sin h, cos h) convention.
