@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.2.1';
+    window.APP_VERSION = '2.2.2';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -4607,7 +4607,8 @@
         updateRotateHandle(entry, rec);
       }
 
-      // path line + a single cone "arrowhead" per segment (pointing along travel direction) at its midpoint
+      // path line + a single cone "arrowhead" per segment (pointing along travel direction), sitting ON the
+      // rendered curve at the segment's midpoint (not on the straight chord between poses)
       function rebuildPath() {
         if (lineObj) { capGroup.remove(lineObj); lineObj.geometry.dispose(); lineObj = null; }
         for (const a of arrowMeshes) capGroup.remove(a);
@@ -4618,17 +4619,17 @@
         const chainWaypoints = init ? [init, ...poses] : poses;
         const pts = chainWaypoints.map(p => new THREE.Vector3(p.sx, MARK_Y, p.sz));
         if (pts.length >= 2) {
-          lineObj = new THREE.Mesh(tubeFromPoints(pts, 0.008), pathTubeMat);
+          // one CatmullRom curve shared by the tube geometry AND the cone placement so they can't disagree
+          const curve = new THREE.CatmullRomCurve3(pts);
+          const segs = pts.length - 1;
+          lineObj = new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(12, segs * 8), 0.008, 8, false), pathTubeMat);
           capGroup.add(lineObj);
-          for (let i = 0; i < pts.length - 1; i++) {
-            const a = pts[i], b = pts[i + 1];
-            const dir = new THREE.Vector3().subVectors(b, a);
-            const len = dir.length();
-            if (len < 0.01) continue;   // duplicate/near-duplicate pose -- no direction to show
-            dir.normalize();
+          for (let i = 0; i < segs; i++) {
+            if (pts[i].distanceTo(pts[i + 1]) < 0.01) continue;   // duplicate/near-duplicate pose -- no direction to show
+            const t = (i + 0.5) / segs;                            // parametric midpoint of this segment along the curve
             const cone = new THREE.Mesh(arrowGeo, arrowMat);
-            cone.position.copy(a).addScaledVector(dir, len * 0.5);
-            cone.quaternion.setFromUnitVectors(UP, dir);
+            cone.position.copy(curve.getPoint(t));
+            cone.quaternion.setFromUnitVectors(UP, curve.getTangent(t).normalize());
             capGroup.add(cone);
             arrowMeshes.push(cone);
           }
