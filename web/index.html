@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.1.8';
+    window.APP_VERSION = '2.1.9';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -1254,6 +1254,10 @@
     const FIELD = 12 * FT, HALF = FIELD / 2;
     const WALL_H = 0.30, WALL_T = 0.05;          // FIRST translucent perimeter (~12 in tall)
     const CUBE = 18 * 0.0254, CH = CUBE / 2;
+    // robot physics footprint matched to the RENDERED chassis (not the full 18" legal cube) so the invisible
+    // interference outline lines up with what you see: X half = wheel outer edge, Z half = rear-bumper outer
+    // face; height half stays CH. (buildRobot derives the same wheel/bumper extents from these numbers.)
+    const RBHX = 8 * 0.0254, RBHZ = 0.1622, RBHY = CH;
     const BALL_R = 0.0356, N_BALLS = 20;         // BIOBUZZ yellow whiffle balls (2.8 in dia = 71 mm)
     const HIVE_R = 0.34, HIVE_H = 0.20;          // central hive: hex apothem + rim height (tall enough to read as a solid wall, not just floor trim)
     const DECK_Y = 0.254, DUMP_H = 0.30;         // hive 2nd-floor deck at ~10"; dump bed spills balls off its rear at ~11"
@@ -1287,7 +1291,7 @@
     // robot: DYNAMIC body, planar-locked, driven by the force/torque controller. One body per
     // alliance (red near +Z, blue near -Z); both spawn facing field center (intake toward the field),
     // so robot-centric "forward" drives away from that alliance's driver. Each is driven by its own runner.
-    const density = ROBOT_MASS / (CUBE * CUBE * CUBE);
+    const density = ROBOT_MASS / (8 * RBHX * RBHY * RBHZ);
     function makeRobotBody(z, yaw) {
       const b = world.createRigidBody(
         RAPIER.RigidBodyDesc.dynamic().setTranslation(0, CH, z)
@@ -1295,7 +1299,7 @@
           .setLinearDamping(0.5).setAngularDamping(0.5));
       b.setEnabledTranslations(true, false, true, true);
       b.setEnabledRotations(false, true, false, true);
-      const col = world.createCollider(RAPIER.ColliderDesc.cuboid(CH, CH, CH).setFriction(0.4).setDensity(density), b);
+      const col = world.createCollider(RAPIER.ColliderDesc.cuboid(RBHX, RBHY, RBHZ).setFriction(0.4).setDensity(density), b);
       return { body: b, collider: col };
     }
     const robot = makeRobotBody(HALF * 0.45, Math.PI).body;
@@ -1788,8 +1792,10 @@
         const w = new THREE.Group();
         const tire = new THREE.Mesh(new THREE.CylinderGeometry(wr, wr, ww, 24), (sx*sz > 0 ? mecaMatA : mecaMatB));
         tire.rotation.z = Math.PI/2; w.add(tire);
-        const cap = new THREE.Mesh(new THREE.CylinderGeometry(wr*0.42, wr*0.42, ww*1.04, 16), hubMat);
-        cap.rotation.z = Math.PI/2; w.add(cap);
+        // full-diameter black hub cap flush on the OUTER face, so the mecanum stripe pattern only reads on
+        // the rolling tread and the flat outside surface is a clean black disc
+        const cap = new THREE.Mesh(new THREE.CylinderGeometry(wr, wr, ww*0.22, 24), hubMat);
+        cap.rotation.z = Math.PI/2; cap.position.x = sx * (ww/2 + 0.002); w.add(cap);
         w.position.set(sx * (outerHalf - ww/2), F + wr, sz * half*0.6);
         group.add(w); wheels.push({ o: w, sx, sz });
       }
@@ -1936,8 +1942,22 @@
       // elevated deck at ~10" (3 pt) that dumped balls land on. The old +Z mouth is now a closed wall.
       const a = C.HIVE_R, ht = 0.03, side = 1.1547 * a, deckY = C.DECK_Y;
       // alliance-colored FLOORS only: the hex walls are all black; each scoring floor is split red (-X) | blue (+X).
-      const redMat   = new THREE.MeshStandardMaterial({ color: 0xd11e28, roughness: 0.5, side: THREE.DoubleSide });
-      const blueMat  = new THREE.MeshStandardMaterial({ color: 0x1f6dd6, roughness: 0.5, side: THREE.DoubleSide });
+      // procedural pad skin: base color + a subtle diagonal hazard hatch and fine speckle so the pads read as
+      // textured surfaces, not flat plastic. The recessed ground bin uses a darker (shadowed) variant.
+      function makePadTexture(base, line) {
+        const s = 128, cv = document.createElement('canvas'); cv.width = cv.height = s;
+        const g = cv.getContext('2d');
+        g.fillStyle = base; g.fillRect(0, 0, s, s);
+        g.strokeStyle = line; g.lineWidth = 7; g.globalAlpha = 0.30;
+        for (let x = -s; x < s * 2; x += 26) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + s, s); g.stroke(); }
+        g.globalAlpha = 1;
+        for (let i = 0; i < 450; i++) { g.fillStyle = (Math.random() < 0.5 ? 'rgba(255,255,255,' : 'rgba(0,0,0,') + (Math.random() * 0.07) + ')'; g.fillRect(Math.random() * s, Math.random() * s, 1, 1); }
+        const tex = new THREE.CanvasTexture(cv); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(5, 5); tex.anisotropy = 4; return tex;
+      }
+      const redMat   = new THREE.MeshStandardMaterial({ map: makePadTexture('#d11e28', '#7a1218'), roughness: 0.7, side: THREE.DoubleSide });
+      const blueMat  = new THREE.MeshStandardMaterial({ map: makePadTexture('#1f6dd6', '#123f7a'), roughness: 0.7, side: THREE.DoubleSide });
+      const redDimMat  = new THREE.MeshStandardMaterial({ map: makePadTexture('#7d1219', '#420a0e'), roughness: 0.85, side: THREE.DoubleSide });
+      const blueDimMat = new THREE.MeshStandardMaterial({ map: makePadTexture('#123f7d', '#0a2247'), roughness: 0.85, side: THREE.DoubleSide });
       const blackMat = new THREE.MeshStandardMaterial({ color: 0x101317, roughness: 0.7 });
       const OPEN = { 0: true, 2: true };                 // the two sides flanking the (now closed) +Z mouth are the ground-floor entrances
       for (let k = 0; k < 6; k++) {
@@ -1950,14 +1970,14 @@
             .setTranslation(cx, deckY/2, cz).setRotation({ x:0, y:Math.sin(beta/2), z:0, w:Math.cos(beta/2) })
             .setRestitution(0.2));
         const panel = new THREE.Mesh(new THREE.BoxGeometry(side, deckY, ht), blackMat);
-        panel.position.set(cx, deckY/2, cz); panel.rotation.y = beta; scene.add(panel);
+        panel.position.set(cx, deckY/2, cz); panel.rotation.y = beta; panel.castShadow = panel.receiveShadow = true; scene.add(panel);
       }
       // partition wall down x=0 (red -X | blue +X), tall enough to divide both the ground bin and the deck
       const partH = deckY + 0.05, partLenZ = 2 * a * 0.95;
       world.createCollider(
         RAPIER.ColliderDesc.cuboid(ht/2, partH/2, partLenZ/2).setTranslation(0, partH/2, 0).setRestitution(0.2));
       const partition = new THREE.Mesh(new THREE.BoxGeometry(ht, partH, partLenZ), blackMat);
-      partition.position.set(0, partH/2, 0); scene.add(partition);
+      partition.position.set(0, partH/2, 0); partition.castShadow = partition.receiveShadow = true; scene.add(partition);
       // The hex corners sit on the X axis (left/right) with flat top/bottom edges -- that's how the walls are
       // placed (centers at phi=30,90,... => corners at 0,60,120,...). Both the black base and the color pads are
       // built from THOSE SAME corner angles so every seam lands on a wall, and the partition splits them at x=0.
@@ -1966,24 +1986,26 @@
         const sh = new THREE.Shape();
         hexPts(R).forEach(([x, z], k) => k ? sh.lineTo(x, -z) : sh.moveTo(x, -z));
         sh.closePath();
-        const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), mat); m.rotation.x = -Math.PI/2; m.position.y = y; scene.add(m); return m;
+        const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), mat); m.rotation.x = -Math.PI/2; m.position.y = y; m.receiveShadow = true; scene.add(m); return m;
       };
       // two half-hexagon pads (red -X, blue +X): far point is the hex's left/right corner, cut edge runs up the partition
-      function hivePads(y) {
+      function hivePads(y, matR, matB) {
         const R = side, A = 0.866 * R;                    // A = apothem (top/bottom flat edge is at world |z| = A)
         for (const sgn of [-1, 1]) {
           const sh = new THREE.Shape();
           sh.moveTo(0, A); sh.lineTo(sgn * 0.5 * R, A); sh.lineTo(sgn * R, 0); sh.lineTo(sgn * 0.5 * R, -A); sh.lineTo(0, -A); sh.closePath();
-          const pad = new THREE.Mesh(new THREE.ShapeGeometry(sh), sgn < 0 ? redMat : blueMat);
-          pad.rotation.x = -Math.PI/2; pad.position.y = y; pad.renderOrder = 1; scene.add(pad);
+          const pad = new THREE.Mesh(new THREE.ShapeGeometry(sh), sgn < 0 ? matR : matB);
+          pad.rotation.x = -Math.PI/2; pad.position.y = y; pad.renderOrder = 1; pad.receiveShadow = true; pad.castShadow = true; scene.add(pad);
         }
       }
-      // FLOOR 1 (1 pt): black hex base + bright red/blue halves, so the low ground bin is obvious through the entrances
+      // FLOOR 1 (1 pt): black hex base + red/blue halves; recessed under the deck, so it uses the darker
+      // (shadowed) pad shade and the deck above casts a real shadow onto it -- no more artificial glow.
       hexMesh(side, 0.006, blackMat);
-      hivePads(0.015);
+      hivePads(0.015, redDimMat, blueDimMat);
       // FLOOR 2 (3 pt): elevated deck at ~10" -- black hex base + red/blue halves, low lip corrals landed balls
-      hexMesh(side * 0.995, deckY - 0.002, blackMat);
-      hivePads(deckY + 0.008);
+      const deckBase = hexMesh(side * 0.995, deckY - 0.002, blackMat);
+      deckBase.castShadow = true;                         // the deck shades the ground bin below it
+      hivePads(deckY + 0.008, redMat, blueMat);
       world.createCollider(RAPIER.ColliderDesc.cuboid(a*0.9, 0.006, a*0.9).setTranslation(0, deckY, 0).setRestitution(0.15).setFriction(0.9));
       const lipH = 0.03;                                  // small walls around the deck edge to corral landed balls
       for (let k = 0; k < 6; k++) {
@@ -1994,7 +2016,7 @@
             .setTranslation(cx, deckY + lipH/2, cz).setRotation({ x:0, y:Math.sin(beta/2), z:0, w:Math.cos(beta/2) })
             .setRestitution(0.2));
         const lip = new THREE.Mesh(new THREE.BoxGeometry(side, lipH, ht), blackMat);
-        lip.position.set(cx, deckY + lipH/2, cz); lip.rotation.y = beta; scene.add(lip);
+        lip.position.set(cx, deckY + lipH/2, cz); lip.rotation.y = beta; lip.castShadow = lip.receiveShadow = true; scene.add(lip);
       }
 
 
@@ -2044,14 +2066,14 @@
         bodies[i].setAngvel({ x:0, y:0, z:0 }, true);
       }
       // intake service: only eat pollen that is actually TOUCHING the intake bar at the open front — no
-      // long-range vacuum. A ball rests against the front face of the chassis at fwd = CH + BALL_R, so we
+      // long-range vacuum. A ball rests against the front face of the chassis at fwd = RBHZ + BALL_R, so we
       // swallow only on real contact; balls already at the bar but off to one side get a gentle roller nudge
       // to centre them into the mouth. Returns how many balls it swallowed this tick.
       function serviceIntake(body, active, current, capMax) {
         if (!active) return 0;
         const p = body.translation(), q = body.rotation();
         const yaw = 2 * Math.atan2(q.y, q.w), fs = Math.sin(yaw), fc = Math.cos(yaw);
-        const barFwd = C.CH + C.BALL_R;                // forward distance from robot centre to a ball pressed on the bar
+        const barFwd = C.RBHZ + C.BALL_R;              // forward distance from robot centre to a ball pressed on the bar
         let took = 0;
         for (let i = 0; i < bodies.length; i++) {
           if (held[i]) continue;
@@ -2079,7 +2101,7 @@
       function ejectBalls(body, n) {
         const p = body.translation(), q = body.rotation();
         const yaw = 2 * Math.atan2(q.y, q.w), fs = Math.sin(yaw), fc = Math.cos(yaw);
-        const ox = p.x + fs * (C.CH + C.BALL_R * 1.5), oz = p.z + fc * (C.CH + C.BALL_R * 1.5);
+        const ox = p.x + fs * (C.RBHZ + C.BALL_R * 1.5), oz = p.z + fc * (C.RBHZ + C.BALL_R * 1.5);
         let spawned = 0;
         for (let i = 0; i < bodies.length && spawned < n; i++) {
           if (!held[i]) continue;
@@ -2108,7 +2130,7 @@
           const ex = bkx * Math.cos(spread) + bkz * Math.sin(spread);
           const ez = bkz * Math.cos(spread) - bkx * Math.sin(spread);
           const speed = 0.7 + Math.random() * 0.8;
-          bodies[i].setTranslation({ x: p.x + bkx * (C.CH + C.BALL_R * 1.5), y: height, z: p.z + bkz * (C.CH + C.BALL_R * 1.5) }, true);
+          bodies[i].setTranslation({ x: p.x + bkx * (C.RBHZ + C.BALL_R * 1.5), y: height, z: p.z + bkz * (C.RBHZ + C.BALL_R * 1.5) }, true);
           bodies[i].setLinvel({ x: ex * speed, y: 0.15 + Math.random() * 0.2, z: ez * speed }, true);
           bodies[i].setAngvel({ x: 0, y: 0, z: 0 }, true);
           spawned++;
@@ -2149,7 +2171,7 @@
       return { id: 'biobuzz', reset, sync, step, serviceIntake, ejectBalls, dumpBalls,
                set onScore(fn){ onScore = fn; }, get recycled(){ return recycled; } };
     }
-    const game = createBioBuzzGame(world, scene, THREE, RAPIER, { HALF, CH, CUBE, BALL_R, N_BALLS, HIVE_R, HIVE_H, DECK_Y });
+    const game = createBioBuzzGame(world, scene, THREE, RAPIER, { HALF, CH, CUBE, BALL_R, N_BALLS, HIVE_R, HIVE_H, DECK_Y, RBHX, RBHZ });
     // zone-based scoring: a ball in the red (-X) hive half scores red, the blue (+X) half scores blue,
     // regardless of who dumped it. Ground bin = 1 pt, elevated deck = 3 pt.
     game.onScore = (color, pts) => { matchScore[color] += pts; updateMatchClock(); };
@@ -4458,7 +4480,7 @@
 
       const capGroup = new THREE.Group(); scene.add(capGroup);
       const MARK_Y = CH + 0.02;              // just above the robot's own floor contact height
-      const DISC_R = 0.045, DISC_H = 0.012;  // pose marker: a flat "hockey puck" with a drawn-on heading arrow
+      const DISC_R = 0.052, DISC_H = 0.012;  // pose marker: a flat "hockey puck" with a drawn-on heading arrow (a touch bigger, easier to grab)
       const BADGE_R = 0.026, BADGE_H = 0.008; // action badge: a smaller puck with the button letter
 
       // sim (x,z,yaw) -> FTC/Pedro (x,y,heading): an axis relabel (x_ftc=z, y_ftc=x, heading=yaw) that
@@ -4498,14 +4520,16 @@
       const poseSideMat = new THREE.MeshStandardMaterial({ color: 0x1f7a4d, roughness: 0.6 });
       const poseTopMat = new THREE.MeshBasicMaterial({ map: makeArrowTexture('#22ff88', '#0b3d24') });
       const poseBottomMat = new THREE.MeshStandardMaterial({ color: 0x0b3d24, roughness: 0.8 });
-      // init/start marker: a distinct cyan triangle (3-sided prism) with the same heading arrow --
-      // represents the Pinpoint's initial pose (where the robot is physically placed before the match).
-      const initGeo = new THREE.CylinderGeometry(DISC_R * 1.18, DISC_R * 1.18, DISC_H, 3, 1);
+      // init/start marker: a distinct cyan DISC (same round puck as the poses, just cyan + a hair larger)
+      // representing the Pinpoint's initial pose (where the robot is physically placed before the match).
+      const initGeo = new THREE.CylinderGeometry(DISC_R * 1.18, DISC_R * 1.18, DISC_H, 28, 1);
       const initSideMat = new THREE.MeshStandardMaterial({ color: 0x1d6fb0, roughness: 0.6 });
       const initTopMat = new THREE.MeshBasicMaterial({ map: makeArrowTexture('#38bdf8', '#082033') });
       const initBottomMat = new THREE.MeshStandardMaterial({ color: 0x082033, roughness: 0.8 });
       const rotateMat = new THREE.MeshStandardMaterial({ color: 0xfff2b0, emissive: 0x776a20 });
       const rotateLineMat = new THREE.LineBasicMaterial({ color: 0xfff2b0 });
+      const rotateTubeMat = new THREE.MeshStandardMaterial({ color: 0xfff2b0, emissive: 0x776a20, roughness: 0.5 });
+      const pathTubeMat = new THREE.MeshStandardMaterial({ color: 0x22ff88, emissive: 0x0e5c33, roughness: 0.5 });
 
       const badgeGeo = new THREE.CylinderGeometry(BADGE_R, BADGE_R, BADGE_H, 20, 1);
       const actionSideMat = new THREE.MeshStandardMaterial({ color: 0xcc7700, roughness: 0.6 });
@@ -4520,14 +4544,21 @@
       const actionLineMat = new THREE.LineBasicMaterial({ color: 0xff9900 });
       const arrowGeo = new THREE.ConeGeometry(0.02, 0.055, 10);
       const arrowMat = new THREE.MeshStandardMaterial({ color: 0x22ff88, emissive: 0x0e5c33 });
-      const rotateArrowGeo = new THREE.ConeGeometry(0.013, 0.032, 8);
+      const rotateArrowGeo = new THREE.ConeGeometry(0.023, 0.05, 10);   // bigger turn-handle cones = an easier mouse target
       const UP = new THREE.Vector3(0, 1, 0);
+      // fat "line" = a thin tube swept along the points (LineBasicMaterial.linewidth is ignored by WebGL,
+      // so real thickness needs geometry). Used for both the heading arc and the path between poses.
+      function tubeFromPoints(points, radius) {
+        const curve = new THREE.CatmullRomCurve3(points);
+        const seg = Math.max(12, (points.length - 1) * 8);
+        return new THREE.TubeGeometry(curve, seg, radius, 8, false);
+      }
 
       const poseObjs = new Map();    // id -> { mesh, rotArc, rotArrowA, rotArrowB }
       const actionObjs = new Map();  // id -> mesh
       let lineObj = null, arrowMeshes = [], actionLineObjs = [];
 
-      const ROTATE_R = DISC_R + 0.055;      // radius of the rotate-drag arc, just outside the disc
+      const ROTATE_R = DISC_R + 0.062;      // radius of the rotate-drag arc, just outside the disc
       const ROTATE_SPAN = Math.PI * 0.28;   // half-angle of the arc, centered on the current heading
       // world-space points along the arc (own trig, not mesh-local, so there's no cap-UV ambiguity here)
       function rotateArcPoints(entry) {
@@ -4540,7 +4571,7 @@
       }
       function updateRotateHandle(entry, rec) {
         rec.rotArc.geometry.dispose();
-        rec.rotArc.geometry = new THREE.BufferGeometry().setFromPoints(rotateArcPoints(entry));
+        rec.rotArc.geometry = tubeFromPoints(rotateArcPoints(entry), 0.007);
         const angA = entry.yaw - ROTATE_SPAN, angB = entry.yaw + ROTATE_SPAN;
         rec.rotArrowA.position.set(entry.sx + Math.sin(angA) * ROTATE_R, MARK_Y, entry.sz + Math.cos(angA) * ROTATE_R);
         rec.rotArrowB.position.set(entry.sx + Math.sin(angB) * ROTATE_R, MARK_Y, entry.sz + Math.cos(angB) * ROTATE_R);
@@ -4559,7 +4590,7 @@
         mesh.rotation.y = discYaw(entry.yaw);
         mesh.userData = { kind: 'pose', id: entry.id };
         capGroup.add(mesh);
-        const rotArc = new THREE.Line(new THREE.BufferGeometry(), rotateLineMat);
+        const rotArc = new THREE.Mesh(new THREE.BufferGeometry(), rotateTubeMat);
         capGroup.add(rotArc);
         const rotArrowA = new THREE.Mesh(rotateArrowGeo, rotateMat);
         rotArrowA.userData = { kind: 'handle', id: entry.id };
@@ -4583,7 +4614,7 @@
         const chainWaypoints = init ? [init, ...poses] : poses;
         const pts = chainWaypoints.map(p => new THREE.Vector3(p.sx, MARK_Y, p.sz));
         if (pts.length >= 2) {
-          lineObj = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat);
+          lineObj = new THREE.Mesh(tubeFromPoints(pts, 0.008), pathTubeMat);
           capGroup.add(lineObj);
           for (let i = 0; i < pts.length - 1; i++) {
             const a = pts[i], b = pts[i + 1];
