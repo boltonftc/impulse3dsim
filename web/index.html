@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.2.3';
+    window.APP_VERSION = '2.2.4';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -4398,9 +4398,27 @@
       writeActive(); p.active = key; saveStore(); renderAll();
       return gotoAnchor(sub);
     }
+    // Non-destructively add any of this lesson's start-snapshot files the current package is missing,
+    // in their start-of-lesson (given) state. Never overwrites an existing file, so student work is kept.
+    function addMissingLessonFiles(lessonId){
+      const snap = courseSnapshots[lessonId];
+      const p = curPkg();
+      if (!snap || !snap.files || !p) return [];
+      const added = [];
+      for (const name of Object.keys(snap.files)){
+        if (p.files[name] == null){ p.files[name] = snap.files[name]; added.push(name); }
+      }
+      if (added.length){ saveStore(); renderAll(); }
+      return added;
+    }
     function onLessonAction(kind, arg){
       if (kind === 'scroll_to') findAnchorAcross(arg);
-      else if (kind === 'open_file'){ const [f, mk] = arg.split('|'); if (openFileByName(f) && mk && !gotoAnchor(mk)) findAnchorAcross(mk); }
+      else if (kind === 'open_file'){
+        const [f, mk] = arg.split('|');
+        let ok = openFileByName(f);
+        if (!ok){ addMissingLessonFiles(curLessonId); ok = openFileByName(f); }   // intentional click -> create this lesson's new files
+        if (ok && mk && !gotoAnchor(mk)) findAnchorAcross(mk);
+      }
       else if (kind === 'complete') markComplete(curLessonId, true);
       else if (kind === 'revert') revertToLesson(curLessonId);
     }
