@@ -14,6 +14,34 @@ first autonomous and watch the robot follow a path you drew for it.</p>
 
 <hr>
 
+<h2>A new tool arrives: the Pedro Pathing <em>library</em></h2>
+
+<p>This lesson adds <strong>three new files</strong> to your package &mdash; <code>SimpleAuto.java</code> (the one you
+write), plus <code>PinpointLocalizer.java</code> and <code>MecanumDrivetrainSubsystem.java</code> (given, ready to read)
+&mdash; and for the first time your code <strong>borrows code someone else wrote</strong>. Everything you finished last
+lesson is still here; these files just join it. If you don't see all three in your file list yet, click
+<strong>Reset to Start</strong> at the bottom of this lesson to pull in this lesson's starting code.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">What is a library, a .jar, and an import?</div>
+  <p>A <strong>library</strong> is a bundle of code someone else already wrote and tested, so you don't have to. Pedro
+  Pathing is a library that knows how to steer a robot smoothly to an <em>exact</em> spot on the field &mdash; tricky
+  math that would take weeks to get right. You get to just <em>borrow</em> it.</p>
+  <ul>
+    <li>A <strong><code>.jar</code></strong> file is simply a <em>zip</em> of that library's code (here,
+    <code>pedro-core.jar</code>). Picture it as a book you added to your shelf.</li>
+    <li>An <strong><code>import</code></strong> line at the top of a file &mdash; like
+    <code>import com.pedropathing&hellip;</code> in the new files &mdash; is you saying &ldquo;I want to use this part of
+    that book.&rdquo;</li>
+    <li>Needing that book on the shelf for your code to build is called a <strong>dependency</strong>: your code now
+    <em>depends on</em> Pedro being there.</li>
+  </ul>
+  <p><em>Behind the scenes:</em> this simulator already keeps <code>pedro-core.jar</code> on its shelf, so the instant a
+  file <code>import</code>s Pedro it just works &mdash; there's nothing for you to install here.</p>
+</div>
+
+<hr>
+
 <h2>Driving to a spot is a different job than driving by hand</h2>
 
 <p>Steering to an <em>exact</em> field position is a control problem: the robot must keep checking &ldquo;where am I
@@ -30,7 +58,9 @@ can read but do not have to write:</p>
     <strong>same</strong> mecanum mixing math as your TeleOp <code>Drivebase</code>.</li>
   </ul>
   <p>Open both files and skim them. Notice there is nothing magic inside &mdash; just the sensor and the wheels you
-  already know, wrapped so the Follower can call them.</p>
+  already know, wrapped so the Follower can call them. They are <strong>given</strong> because matching the exact shape
+  Pedro asks for (its <em>interface</em>) is just plumbing &mdash; the interesting logic is the drive and localization
+  code you already wrote in earlier lessons.</p>
 </div>
 
 <p>Your mechanisms are <em>not</em> new: autonomous builds the same <code>Robot</code> as TeleOp and calls the same
@@ -143,6 +173,16 @@ while (opModeIsActive() &amp;&amp; follower.isBusy()) {
   nudges the wheels a little and re-checks the position, and each <code>robot.update()</code> advances the dumper a
   little. When the Follower reaches the target it reports <code>isBusy() == false</code> and the loop ends &mdash; the
   exact same &ldquo;lots of small steps, never one big freeze&rdquo; rhythm you have used all along.</p>
+</div>
+
+<div class="blk blk-challenge">
+  <div class="blk-head">⚠ Using a real robot? Do this first</div>
+  <p>If you have <strong>ever deployed Pedro Pathing to this robot from Android Studio</strong> (a Pedro line in your
+  <code>build.gradle</code>), remove that dependency, rebuild, and re-install the Robot Controller app <strong>before you
+  deploy this lesson</strong>. Otherwise the robot ends up with <em>two</em> copies of Pedro &mdash; the one baked into
+  your app and the one this tool uploads &mdash; and the on-robot build fails with a duplicate-class error. From here on,
+  let OnBot Java (this tool) be the <strong>one</strong> source of Pedro. Earlier lessons never touched Pedro, so this
+  only matters now. In the simulator there is nothing to do.</p>
 </div>
 
 <div class="blk blk-todo">
