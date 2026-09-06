@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.5.5';
+    window.APP_VERSION = '2.5.6';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -4165,7 +4165,7 @@
           await new Promise(res => setTimeout(res, 1000));
           const s = await status();
           if (s && s.state === 'connected'){ if (log) log('Connected to ' + (s.robot || 'robot') + ' over WiFi.', 'ok'); return s.robot || 'robot'; }
-          if (s && s.state === 'error'){ throw new Error(s.detail || 'The bridge reported an error.'); }
+          if (s && (s.state === 'error' || s.state === 'wedged')){ throw new Error(s.detail || 'The bridge reported an error.'); }
         }
         throw new Error('Timed out reaching the robot over WiFi — is this laptop joined to the robot\u2019s WiFi?');
       }
