@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.5.7';
+    window.APP_VERSION = '2.5.8';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -3820,22 +3820,24 @@
       const [usbLive, wifi] = await Promise.all([ RobotUSB.isLive(), RobotWiFi.status() ]);
       const wifiUp = !!wifi;
       const wifiLive = !!(wifi && wifi.state === 'connected');
+      const wifiWedged = !!(wifi && wifi.state === 'wedged');
       if (!keepChoice){
         if (usbLive) robotXport = 'usb';
         else if (wifiUp) robotXport = 'wifi';
         else robotXport = 'usb';
       }
-      function pill(id, label, sub, ok){
+      function pill(id, label, sub, dotColor){
         const on = robotXport === id;
         return '<button type="button" data-x="' + id + '" style="flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:8px 10px;border-radius:8px;cursor:pointer;'
           + 'border:1px solid ' + (on ? '#3b82f6' : '#334155') + ';background:' + (on ? '#12233f' : '#0b1424') + ';color:#e5edf7">'
-          + '<span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:' + (ok ? '#34a853' : '#6b7280') + '"></span><b style="font-size:13px">' + label + '</b></span>'
+          + '<span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:' + dotColor + '"></span><b style="font-size:13px">' + label + '</b></span>'
           + '<small style="color:#93c5fd;font-size:11px">' + sub + '</small></button>';
       }
       if (box){
         box.style.cssText = 'display:flex;gap:8px;margin:2px 0 4px';
-        box.innerHTML = pill('usb', 'USB cable', usbLive ? 'connected' : 'plug in & connect', usbLive)
-          + pill('wifi', 'WiFi (bridge)', !wifiUp ? 'helper not running' : (wifiLive ? ((wifi.robot || 'robot') + ' ready') : 'ready to connect'), wifiLive);
+        box.innerHTML = pill('usb', 'USB cable', usbLive ? 'connected' : 'plug in & connect', usbLive ? '#34a853' : '#6b7280')
+          + pill('wifi', 'WiFi (bridge)', !wifiUp ? 'helper not running' : (wifiWedged ? '\u26a0 robot stuck — power-cycle it' : (wifiLive ? ((wifi.robot || 'robot') + ' ready') : 'ready to connect')),
+                 !wifiUp ? '#6b7280' : (wifiWedged ? '#ea4335' : (wifiLive ? '#34a853' : '#6b7280')));
         box.querySelectorAll('button[data-x]').forEach(b => b.addEventListener('click', () => { robotXport = b.getAttribute('data-x'); refreshRobotSheet(isDeploy, true); }));
       }
       renderWifiPairing(isDeploy, (robotXport === 'wifi') ? wifi : null);
@@ -3851,11 +3853,15 @@
       if (!el) return;
       if (!wifi){ el.style.display = 'none'; el.innerHTML = ''; return; }
       el.style.cssText = 'display:block;margin:4px 0 2px;padding:8px 10px;border:1px solid #223047;border-radius:8px;background:#0b1424';
+      const banner = (wifi.state === 'wedged')
+        ? '<div style="background:#3a1414;border:1px solid #ea4335;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#fecaca;font-size:12px">'
+          + '<b>\u26a0 Robot appears stuck, not just slow.</b> ' + escHtml(wifi.detail || 'Power-cycle the Control Hub and try again.') + '</div>'
+        : '';
       const w = wifi.wifi || {};
       const chip = (txt, ok) => '<span style="font-size:11px;color:' + (ok ? '#34a853' : '#93c5fd') + '">' + txt + '</span>';
       if (w.paired){
         const badge = w.joined ? chip('● on this WiFi', true) : (w.inRange ? chip('● in range', true) : chip('○ not in range', false));
-        el.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'
+        el.innerHTML = banner + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'
           + '<div><b style="font-size:13px;color:#e5edf7">📶 ' + w.ssid + '</b> &nbsp;' + badge + '</div>'
           + '<button type="button" id="wifi-forget" style="background:none;border:none;color:#93c5fd;font-size:11px;cursor:pointer;text-decoration:underline">Forget</button></div>'
           + '<label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:#cbd5e1;cursor:pointer">'
@@ -3867,7 +3873,7 @@
         return;
       }
       // Not paired yet — offer an SSID picker (scan) with a manual fallback.
-      el.innerHTML = '<div style="font-size:12px;color:#cbd5e1;margin-bottom:6px">Pair your robot once — pick its WiFi network:</div>'
+      el.innerHTML = banner + '<div style="font-size:12px;color:#cbd5e1;margin-bottom:6px">Pair your robot once — pick its WiFi network:</div>'
         + '<div id="wifi-pick" style="font-size:12px;color:#93c5fd">Scanning for networks…</div>';
       const res = await RobotWiFi.scan();
       const pick = el.querySelector('#wifi-pick');
@@ -4173,6 +4179,10 @@
         let s = await status();
         if (!s) throw new Error('The WiFi bridge isn\u2019t running on this laptop — download and start impulse-wifi-bridge.exe, then try again.');
         if (s.state === 'connected'){ if (log) log('Robot already connected over WiFi (' + (s.robot || 'robot') + ').', 'ok'); return s.robot || 'robot'; }
+        // Already flagged stuck — report it as-is. Do NOT ask the bridge to (re)join/connect
+        // here: that would restart its reconnect loop and reset the wedge-detection streak,
+        // masking a real diagnosis behind another ~45s of silent retries.
+        if (s.state === 'wedged') throw new Error(s.detail || 'The robot appears stuck — power-cycle the Control Hub and try again.');
         // Paired: let the bridge join the robot's WiFi (switching networks if needed) then link.
         if (s.wifi && s.wifi.paired){
           if (log) log('Reaching ' + s.wifi.ssid + (s.wifi.joined ? '' : ' — switching WiFi') + '\u2026', 'warn');
