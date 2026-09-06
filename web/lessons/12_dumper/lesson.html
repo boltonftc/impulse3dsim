@@ -175,6 +175,33 @@ finishes &rarr; hold; <code>DUMPING</code> finishes &rarr; lower; <code>LOWERING
 &mdash; and the timings all come from the named constants at the top. Bucket too slow? Make
 <code>RAISE_TIME_MS</code> bigger. Pieces not falling out? Make <code>HOLD_TIME_MS</code> bigger. One place each.</p>
 
+<p>Try it below &mdash; a side-view dumper with real (well, pseudo-real) physics. Press <strong>dump()</strong> and
+watch the named states light up one at a time while the bed tilts and the game pieces roll out. Then drag the
+three timing sliders and see the <em>exact</em> consequence of getting them wrong: cut <code>HOLD_TIME_MS</code>
+too short and the bed drops before the pieces clear the lip, so they roll back in or spill on the floor instead
+of scoring.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Engineering habit &mdash; time it, then add a safety factor</div>
+  <p>The widget has a stopwatch. Run a clean dump and note how long the whole cycle takes. Real hardware is
+  never perfectly repeatable &mdash; here the pieces even <em>stick</em> for a beat before friction lets go and
+  they roll, just like the real world. So don't tune for the <em>shortest</em> time that barely works. Time the
+  cycle, then multiply by about <strong>1.5&times;</strong> &mdash; an engineering <em>safety factor</em> &mdash;
+  so it still clears when a servo is cold, the battery is low, or a game piece is sticky.</p>
+</div>
+
+<div class="blk blk-widget">
+  <div class="blk-head">Try it &mdash; Dumper State Machine</div>
+  <dumper-state-widget></dumper-state-widget>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Hint</div>
+  <p>Mash the <strong>dump()</strong> button while a cycle is already running &mdash; nothing happens, and the widget
+  flashes why: <code>state != STOWED</code>. That is the exact same guard from <code>dump()</code> above, protecting
+  a cycle in progress from being interrupted.</p>
+</div>
+
 <hr>
 
 <h2>Part D &mdash; Add the dumper to the robot</h2>
