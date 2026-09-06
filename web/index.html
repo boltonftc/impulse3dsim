@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.2.4';
+    window.APP_VERSION = '2.4.4';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -415,6 +415,8 @@
     .blk-todo{background:#0c1c33;border-color:#5090e0}
     .blk-hint{background:#1c1030;border-color:#c080e0}
     .blk-challenge{background:#2a1505;border-color:#f0883e}
+    .blk-widget{background:#04202b;border-color:#38bdf8;padding:10px 12px}
+    .blk-widget .blk-head{margin-bottom:6px}
     .blk-head{font-weight:bold;font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;opacity:.85;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center}
     .copybtn{cursor:pointer;color:#7dd3fc;font-weight:normal;text-transform:none;letter-spacing:0}
     .copybtn:hover{color:#bae6fd}
@@ -5248,6 +5250,595 @@
       }
     })();
     console.log('V2_READY mass=' + ROBOT_MASS + 'kg field=' + FIELD.toFixed(3) + 'm');
+  </script>
+  <script>
+    // <drive-vector-widget mode="tank"|"mecanum"> — self-contained lesson widget (Shadow DOM, no
+    // deps, no network fetch), safe to embed straight in coach-authored lesson.html via innerHTML:
+    // custom elements upgrade automatically on DOM insertion, unlike <script> tags, which innerHTML
+    // never runs. Both modes share one template/class; mode-specific bits are gated by the `mode`
+    // host attribute (pure CSS via :host([mode=...])) or by `this._mode` branches in JS.
+    (function(){
+      const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+      const fmtSigned = n => (n < 0 ? '\u2212' : '+') + Math.abs(n).toFixed(2);   // shows the +/- the equation applies
+      const LEFTC = '#50c070', RIGHTC = '#f0883e', ACCENT = '#38bdf8';
+      const SPEED = 140, TURN = 2.4;                       // px/s and rad/s at full stick
+      const ROAD_AMP = 62, ROAD_K = 0.010, ROAD_HALF = 98; // gentle S-curve centerline + half-width (tank)
+      const LOT_HALF = 220, LOT_MARGIN = 32;               // open square parking lot half-extent (mecanum)
+      const STALL_LEN = 46, STALL_SPACING = 40;            // painted stall-line geometry (mecanum)
+      const ARROW_MAX = 44, ARROW_EPS = 0.03;
+      function roundRect(ctx, x, y, w, h, r){
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);         ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      const TEMPLATE = `
+      <style>
+        :host{ --left:#50c070; --right:#f0883e; --accent:#38bdf8; --turn:#c084fc; --dim:#3a4150;
+               display:block; font-family:inherit; color:#e2e8f0; }
+        .stage{ display:flex; align-items:stretch; height:300px; border:1px solid var(--dim);
+               border-radius:10px; overflow:hidden; background:#0b0f16; }
+        .pane{ display:flex; flex-direction:column; min-height:0; min-width:0; }
+        .pane.game{ flex:1 1 auto; min-width:240px; }
+        .pane.pad{ flex:0 0 auto; width:198px; background:#0d121a; }
+        .divider{ flex:0 0 1px; background:var(--dim); }
+        .pane-label{ font-size:.58rem; text-transform:uppercase; letter-spacing:.09em; color:#7c8699;
+               padding:6px 10px 5px; border-bottom:1px solid #171e28; white-space:nowrap; }
+        canvas.game{ display:block; flex:1 1 auto; width:100%; height:100%; touch-action:none; }
+        .pane.pad svg{ display:block; width:100%; height:auto; margin:auto 0; padding:8px 14px 14px;
+               box-sizing:border-box; touch-action:none; }
+        .stick-knob{ cursor:grab; transform-box:fill-box; transform-origin:center; }
+        .stick-knob:active{ cursor:grabbing; }
+        .stick-knob:focus{ outline:none; }
+        .stick-knob:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+        .stick-knob.pulsing{ animation:stickPulse 1.6s ease-in-out infinite; }
+        @keyframes stickPulse{
+          0%,100%{ transform:scale(1); filter:drop-shadow(0 0 0 rgba(56,189,248,0)); }
+          50%{ transform:scale(1.14); filter:drop-shadow(0 0 5px rgba(56,189,248,.9)); }
+        }
+        /* LT/RT trigger bars: dim/inert decoration in tank mode (matches the old plain shoulder-bump
+           rect), become live vertical-fill sliders (squeeze = slide up) only in mecanum mode. */
+        .trigbar{ opacity:.5; }
+        .trigbar .trig-knob{ opacity:0; pointer-events:none; cursor:grab; }
+        .trigbar .trig-knob:active{ cursor:grabbing; }
+        .trigbar .trig-knob:focus{ outline:none; }
+        .trigbar .trig-knob:focus-visible{ outline:2px solid #fff; outline-offset:1px; }
+        :host([mode="mecanum"]) .trigbar{ opacity:1; }
+        :host([mode="mecanum"]) .trigbar .trig-knob{ opacity:1; pointer-events:auto; }
+        table.eqtable{ border-collapse:collapse; table-layout:fixed; width:340px; margin:12px auto 2px; font-size:.78rem; }
+        table.eqtable col.c-lbl{ width:64px } table.eqtable col.c-drv{ width:74px }
+        table.eqtable col.c-spn{ width:104px } table.eqtable col.c-pow{ width:98px }
+        table.eqtable th, table.eqtable td{ padding:2px 6px; text-align:center; white-space:nowrap; overflow:hidden; }
+        table.eqtable thead th{ color:#8291a3; font-weight:600; font-size:.64rem; text-transform:uppercase;
+               letter-spacing:.03em; border-bottom:1px solid var(--dim); }
+        table.eqtable thead th small{ display:block; font-weight:400; text-transform:none; opacity:.75; }
+        table.eqtable td{ font-family:ui-monospace,monospace; }
+        table.eqtable tbody th{ font-size:.68rem; font-weight:700; text-align:left; }
+        table.eqtable tbody th.side-l{ color:var(--left); }
+        table.eqtable tbody th.side-r{ color:var(--right); }
+        .eq-td{ transition:color .15s, font-style .15s; }
+        table.eqtable.sym .eq-td{ font-style:italic; color:#8291a3; }
+        .pill{ font-weight:700; padding:1px 6px; border-radius:5px; transition:font-style .15s; }
+        .pill-left{ background:rgba(80,192,112,.15); color:var(--left); }
+        .pill-right{ background:rgba(240,136,62,.15); color:var(--right); }
+        table.eqtable.sym .pill{ font-style:italic; }
+        table.eqtable.mec{ width:400px; }
+        table.eqtable.mec col.c-lbl{ width:44px } table.eqtable.mec col.c-drv{ width:64px }
+        table.eqtable.mec col.c-spn{ width:64px } table.eqtable.mec col.c-trn{ width:64px }
+        table.eqtable.mec col.c-pow{ width:80px }
+        #eqtableMec{ display:none; }
+        :host([mode="mecanum"]) #eqtable{ display:none; }
+        :host([mode="mecanum"]) #eqtableMec{ display:table; }
+      </style>
+      <div class="stage">
+        <div class="pane game">
+          <div class="pane-label">Robot &mdash; top-down view</div>
+          <canvas class="game" id="cv"></canvas>
+        </div>
+        <div class="divider"></div>
+        <div class="pane pad">
+          <div class="pane-label">Left stick + triggers</div>
+          <svg class="gamepad" viewBox="0 -30 320 230">
+            <ellipse cx="45" cy="152" rx="48" ry="60" fill="#232b38"/>
+            <ellipse cx="275" cy="152" rx="48" ry="60" fill="#232b38"/>
+            <rect x="18" y="20" width="284" height="130" rx="55" fill="#2b3646" stroke="#1c2430" stroke-width="2"/>
+            <g class="trigbar" id="ltGroup">
+              <rect x="55" y="-26" width="24" height="44" rx="11" fill="var(--dim)"/>
+              <rect class="trig-fill" id="ltFill" x="55" y="-26" width="24" height="0" rx="11" fill="var(--turn)"/>
+              <text x="67" y="12" font-size="8" font-weight="700" text-anchor="middle" fill="#e2e8f0" pointer-events="none">LT</text>
+              <circle class="stick-knob trig-knob pulsing" id="ltKnob" cx="67" cy="-26" r="9" fill="var(--turn)"
+                      stroke="#0b0f16" stroke-width="1.5" tabindex="0" role="slider" aria-orientation="vertical" aria-label="Left trigger"/>
+            </g>
+            <g class="trigbar" id="rtGroup">
+              <rect x="240" y="-26" width="24" height="44" rx="11" fill="var(--dim)"/>
+              <rect class="trig-fill" id="rtFill" x="240" y="-26" width="24" height="0" rx="11" fill="var(--turn)"/>
+              <text x="252" y="12" font-size="8" font-weight="700" text-anchor="middle" fill="#e2e8f0" pointer-events="none">RT</text>
+              <circle class="stick-knob trig-knob pulsing" id="rtKnob" cx="252" cy="-26" r="9" fill="var(--turn)"
+                      stroke="#0b0f16" stroke-width="1.5" tabindex="0" role="slider" aria-orientation="vertical" aria-label="Right trigger"/>
+            </g>
+            <g opacity=".5" fill="var(--dim)">
+              <rect x="55" y="48" width="42" height="42" rx="8"/>
+              <circle cx="142" cy="55" r="7"/>
+              <circle cx="178" cy="55" r="7"/>
+              <circle cx="160" cy="72" r="4"/>
+            </g>
+            <g opacity=".55" fill="#151b24">
+              <rect x="71" y="53" width="10" height="32"/>
+              <rect x="60" y="64" width="32" height="10"/>
+            </g>
+            <g opacity=".45" font-size="9" font-weight="700" text-anchor="middle" fill="#cbd5e1">
+              <circle cx="245" cy="50" r="12" fill="#5a4a1f"/><text x="245" y="53">Y</text>
+              <circle cx="225" cy="70" r="12" fill="#233a55"/><text x="225" y="73">X</text>
+              <circle cx="265" cy="70" r="12" fill="#552323"/><text x="265" y="73">B</text>
+              <circle cx="245" cy="90" r="12" fill="#234a2c"/><text x="245" y="93">A</text>
+            </g>
+            <circle cx="222" cy="150" r="32" fill="#1c2430" stroke="#333d4a" stroke-width="2" opacity=".55"/>
+            <circle cx="222" cy="150" r="18" fill="#333d4a" opacity=".55"/>
+            <circle cx="98" cy="150" r="32" fill="#171e29" stroke="var(--accent)" stroke-width="3"/>
+            <circle id="knob" cx="98" cy="150" r="18" fill="var(--accent)" class="stick-knob pulsing" tabindex="0"
+                    role="slider" aria-label="Left stick"/>
+          </svg>
+        </div>
+      </div>
+      <table class="eqtable" id="eqtable">
+        <colgroup><col class="c-lbl"><col class="c-drv"><col class="c-spn"><col class="c-pow"></colgroup>
+        <thead><tr><th></th><th>drive</th><th>spin</th><th>power<small>&times;0.5</small></th></tr></thead>
+        <tbody>
+          <tr><th class="side-l">LEFT</th><td id="driveL" class="eq-td"></td><td id="spinL" class="eq-td"></td>
+            <td id="leftVal" class="pill pill-left"></td></tr>
+          <tr><th class="side-r">RIGHT</th><td id="driveR" class="eq-td"></td><td id="spinR" class="eq-td"></td>
+            <td id="rightVal" class="pill pill-right"></td></tr>
+        </tbody>
+      </table>
+      <table class="eqtable mec" id="eqtableMec">
+        <colgroup><col class="c-lbl"><col class="c-drv"><col class="c-spn"><col class="c-trn"><col class="c-pow"></colgroup>
+        <thead><tr><th></th><th>drive</th><th>strafe</th><th>turn</th><th>power</th></tr></thead>
+        <tbody>
+          <tr><th class="side-l">FL</th><td id="driveFL" class="eq-td"></td><td id="strafeFL" class="eq-td"></td>
+            <td id="turnFL" class="eq-td"></td><td id="powFL" class="pill pill-left"></td></tr>
+          <tr><th class="side-l">BL</th><td id="driveBL" class="eq-td"></td><td id="strafeBL" class="eq-td"></td>
+            <td id="turnBL" class="eq-td"></td><td id="powBL" class="pill pill-left"></td></tr>
+          <tr><th class="side-r">FR</th><td id="driveFR" class="eq-td"></td><td id="strafeFR" class="eq-td"></td>
+            <td id="turnFR" class="eq-td"></td><td id="powFR" class="pill pill-right"></td></tr>
+          <tr><th class="side-r">BR</th><td id="driveBR" class="eq-td"></td><td id="strafeBR" class="eq-td"></td>
+            <td id="turnBR" class="eq-td"></td><td id="powBR" class="pill pill-right"></td></tr>
+        </tbody>
+      </table>`;
+
+      class DriveVectorWidget extends HTMLElement {
+        constructor(){
+          super();
+          const root = this.attachShadow({ mode: 'open' });
+          root.innerHTML = TEMPLATE;
+          this._el = id => root.getElementById(id);
+          this._mode = (this.getAttribute('mode') || 'tank').toLowerCase();
+          this._sx = 0; this._sy = 0; this._lt = 0; this._rt = 0;
+          this._drive = 0; this._spin = 0; this._strafe = 0; this._turn = 0;
+          this._leftPower = 0; this._rightPower = 0;
+          this._powFL = 0; this._powBL = 0; this._powFR = 0; this._powBR = 0;
+          this._treadL = 0; this._treadR = 0;        // accumulated wheel-surface travel (px), drives tread scroll
+          this._treadFL = 0; this._treadBL = 0; this._treadFR = 0; this._treadBR = 0;
+          this._wx = 0; this._wy = 0; this._theta = 0; // robot pose in world (theta 0 = facing up)
+          this._dragging = false; this._draggingLT = false; this._draggingRT = false; this._showNumbers = false;
+          this._springRaf = null; this._ltRaf = null; this._rtRaf = null; this._raf = null; this._last = 0;
+          this._cv = this._el('cv'); this._ctx = this._cv.getContext('2d');
+          this._dpr = 1; this._vw = 260; this._vh = 260;
+          this._ground = this._makeGroundPattern();
+          this._islands = [[-140,-140,24],[140,-140,24],[-140,140,24],[140,140,24]]; // mecanum greenery islands, world coords
+          this._bindPointer();
+          this._bindKeyboard();
+          if (this._mode === 'mecanum') { this._bindTrigger('lt'); this._bindTrigger('rt'); }
+          this._renderTable();
+        }
+        connectedCallback(){
+          this._ro = new ResizeObserver(() => this._resize());
+          this._ro.observe(this._cv);
+          this._resize();
+          this._last = performance.now();
+          this._raf = requestAnimationFrame(t => this._frame(t));
+        }
+        disconnectedCallback(){
+          cancelAnimationFrame(this._springRaf);
+          cancelAnimationFrame(this._ltRaf);
+          cancelAnimationFrame(this._rtRaf);
+          cancelAnimationFrame(this._raf);
+          this._ro && this._ro.disconnect();
+        }
+        _resize(){
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          const w = this._cv.clientWidth || 260, h = this._cv.clientHeight || 260;
+          this._dpr = dpr; this._vw = w; this._vh = h;
+          this._cv.width = Math.round(w * dpr); this._cv.height = Math.round(h * dpr);
+        }
+        // ---- input (gamepad left stick + LT/RT triggers) ----
+        _stopPulsing(el){
+          if (!el.classList.contains('pulsing')) return;
+          el.classList.remove('pulsing');
+        }
+        // LT/RT are horizontal-fill sliders reusing the shoulder-bump footprint: dragging/clicking
+        // anywhere along the bar sets press amount 0..1 by vertical position (down = squeezed, like
+        // pressing a real trigger down); releasing springs back up to 0.
+        _bindTrigger(which){
+          const knob = this._el(which + 'Knob'), fill = this._el(which + 'Fill');
+          const track = knob.parentNode.querySelector('rect:not(.trig-fill)');
+          const y0 = Number(track.getAttribute('y')), h = Number(track.getAttribute('height'));
+          const x = Number(knob.getAttribute('cx'));
+          const setVal = (v) => {
+            v = clamp(v, 0, 1);
+            this['_' + which] = v;
+            const fillH = v * h;
+            knob.setAttribute('cy', y0 + fillH);
+            fill.setAttribute('height', fillH);
+            this._updateValues();
+          };
+          const toVal = (svg, clientY) => {
+            const pt = svg.createSVGPoint(); pt.x = x; pt.y = clientY;
+            const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+            return (p.y - y0) / h;
+          };
+          const dragFlag = which === 'lt' ? '_draggingLT' : '_draggingRT';
+          const onMove = (e) => {
+            if (!this[dragFlag]) return;
+            setVal(toVal(knob.ownerSVGElement, e.clientY));
+          };
+          const onUp = () => { this[dragFlag] = false; this._showNumbers = false; this._springTrigger(which); };
+          knob.addEventListener('pointerdown', (e) => {
+            this._stopPulsing(knob);
+            this[dragFlag] = true; this._showNumbers = true; knob.setPointerCapture(e.pointerId);
+            cancelAnimationFrame(this[which + 'Raf']); onMove(e);
+          });
+          knob.addEventListener('pointermove', onMove);
+          knob.addEventListener('pointerup', onUp);
+          knob.addEventListener('pointercancel', onUp);
+          knob.addEventListener('keydown', (e) => {
+            const step = { ArrowDown: 0.5, ArrowUp: -0.5 }[e.key];
+            if (step === undefined) return;
+            e.preventDefault(); this._stopPulsing(knob); cancelAnimationFrame(this[which + 'Raf']);
+            this._showNumbers = true; setVal(this['_' + which] + step);
+          });
+          knob.addEventListener('keyup', () => { this._showNumbers = false; this._springTrigger(which); });
+        }
+        _springTrigger(which){
+          const raf = which + 'Raf';
+          const knob = this._el(which + 'Knob'), fill = this._el(which + 'Fill');
+          const track = knob.parentNode.querySelector('rect:not(.trig-fill)');
+          const y0 = Number(track.getAttribute('y')), h = Number(track.getAttribute('height'));
+          const step = () => {
+            const next = this['_' + which] * 0.72;
+            this['_' + which] = next < 0.01 ? 0 : next;
+            const fillH = this['_' + which] * h;
+            knob.setAttribute('cy', y0 + fillH);
+            fill.setAttribute('height', fillH);
+            this._updateValues();
+            if (this['_' + which] === 0) return;
+            this[raf] = requestAnimationFrame(step);
+          };
+          step();
+        }
+        _bindPointer(){
+          const knob = this._el('knob');
+          const CX = 98, CY = 150, R = 28;   // drag radius, slightly inside the 32px well
+          const toStick = (svg, clientX, clientY) => {
+            const pt = svg.createSVGPoint(); pt.x = clientX; pt.y = clientY;
+            const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+            let dx = p.x - CX, dy = p.y - CY;
+            const d = Math.hypot(dx, dy);
+            if (d > R){ dx = dx / d * R; dy = dy / d * R; }
+            return { sx: dx / R, sy: dy / R };
+          };
+          const onMove = (e) => {
+            if (!this._dragging) return;
+            const s = toStick(knob.ownerSVGElement, e.clientX, e.clientY);
+            this._sx = s.sx; this._sy = s.sy; this._updateValues();
+          };
+          const onUp = () => { this._dragging = false; this._showNumbers = false; this._springBack(); };
+          knob.addEventListener('pointerdown', (e) => {
+            this._stopPulsing(knob);
+            this._dragging = true; this._showNumbers = true; knob.setPointerCapture(e.pointerId);
+            cancelAnimationFrame(this._springRaf); onMove(e);
+          });
+          knob.addEventListener('pointermove', onMove);
+          knob.addEventListener('pointerup', onUp);
+          knob.addEventListener('pointercancel', onUp);
+        }
+        _bindKeyboard(){
+          const knob = this._el('knob');
+          const STEP = 0.5;
+          knob.addEventListener('keydown', (e) => {
+            const map = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+            if (!map[e.key]) return;
+            e.preventDefault(); this._stopPulsing(knob); cancelAnimationFrame(this._springRaf);
+            this._showNumbers = true;
+            this._sx = map[e.key][0] * STEP; this._sy = map[e.key][1] * STEP; this._updateValues();
+          });
+          knob.addEventListener('keyup', () => { this._showNumbers = false; this._springBack(); });
+        }
+        _springBack(){
+          const step = () => {
+            this._sx *= 0.72; this._sy *= 0.72;
+            if (Math.abs(this._sx) < 0.01 && Math.abs(this._sy) < 0.01){ this._sx = 0; this._sy = 0; this._updateValues(); return; }
+            this._updateValues(); this._springRaf = requestAnimationFrame(step);
+          };
+          step();
+        }
+        // stick (+ triggers, mecanum) position -> drive/spin/power values + table. Canvas reads these each frame.
+        _updateValues(){
+          const CX = 98, CY = 150, R = 28;
+          const knob = this._el('knob');
+          knob.setAttribute('cx', CX + this._sx * R);
+          knob.setAttribute('cy', CY + this._sy * R);
+          if (this._mode === 'mecanum'){
+            const drive = clamp(-this._sy, -1, 1), strafe = clamp(this._sx, -1, 1);
+            const turn = clamp(this._rt - this._lt, -1, 1);
+            this._drive = drive; this._strafe = strafe; this._turn = turn;
+            let fl = strafe + drive + turn, bl = -strafe + drive + turn;
+            let fr = -strafe + drive - turn, br = strafe + drive - turn;
+            const max = Math.max(1, Math.abs(fl), Math.abs(bl), Math.abs(fr), Math.abs(br));
+            this._powFL = fl / max; this._powBL = bl / max; this._powFR = fr / max; this._powBR = br / max;
+          } else {
+            const drive = clamp(-this._sy, -1, 1), spin = clamp(this._sx, -1, 1);
+            this._drive = drive; this._spin = spin;
+            this._leftPower = (drive + spin) * 0.5;
+            this._rightPower = (drive - spin) * 0.5;
+          }
+          this._renderTable();
+        }
+        // Table reads as the equation itself (drive, spin, leftPower) while idle, and substitutes the
+        // live numbers only while the student is actively dragging/holding the stick.
+        _renderTable(){
+          if (this._mode === 'mecanum'){ this._renderTableMecanum(); return; }
+          const num = this._showNumbers;
+          const drive = this._drive, spin = this._spin, left = this._leftPower, right = this._rightPower;
+          this._el('driveL').textContent = num ? drive.toFixed(2) : 'drive';
+          this._el('driveR').textContent = num ? drive.toFixed(2) : 'drive';
+          this._el('spinL').textContent = '+ (' + (num ? fmtSigned(spin) : 'spin') + ')';
+          this._el('spinR').textContent = '\u2212 (' + (num ? fmtSigned(spin) : 'spin') + ')';
+          this._el('leftVal').textContent = num ? left.toFixed(2) : 'leftPower';
+          this._el('rightVal').textContent = num ? right.toFixed(2) : 'rightPower';
+          this._el('eqtable').classList.toggle('sym', !num);
+        }
+        // Same idea as _renderTable but 4 rows (FL/BL/FR/BR), each with its own strafe/turn sign.
+        _renderTableMecanum(){
+          const num = this._showNumbers;
+          const drive = this._drive, strafe = this._strafe, turn = this._turn;
+          const rows = [
+            ['FL', +1, +1, this._powFL], ['BL', -1, +1, this._powBL],
+            ['FR', -1, -1, this._powFR], ['BR', +1, -1, this._powBR],
+          ];
+          for (const [id, sSign, tSign, pow] of rows){
+            this._el('drive' + id).textContent = num ? drive.toFixed(2) : 'drive';
+            this._el('strafe' + id).textContent = (sSign > 0 ? '+ (' : '\u2212 (') + (num ? fmtSigned(strafe) : 'strafe') + ')';
+            this._el('turn' + id).textContent = (tSign > 0 ? '+ (' : '\u2212 (') + (num ? fmtSigned(turn) : 'turn') + ')';
+            this._el('pow' + id).textContent = num ? pow.toFixed(2) : 'power';
+          }
+          this._el('eqtableMec').classList.toggle('sym', !num);
+        }
+        // ---- world + kinematics ----
+        _roadCenter(y){ return ROAD_AMP * Math.sin(y * ROAD_K); }
+        // Differential (tank) drive: forward speed = average wheel power, turn rate from the difference.
+        // Mecanum (holonomic): forward + strafe combine (rotated into world by theta), turn from LT/RT.
+        _step(dt){
+          if (this._mode === 'mecanum'){
+            const vf = this._drive * SPEED, vr = this._strafe * SPEED, w = this._turn * TURN;
+            this._theta += w * dt;
+            const s = Math.sin(this._theta), c = Math.cos(this._theta);
+            this._wx += (vf * s + vr * c) * dt;
+            this._wy += (-vf * c + vr * s) * dt;
+            const lim = LOT_HALF - LOT_MARGIN;             // curb is a hard wall on all 4 sides
+            this._wx = clamp(this._wx, -lim, lim);
+            this._wy = clamp(this._wy, -lim, lim);
+            this._treadFL += this._powFL * SPEED * dt;
+            this._treadBL += this._powBL * SPEED * dt;
+            this._treadFR += this._powFR * SPEED * dt;
+            this._treadBR += this._powBR * SPEED * dt;
+            return;
+          }
+          const v = this._drive * SPEED;              // forward px/s = (left+right)/2 * SPEED
+          const w = this._spin * TURN;                // spin>0 (stick right) -> turn right (theta grows)
+          this._theta += w * dt;
+          this._wx += v * Math.sin(this._theta) * dt;
+          this._wy -= v * Math.cos(this._theta) * dt; // up (screen -y) is forward at theta=0
+          const c = this._roadCenter(this._wy), lim = ROAD_HALF - 26;   // hedges are hard walls
+          this._wx = clamp(this._wx, c - lim, c + lim);
+          this._treadL += this._leftPower * SPEED * dt;   // tread scrolls exactly as far as the wheel surface travels
+          this._treadR += this._rightPower * SPEED * dt;
+        }
+        _frame(t){
+          this._raf = requestAnimationFrame(ts => this._frame(ts));
+          const dt = Math.min((t - this._last) / 1000, 0.05); this._last = t;
+          this._step(dt);
+          this._draw();
+        }
+        _draw(){
+          const ctx = this._ctx, W = this._vw, H = this._vh;
+          ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+          ctx.clearRect(0, 0, W, H);
+          // tank sits low so more road shows ahead; mecanum centers the view since it drives every direction
+          const cx = W / 2, cy = this._mode === 'mecanum' ? H * 0.5 : H * 0.58;
+          ctx.save();
+          ctx.translate(cx, cy); ctx.rotate(-this._theta); ctx.translate(-this._wx, -this._wy);
+          this._drawWorld(ctx);
+          ctx.restore();
+          ctx.save();
+          ctx.translate(cx, cy);
+          this._drawRobot(ctx);
+          ctx.restore();
+        }
+        _drawWorld(ctx){
+          if (this._mode === 'mecanum'){ this._drawParkingLot(ctx); return; }
+          const R = 430, step = 16;
+          const wx = this._wx, wy = this._wy;
+          const x0 = wx - R, y0 = wy - R, y1 = wy + R;
+          ctx.fillStyle = this._ground;
+          ctx.fillRect(x0, y0, R * 2, R * 2);
+          // asphalt strip following the curved centerline
+          ctx.beginPath();
+          ctx.moveTo(this._roadCenter(y0) - ROAD_HALF, y0);
+          for (let y = y0; y <= y1; y += step) ctx.lineTo(this._roadCenter(y) - ROAD_HALF, y);
+          for (let y = y1; y >= y0; y -= step) ctx.lineTo(this._roadCenter(y) + ROAD_HALF, y);
+          ctx.closePath();
+          ctx.fillStyle = '#20262e'; ctx.fill();
+          // faint road-edge lines
+          ctx.lineWidth = 3; ctx.strokeStyle = '#3a4655';
+          for (const s of [-1, 1]){
+            ctx.beginPath(); ctx.moveTo(this._roadCenter(y0) + s * ROAD_HALF, y0);
+            for (let y = y0; y <= y1; y += step) ctx.lineTo(this._roadCenter(y) + s * ROAD_HALF, y);
+            ctx.stroke();
+          }
+          // dashed yellow centerline (drawn in world coords, so it scrolls with the ground)
+          ctx.save();
+          ctx.setLineDash([20, 18]); ctx.lineWidth = 4; ctx.strokeStyle = '#f2c14e';
+          ctx.beginPath(); ctx.moveTo(this._roadCenter(y0), y0);
+          for (let y = y0; y <= y1; y += step) ctx.lineTo(this._roadCenter(y), y);
+          ctx.stroke();
+          ctx.restore();
+          this._drawHedges(ctx, y0, y1);
+        }
+        // Open square lot (border curb + painted stall lines + a few greenery islands) so there's
+        // room to strafe/spin freely instead of following a narrow corridor.
+        _drawParkingLot(ctx){
+          const half = LOT_HALF, R = 430;
+          ctx.fillStyle = this._ground;
+          ctx.fillRect(this._wx - R, this._wy - R, R * 2, R * 2);
+          ctx.fillStyle = '#2b2f36';
+          ctx.fillRect(-half, -half, half * 2, half * 2);
+          // painted stall lines along all 4 edges, leaving the middle open to drive/strafe/spin in
+          ctx.strokeStyle = '#c9d3de'; ctx.lineWidth = 3;
+          for (let x = -half + 30; x <= half - 30; x += STALL_SPACING){
+            ctx.beginPath(); ctx.moveTo(x, -half); ctx.lineTo(x, -half + STALL_LEN); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x, half); ctx.lineTo(x, half - STALL_LEN); ctx.stroke();
+          }
+          for (let y = -half + 30; y <= half - 30; y += STALL_SPACING){
+            ctx.beginPath(); ctx.moveTo(-half, y); ctx.lineTo(-half + STALL_LEN, y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(half, y); ctx.lineTo(half - STALL_LEN, y); ctx.stroke();
+          }
+          // yellow curb border
+          ctx.lineWidth = 6; ctx.strokeStyle = '#f2c14e';
+          ctx.strokeRect(-half + 3, -half + 3, half * 2 - 6, half * 2 - 6);
+          ctx.lineWidth = 4; ctx.strokeStyle = '#555b64';
+          ctx.strokeRect(-half, -half, half * 2, half * 2);
+          for (const [ix, iy, ir] of this._islands) this._drawIsland(ctx, ix, iy, ir);
+        }
+        // A small mulch-ringed bush island, purely decorative (no collision) — just scenery that
+        // makes the open lot read as a real parking lot instead of an empty gray rectangle.
+        _drawIsland(ctx, cx, cy, r){
+          ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.2832); ctx.fillStyle = '#3b2f22'; ctx.fill();
+          ctx.beginPath(); ctx.arc(cx, cy, r * 0.86, 0, 6.2832); ctx.fillStyle = '#223a1c'; ctx.fill();
+          ctx.beginPath(); ctx.arc(cx - r * 0.25, cy - r * 0.25, r * 0.5, 0, 6.2832); ctx.fillStyle = '#31502a'; ctx.fill();
+          ctx.beginPath(); ctx.arc(cx + r * 0.3, cy + r * 0.15, r * 0.35, 0, 6.2832); ctx.fillStyle = '#3a5a30'; ctx.fill();
+        }
+        // Hedge rows on both road edges — the wall the robot can't drive past. Bush size uses sin(y)
+        // (not random) so bushes stay put frame-to-frame instead of shimmering.
+        _drawHedges(ctx, y0, y1){
+          const spacing = 19;
+          for (const s of [-1, 1]){
+            for (let y = Math.floor(y0 / spacing) * spacing; y <= y1; y += spacing){
+              const x = this._roadCenter(y) + s * ROAD_HALF;
+              const r = 8 + (Math.sin(y * 0.7) + 1) * 2.4;
+              ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fillStyle = '#223a1c'; ctx.fill();
+              ctx.beginPath(); ctx.arc(x - r * 0.28, y - r * 0.28, r * 0.5, 0, 6.2832); ctx.fillStyle = '#31502a'; ctx.fill();
+            }
+          }
+        }
+        _drawRobot(ctx){
+          ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.30)'; roundRect(ctx, -29, -44, 60, 94, 10); ctx.fill(); ctx.restore();
+          if (this._mode === 'mecanum'){
+            this._drawWheel(ctx, -30, -28, 15, 32, +1, this._treadFL);
+            this._drawWheel(ctx, -30,  28, 15, 32, +1, this._treadBL);
+            this._drawWheel(ctx,  30, -28, 15, 32, -1, this._treadFR);
+            this._drawWheel(ctx,  30,  28, 15, 32, -1, this._treadBR);
+          } else {
+            this._drawWheel(ctx, -30, -28, 15, 32, +1, this._treadL);
+            this._drawWheel(ctx, -30,  28, 15, 32, +1, this._treadL);
+            this._drawWheel(ctx,  30, -28, 15, 32, -1, this._treadR);
+            this._drawWheel(ctx,  30,  28, 15, 32, -1, this._treadR);
+          }
+          roundRect(ctx, -26, -44, 52, 88, 9); ctx.fillStyle = '#1c2532'; ctx.fill();
+          ctx.lineWidth = 2; ctx.strokeStyle = '#324056'; ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0, -54); ctx.lineTo(-9, -42); ctx.lineTo(9, -42); ctx.closePath();
+          ctx.fillStyle = ACCENT; ctx.fill();
+          if (this._mode === 'mecanum'){
+            // Diagonal pairs share a roller orientation: FL+BR push along NE-SW, FR+BL along NW-SE.
+            this._drawWheelForce(ctx, -30, -28, this._powFL, true,  LEFTC);
+            this._drawWheelForce(ctx, -30,  28, this._powBL, false, LEFTC);
+            this._drawWheelForce(ctx,  30, -28, this._powFR, false, RIGHTC);
+            this._drawWheelForce(ctx,  30,  28, this._powBR, true,  RIGHTC);
+          } else {
+            this._drawArrow(ctx, -30, -28, this._leftPower, LEFTC);
+            this._drawArrow(ctx, -30,  28, this._leftPower, LEFTC);
+            this._drawArrow(ctx,  30, -28, this._rightPower, RIGHTC);
+            this._drawArrow(ctx,  30,  28, this._rightPower, RIGHTC);
+          }
+        }
+        // tilt +1 = left wheel (rollers \\), -1 = right wheel (mirrored //). tread grows with wheel
+        // travel, so the roller stripes scroll toward the rear when the wheel drives forward.
+        _drawWheel(ctx, x, y, w, h, tilt, tread){
+          ctx.save(); ctx.translate(x, y);
+          roundRect(ctx, -w / 2, -h / 2, w, h, 3); ctx.fillStyle = '#141a23'; ctx.fill();
+          ctx.strokeStyle = '#333d4a'; ctx.lineWidth = 1.4; ctx.stroke();
+          ctx.save(); roundRect(ctx, -w / 2, -h / 2, w, h, 3); ctx.clip();
+          ctx.strokeStyle = '#3a4a5f'; ctx.lineWidth = 3;
+          const spacing = 8, off = ((tread % spacing) + spacing) % spacing;
+          for (let i = -h; i <= h + w; i += spacing){
+            const yy = -h / 2 + i + off;
+            ctx.beginPath(); ctx.moveTo(-w / 2, yy); ctx.lineTo(w / 2, yy - tilt * w); ctx.stroke();
+          }
+          ctx.restore(); ctx.restore();
+        }
+        _drawArrow(ctx, x, y, power, color){
+          if (Math.abs(power) < ARROW_EPS) return;
+          const y2 = y - power * ARROW_MAX, dir = power > 0 ? -1 : 1;
+          const hl = 9, hw = 5;                   // arrowhead: tip sits at the very end of the vector
+          const yBase = y2 - dir * hl;            // line stops here so the triangle caps the tip
+          ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, yBase); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(x, y2); ctx.lineTo(x - hw, yBase); ctx.lineTo(x + hw, yBase);
+          ctx.closePath(); ctx.fill();
+        }
+        // Each mecanum wheel can only push the chassis along one fixed 45° line (the rollers let it
+        // slide freely the other way); neType picks which diagonal (NE-SW vs NW-SE). Draws the dashed
+        // x/y component arrows first, then the solid resultant force vector on top.
+        _drawWheelForce(ctx, x, y, power, neType, color){
+          if (Math.abs(power) < ARROW_EPS) return;
+          const len = power * ARROW_MAX, k = Math.SQRT1_2;
+          const dx = (neType ? 1 : -1) * len * k, dy = -len * k;
+          this._drawVecArrow(ctx, x, y, 0, dy, color, { lineWidth: 2, headLen: 6, headWidth: 3.5, alpha: .55, dash: [3, 3] });
+          this._drawVecArrow(ctx, x, y, dx, 0, color, { lineWidth: 2, headLen: 6, headWidth: 3.5, alpha: .55, dash: [3, 3] });
+          this._drawVecArrow(ctx, x, y, dx, dy, color, { lineWidth: 4, headLen: 9, headWidth: 5, alpha: 1 });
+        }
+        // Generic arrow from (x,y) to (x+dx,y+dy); used for both the diagonal wheel force and its
+        // dashed x/y component breakdown.
+        _drawVecArrow(ctx, x, y, dx, dy, color, o){
+          const len = Math.hypot(dx, dy);
+          if (len < 2) return;
+          const ux = dx / len, uy = dy / len;
+          const xBase = x + dx - ux * o.headLen, yBase = y + dy - uy * o.headLen;
+          ctx.save();
+          ctx.globalAlpha = o.alpha; ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = o.lineWidth;
+          if (o.dash) ctx.setLineDash(o.dash);
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(xBase, yBase); ctx.stroke();
+          const px = -uy * o.headWidth, py = ux * o.headWidth;
+          ctx.beginPath(); ctx.moveTo(x + dx, y + dy); ctx.lineTo(xBase + px, yBase + py); ctx.lineTo(xBase - px, yBase - py);
+          ctx.closePath(); ctx.fill();
+          ctx.restore();
+        }
+        _makeGroundPattern(){
+          const c = document.createElement('canvas'); c.width = c.height = 48;
+          const g = c.getContext('2d');
+          g.fillStyle = '#26331f'; g.fillRect(0, 0, 48, 48);
+          for (const [col, n] of [['#2f4026', 55], ['#1d2917', 38], ['#38492b', 22]]){
+            g.fillStyle = col;
+            for (let i = 0; i < n; i++){
+              g.beginPath(); g.arc(Math.random() * 48, Math.random() * 48, Math.random() * 1.6 + 0.5, 0, 6.2832); g.fill();
+            }
+          }
+          return this._ctx.createPattern(c, 'repeat');
+        }
+      }
+      customElements.define('drive-vector-widget', DriveVectorWidget);
+    })();
   </script>
 </body>
 </html>

@@ -93,6 +93,22 @@ backRight  =  strafe + drive - turn</code></pre>
 backward &mdash; a strafe. Squeeze the right trigger (<code>turn=1</code>): left side forward, right side
 backward &mdash; a spin. The formula combines all three at once.</p>
 
+<p>Drag the left stick to drive and strafe, and squeeze <strong>LT</strong>/<strong>RT</strong> to turn &mdash;
+watch all four wheels and the equation table respond together. This parking lot is wide open so you have
+room to strafe and spin without a corridor boxing you in.</p>
+
+<div class="blk blk-widget">
+  <div class="blk-head">Try it &mdash; Mecanum Drive Simulator</div>
+  <drive-vector-widget mode="mecanum"></drive-vector-widget>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Hint</div>
+  <p>Pushing the stick diagonally <em>and</em> squeezing a trigger at the same time asks for strafe, drive,
+  and turn all at once &mdash; the wheels can't always give you a clean mix of all three, so a pure spin while
+  strafing hard is genuinely difficult (the real robot has the same limit). That's normal, not a bug.</p>
+</div>
+
 <h2>One problem: powers over 1.0</h2>
 
 <p>Push up <em>and</em> right at the same time (<code>drive=0.7</code>, <code>strafe=0.7</code>): the front-left
