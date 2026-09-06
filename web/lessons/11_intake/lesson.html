@@ -142,6 +142,24 @@ state.&rdquo;</p>
 <p>The two speeds come from the named constants at the top of the file &mdash; full power (<code>1.0</code>) to pull in,
 a gentler <code>-0.5</code> to un-jam. Want a different feel later? Change those two lines; nothing else.</p>
 
+<p>Try it below &mdash; same idea you'll reuse for the dumper in a later lesson, except every transition here
+is <strong>instant</strong> instead of timed: no stopwatch, just <code>Off &harr; Forward</code> and
+<code>Off &harr; Reverse</code> the moment you press. Press <strong>A</strong> to spin the roller forward and
+watch game pieces get pulled in; press <strong>A</strong> again (or <strong>B</strong>) to stop; from a stop,
+press <strong>B</strong> to spin backward and clear a piece stuck at the mouth.</p>
+
+<div class="blk blk-widget">
+  <div class="blk-head">Try it &mdash; Intake State Machine</div>
+  <dumper-state-widget mode="intake"></dumper-state-widget>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Hint</div>
+  <p>Notice the diagram never jumps straight from <strong>Forward</strong> to <strong>Reverse</strong> &mdash; it always
+  passes through <strong>Off</strong> first, exactly like the real button logic: pressing either A or B while
+  running just stops it; only from a stop does a press pick a direction.</p>
+</div>
+
 <hr>
 
 <h2>Part D &mdash; Add the intake to the robot</h2>

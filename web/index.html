@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.4.4';
+    window.APP_VERSION = '2.5.5';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -5838,6 +5838,828 @@
         }
       }
       customElements.define('drive-vector-widget', DriveVectorWidget);
+    })();
+
+    // <dumper-state-widget mode="dumper"|"intake"> — self-contained lesson widget: a side-profile
+    // mechanism whose named states light up in sync as they change. "dumper" mode (default) is a
+    // timed 4-state bed with pseudo-real ball physics; "intake" mode is an instant 3-state roller.
+    // Both share this one class/template, same pattern as drive-vector-widget's tank/mecanum modes.
+    (function(){
+      const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+      const TAU = Math.PI * 2;
+      const G = 1500;                          // px/s^2 gravity for free-falling game pieces
+      const BED_LEN = 78;                      // px, hinge to far (back) end of the dump bed
+      const TILT_MAX = 22 * Math.PI / 180;     // fully "dumped" bed angle — shallow so pieces creep out slowly (HOLD tuning matters)
+      const BED_TRAVEL_MS = 1050;              // real time the bed takes to travel full tilt (fixed; ~2/3 the old raise rate)
+      const BED_RATE = TILT_MAX / (BED_TRAVEL_MS / 1000); // rad/s the bed physically raises/lowers
+      const BED_ROLL_G = 120;                  // gentle down-slope accel so pieces creep out (tune HOLD to clear them)
+      const SLIDE_THRESH = 8 * Math.PI / 180;  // kinetic: once moving, a piece keeps creeping while tilt stays above this
+      const STICK_THRESH = 16 * Math.PI / 180; // static friction (stiction): a resting piece won't break loose until tilt passes this
+      const RESTITUTION = 0.42, WALL_REST = 0.55, BALL_R = 8;
+      const BALL_COLORS = ['#38bdf8', '#f0883e', '#c084fc', '#50c070', '#f43f5e'];
+      // Each mode's states are always a straight line (arrows[i] joins states[i] and states[i+1]);
+      // "initial" is the resting state a fresh instance (and Load/reset) starts in.
+      const MODES = {
+        dumper: { states: ['STOWED', 'RAISING', 'DUMPING', 'LOWERING'],
+                  labels: ['Stowed', 'Raising', 'Dumping', 'Lowering'], arrowChar: '\u2192', initial: 'STOWED' },
+        intake: { states: ['FORWARD', 'OFF', 'REVERSE'],
+                  labels: ['Forward', 'Off', 'Reverse'], arrowChar: '\u21c4', initial: 'OFF' },
+      };
+      const GLOW = { STOWED: '#7c8699', RAISING: '#38bdf8', DUMPING: '#c084fc', LOWERING: '#f0883e',
+                     FORWARD: '#50c070', OFF: '#7c8699', REVERSE: '#f0883e' };
+      const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const escHtml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      // Mirrors the real Dumper.java / Intake.java source shown earlier in the lesson, so the code
+      // panel can highlight whichever block is executing right now — ties the widget to the lesson code.
+      const CODE = {
+        dumper: { file: 'Dumper.java',
+          commands: [ { key: 'dump', lines: [
+            'public void dump() {',
+            '    if (state == State.STOWED && servo != null) {',
+            '        servo.setPosition(DUMP_POSITION);',
+            '        timer.reset();',
+            '        state = State.RAISING;',
+            '    }', '}' ] } ],
+          cases: [
+            { state: 'RAISING', lines: [
+              'case RAISING:',
+              '    if (timer.milliseconds() > RAISE_TIME_MS) {',
+              '        timer.reset();',
+              '        state = State.DUMPING;',
+              '    }', '    break;' ] },
+            { state: 'DUMPING', lines: [
+              'case DUMPING:',
+              '    if (timer.milliseconds() > HOLD_TIME_MS) {',
+              '        servo.setPosition(CARRY_POSITION);',
+              '        timer.reset();',
+              '        state = State.LOWERING;',
+              '    }', '    break;' ] },
+            { state: 'LOWERING', lines: [
+              'case LOWERING:',
+              '    if (timer.milliseconds() > LOWER_TIME_MS) {',
+              '        state = State.STOWED;',
+              '    }', '    break;' ] },
+            { state: 'STOWED', lines: [ 'case STOWED:', '    break;' ] },
+          ] },
+        intake: { file: 'Intake.java',
+          commands: [
+            { key: 'forward', lines: [ 'public void forward() {', '    state = State.FORWARD;', '}' ] },
+            { key: 'reverse', lines: [ 'public void reverse() {', '    state = State.REVERSE;', '}' ] },
+            { key: 'off', lines: [ 'public void off() {', '    state = State.OFF;', '}' ] },
+          ],
+          cases: [
+            { state: 'FORWARD', lines: [ 'case FORWARD:', '    motor.setPower(INTAKE_FORWARD_POWER);', '    break;' ] },
+            { state: 'REVERSE', lines: [ 'case REVERSE:', '    motor.setPower(INTAKE_REVERSE_POWER);', '    break;' ] },
+            { state: 'OFF', lines: [ 'case OFF:', '    motor.setPower(0.0);', '    break;' ] },
+          ] },
+      };
+      function roundRect(ctx, x, y, w, h, r){
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);         ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      const TEMPLATE = `
+      <style>
+        :host{ --accent:#38bdf8; --turn:#c084fc; --warn:#f0883e; --dim:#3a4150; --ok:#50c070;
+               display:block; font-family:inherit; color:#e2e8f0; }
+        .stage{ position:relative; height:260px; border:1px solid var(--dim); border-radius:10px;
+               overflow:hidden; background:#0b0f16; }
+        canvas.game{ display:block; width:100%; height:100%; }
+        .diagram{ display:flex; align-items:center; justify-content:center; gap:2px; margin:14px 0 4px; flex-wrap:wrap; }
+        .state-node{ position:relative; font-size:.66rem; font-weight:800; letter-spacing:.04em; text-transform:uppercase;
+               padding:7px 13px 8px; border-radius:9px; background:linear-gradient(180deg,#1b2330,#12171f);
+               border:1px solid var(--dim); color:#8a97a8;
+               box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 1px 2px rgba(0,0,0,.4);
+               transition:color .25s, border-color .25s, box-shadow .25s, background .25s, transform .18s; }
+        .state-node::after{ content:''; position:absolute; left:50%; bottom:3px; transform:translateX(-50%);
+               width:0; height:2px; border-radius:2px; background:currentColor; opacity:0; transition:width .25s, opacity .25s; }
+        .state-node.active{ animation:nodePop .45s cubic-bezier(.34,1.56,.64,1);
+               background:radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--gc) 26%, #12171f), #12171f);
+               box-shadow:0 0 16px var(--gc), 0 0 4px var(--gc), inset 0 1px 0 rgba(255,255,255,.15); }
+        .state-node.active::after{ width:60%; opacity:.9; }
+        .state-arrow{ color:#3a4150; font-size:.95rem; padding:0 3px; transition:color .3s, text-shadow .3s, transform .3s; }
+        .state-arrow.pulse{ color:#e2e8f0; text-shadow:0 0 10px currentColor; transform:scale(1.25); }
+        @keyframes nodePop{ 0%{ transform:scale(1); } 40%{ transform:scale(1.32) translateY(-2px); } 100%{ transform:scale(1); } }
+        @keyframes scoreBump{ 0%{ transform:scale(1); } 30%{ transform:scale(1.55); } 100%{ transform:scale(1); } }
+        .score b{ display:inline-block; }
+        .hud{ display:flex; align-items:center; justify-content:center; gap:8px; margin:2px 0 6px; font-size:.68rem; color:#8291a3; flex-wrap:wrap; }
+        .coach{ text-align:center; font-size:.68rem; line-height:1.4; color:#8291a3; margin:0 auto 12px; max-width:470px; min-height:1.1em; }
+        .split{ display:flex; align-items:stretch; gap:14px; }
+        .panel-left{ flex:1 1 54%; min-width:0; }
+        .panel-right{ flex:1 1 46%; min-width:0; display:flex; flex-direction:column; background:#0b0f16;
+               border:1px solid var(--dim); border-radius:10px; padding:10px 12px 12px; }
+        .code-head{ display:flex; align-items:baseline; justify-content:space-between; font-size:.66rem; font-weight:800;
+               letter-spacing:.03em; text-transform:uppercase; color:#8a97a8; margin-bottom:6px; }
+        .code-head .code-tag{ color:#556072; font-weight:700; text-transform:none; letter-spacing:0; }
+        .code-box{ margin:0 0 8px; font-family:ui-monospace,monospace; font-size:.68rem; line-height:1.5; color:#7c8699; overflow-x:auto; }
+        .code-box .ln{ display:block; padding:1px 8px; border-left:3px solid transparent; border-radius:0 3px 3px 0; white-space:pre; }
+        .code-box .case-block.active .ln{ color:#e2e8f0; border-left-color:var(--gc,#38bdf8);
+               background:color-mix(in srgb, var(--gc,#38bdf8) 16%, transparent); }
+        .code-box .case-block.active .ln:first-child{ font-weight:800; }
+        .code-box .cmd-block.flash .ln{ animation:codeFlash .8s ease; }
+        @keyframes codeFlash{ 0%{ background:rgba(56,189,248,.4); border-left-color:#38bdf8; } 100%{ background:transparent; } }
+        @media (max-width:680px){ .split{ flex-direction:column; } }
+        :host([mode="intake"]) .panel-right{ align-self:flex-start; }
+        .coach.ok{ color:#8fdca6; } .coach.warn{ color:#f0b483; }
+        .coach b{ color:#e2e8f0; }
+        .timerbar{ width:150px; height:8px; border-radius:5px; background:#0c1119; border:1px solid var(--dim); overflow:hidden;
+               box-shadow:inset 0 1px 2px rgba(0,0,0,.6); }
+        .timerbar > i{ display:block; height:100%; width:0%; border-radius:4px; background:var(--accent); transition:background-color .25s;
+               background-image:linear-gradient(180deg, rgba(255,255,255,.4), rgba(255,255,255,0)); }
+        .pill{ font-weight:700; padding:1px 7px; border-radius:5px; background:#161c26; border:1px solid var(--dim); }
+        .controls{ display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+        button.act-btn{ font:inherit; font-weight:800; font-size:.74rem; letter-spacing:.02em; color:#eef4fb;
+               background:linear-gradient(180deg,#28323f,#171e28); border:1px solid #3a4453; border-radius:9px; padding:9px 17px; cursor:pointer;
+               box-shadow:0 3px 0 #0a0e14, 0 4px 6px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.1);
+               transition:transform .08s, box-shadow .15s, border-color .2s, filter .15s; }
+        button.act-btn:hover{ border-color:#66748a; filter:brightness(1.12); }
+        button.act-btn:active{ transform:translateY(3px); box-shadow:0 0 0 #0a0e14, inset 0 1px 3px rgba(0,0,0,.5); }
+        button.act-btn.dump{ background:linear-gradient(180deg,#2f5a7a,#1b3448); border-color:var(--accent); text-shadow:0 0 6px rgba(56,189,248,.6); }
+        button.act-btn.dump:hover{ box-shadow:0 3px 0 #0a0e14, 0 0 16px rgba(56,189,248,.6), inset 0 1px 0 rgba(255,255,255,.15); }
+        button.act-btn.go{ background:linear-gradient(180deg,#2b5a3c,#173726); border-color:var(--ok); }
+        button.act-btn.go:hover{ box-shadow:0 3px 0 #0a0e14, 0 0 16px rgba(80,192,112,.55), inset 0 1px 0 rgba(255,255,255,.15); }
+        button.act-btn.rev{ background:linear-gradient(180deg,#6b4526,#3a2615); border-color:var(--warn); }
+        button.act-btn.rev:hover{ box-shadow:0 3px 0 #0a0e14, 0 0 16px rgba(240,136,62,.55), inset 0 1px 0 rgba(255,255,255,.15); }
+        button.act-btn:disabled{ opacity:.4; cursor:not-allowed; box-shadow:0 3px 0 #0a0e14; filter:none; }
+        .ignored{ font-size:.68rem; font-weight:700; color:var(--warn); opacity:0; transition:opacity .25s; }
+        .ignored.show{ opacity:1; }
+        .score{ font-size:.7rem; color:#cbd5e1; }
+        .score b.ok{ color:var(--ok); } .score b.miss{ color:var(--warn); }
+        .sliders{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px 14px; max-width:520px; margin:0 auto; }
+        .slider-row{ display:flex; flex-direction:column; gap:4px; font-size:.62rem; color:#8291a3; }
+        .slider-row.raise{ --kc:#38bdf8; } .slider-row.hold{ --kc:#c084fc; } .slider-row.lower{ --kc:#f0883e; }
+        .slider-row .lbl{ display:flex; justify-content:space-between; text-transform:uppercase; letter-spacing:.03em; }
+        .slider-row .lbl span.ms{ color:var(--kc,#e2e8f0); font-weight:800; font-family:ui-monospace,monospace; }
+        .slider-row input[type=range]{ -webkit-appearance:none; appearance:none; width:100%; height:10px; margin:5px 0; cursor:pointer;
+               border-radius:8px; border:1px solid #2a3242; outline:none; box-shadow:inset 0 1px 3px rgba(0,0,0,.6);
+               background:linear-gradient(90deg, var(--kc) 0%, var(--kc) var(--pct,40%), #0d131c var(--pct,40%), #0d131c 100%); }
+        .slider-row input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:22px; height:22px;
+               border-radius:50%; margin-top:-7px; border:1px solid #0a0e14; cursor:grab;
+               background:radial-gradient(circle at 34% 27%, #ffffff 0%, #f2f8ff 10%, var(--kc) 46%, #0b0f16 155%);
+               box-shadow:0 3px 5px rgba(0,0,0,.55), 0 0 9px var(--kc), inset 0 1px 2px rgba(255,255,255,.7);
+               transition:transform .1s, box-shadow .2s; }
+        .slider-row input[type=range]:hover::-webkit-slider-thumb{ box-shadow:0 3px 6px rgba(0,0,0,.6), 0 0 14px var(--kc), inset 0 1px 2px rgba(255,255,255,.8); }
+        .slider-row input[type=range]:active::-webkit-slider-thumb{ transform:scale(1.14); cursor:grabbing; }
+        .slider-row input[type=range]::-moz-range-track{ height:10px; border-radius:8px; background:#0d131c; border:1px solid #2a3242; }
+        .slider-row input[type=range]::-moz-range-progress{ height:10px; border-radius:8px; background:var(--kc); }
+        .slider-row input[type=range]::-moz-range-thumb{ width:20px; height:20px; border-radius:50%; border:1px solid #0a0e14; cursor:grab;
+               background:radial-gradient(circle at 34% 27%, #ffffff 0%, var(--kc) 46%, #0b0f16 155%);
+               box-shadow:0 3px 5px rgba(0,0,0,.55), 0 0 9px var(--kc), inset 0 1px 2px rgba(255,255,255,.7); }
+        .intake-only{ display:none; }
+        :host([mode="intake"]) .dumper-only{ display:none; }
+        :host([mode="intake"]) .intake-only{ display:inline-block; }
+        :host([mode="intake"]) .hud{ display:none; }
+        :host([mode="intake"]) .sliders{ display:none; }
+      </style>
+      <div class="split">
+        <div class="panel-left">
+          <div class="stage"><canvas class="game" id="cv"></canvas></div>
+          <div class="diagram" id="diagram"></div>
+          <div class="hud">
+            <span>state</span>
+            <div class="timerbar"><i id="timerFill"></i></div>
+            <span class="pill" id="busyPill">isBusy: false</span>
+          </div>
+          <div class="coach dumper-only" id="coach">Set the three times, press <b>dump()</b>, and watch the stopwatch.</div>
+          <div class="controls">
+            <button class="act-btn dumper-only" id="loadBtn">&#8635; Load Balls</button>
+            <button class="act-btn dump dumper-only" id="dumpBtn">&#9889; Press Y &mdash; dump()</button>
+            <span class="ignored dumper-only" id="ignoredMsg">&#128683; ignored &mdash; state != STOWED</span>
+            <button class="act-btn intake-only go" id="aBtn">&#127344; A &mdash; forward / stop</button>
+            <button class="act-btn intake-only rev" id="bBtn">&#127345; B &mdash; reverse / stop</button>
+            <span class="score" id="scoreLbl"></span>
+          </div>
+          <div class="sliders">
+            <label class="slider-row raise"><span class="lbl">RAISE_TIME_MS <span class="ms" id="raiseMsLbl">150</span></span>
+              <input type="range" id="raiseSlider" min="150" max="1800" step="50" value="150"></label>
+            <label class="slider-row hold"><span class="lbl">HOLD_TIME_MS <span class="ms" id="holdMsLbl">150</span></span>
+              <input type="range" id="holdSlider" min="150" max="3000" step="50" value="150"></label>
+            <label class="slider-row lower"><span class="lbl">LOWER_TIME_MS <span class="ms" id="lowerMsLbl">150</span></span>
+              <input type="range" id="lowerSlider" min="150" max="1800" step="50" value="150"></label>
+          </div>
+        </div>
+        <div class="panel-right">
+          <div class="code-head"><span id="codeFile">Dumper.java</span><span class="code-tag">running now &#9654;</span></div>
+          <pre class="code-box" id="codeCommands"><code></code></pre>
+          <pre class="code-box code-switch" id="codeSwitch"><code></code></pre>
+        </div>
+      </div>`;
+
+      class DumperStateWidget extends HTMLElement {
+        constructor(){
+          super();
+          const root = this.attachShadow({ mode: 'open' });
+          root.innerHTML = TEMPLATE;
+          this._el = id => root.getElementById(id);
+          this._mode = (this.getAttribute('mode') || 'dumper').toLowerCase();
+          this._graph = MODES[this._mode] || MODES.dumper;
+          this._buildDiagram();
+          this._cv = this._el('cv'); this._ctx = this._cv.getContext('2d');
+          this._dpr = 1; this._vw = 600; this._vh = 260;
+          this._state = this._graph.initial; this._elapsed = 0;
+          this._raiseMs = 150; this._holdMs = 150; this._lowerMs = 150;   // start at the minimum — default settings won't clear the bed
+          this._theta = 0;
+          this._balls = []; this._particles = []; this._respawnQueue = []; this._clock = 0;
+          this._ballColorIdx = 0; this._rollerAngle = 0; this._rollerSpin = 0;
+          this._scored = 0; this._missed = 0; this._collected = 0; this._cleared = 0;
+          this._cycleRunning = false; this._cycleStart = 0; this._cycleTime = 0; this._lastCleared = -1;
+          this._clearMs = null; this._lastOutcome = null;
+          this._raf = null; this._last = 0; this._ignoredTimeout = null;
+          this._speed = 0.5; this._speedButtons = [];   // sim speed multiplier -- scales physics + state timing + stopwatch together
+          this._onCvClick = e => this._handleCanvasClick(e);
+          this._onCvMove = e => this._handleCanvasMove(e);
+          this._bindControls();
+          this._renderCode();
+          if (this._mode === 'intake') this._spawnInitialBalls(); else this._loadBalls();
+          this._updateNodes();
+          this._updateScore();
+        }
+        // Renders the update()/command code shown in the lesson right above this widget, split into
+        // per-case <span> blocks so _updateNodes() can light up whichever one matches the live state.
+        _renderCode(){
+          const spec = CODE[this._mode] || CODE.dumper;
+          this._el('codeFile').textContent = spec.file;
+          const wrap = (cls, attr, key, lines) =>
+            '<span class="' + cls + '" data-' + attr + '="' + key + '">' +
+            lines.map(l => '<span class="ln">' + escHtml(l) + '</span>').join('') + '</span>';
+          this._el('codeCommands').querySelector('code').innerHTML =
+            spec.commands.map(c => wrap('cmd-block', 'cmd', c.key, c.lines)).join('');
+          this._el('codeSwitch').querySelector('code').innerHTML =
+            '<span class="ln">switch (state) {</span>' +
+            spec.cases.map(c => wrap('case-block', 'state', c.state, c.lines)).join('') +
+            '<span class="ln">}</span>';
+        }
+        // Briefly flashes the command method that just ran (dump()/forward()/reverse()/off()) so the
+        // code panel visibly ties a button press to the exact line of source that handled it.
+        _flashCode(key){
+          const el = this.shadowRoot.querySelector('.cmd-block[data-cmd="' + key + '"]');
+          if (!el) return;
+          el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+        }
+        // Builds the node/arrow row for this mode's state graph — a straight line, arrows joining
+        // each adjacent pair (dumper: one-way cycle; intake: symmetric, since it only moves through OFF).
+        _buildDiagram(){
+          const { states, labels, arrowChar } = this._graph;
+          let html = '';
+          states.forEach((s, i) => {
+            html += '<span class="state-node" data-state="' + s + '" id="node' + s + '">' + labels[i] + '</span>';
+            if (i < states.length - 1) html += '<span class="state-arrow" id="arrow' + i + '">' + arrowChar + '</span>';
+          });
+          this._el('diagram').innerHTML = html;
+        }
+        connectedCallback(){
+          this._ro = new ResizeObserver(() => this._resize());
+          this._ro.observe(this._cv);
+          this._resize();
+          this._last = performance.now();
+          this._raf = requestAnimationFrame(t => this._frame(t));
+          this._cv.addEventListener('click', this._onCvClick);
+          this._cv.addEventListener('mousemove', this._onCvMove);
+        }
+        disconnectedCallback(){
+          cancelAnimationFrame(this._raf);
+          this._ro && this._ro.disconnect();
+          clearTimeout(this._ignoredTimeout);
+          this._cv.removeEventListener('click', this._onCvClick);
+          this._cv.removeEventListener('mousemove', this._onCvMove);
+        }
+        // Hit-tests the speed pills drawn by _drawSpeedControl (rects refreshed every frame).
+        _handleCanvasClick(e){
+          const rect = this._cv.getBoundingClientRect();
+          const x = e.clientX - rect.left, y = e.clientY - rect.top;
+          const hit = this._speedButtons.find(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+          if (hit) this._speed = hit.val;
+        }
+        _handleCanvasMove(e){
+          const rect = this._cv.getBoundingClientRect();
+          const x = e.clientX - rect.left, y = e.clientY - rect.top;
+          const hit = this._speedButtons.some(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+          this._cv.style.cursor = hit ? 'pointer' : 'default';
+        }
+        _resize(){
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          const w = this._cv.clientWidth || 600, h = this._cv.clientHeight || 260;
+          this._dpr = dpr; this._vw = w; this._vh = h;
+          this._cv.width = Math.round(w * dpr); this._cv.height = Math.round(h * dpr);
+        }
+        _bindControls(){
+          this._el('dumpBtn').addEventListener('click', () => this._dump());
+          this._el('loadBtn').addEventListener('click', () => this._loadBalls());
+          this._el('aBtn').addEventListener('click', () => this._pressA());
+          this._el('bBtn').addEventListener('click', () => this._pressB());
+          const bind = (id, prop, lblId) => {
+            const input = this._el(id);
+            const paint = () => {
+              const pct = (input.value - input.min) / (input.max - input.min) * 100;
+              input.style.setProperty('--pct', pct.toFixed(1) + '%');
+            };
+            input.addEventListener('input', () => {
+              this[prop] = Number(input.value);
+              this._el(lblId).textContent = input.value;
+              paint();
+            });
+            paint();
+          };
+          bind('raiseSlider', '_raiseMs', 'raiseMsLbl');
+          bind('holdSlider', '_holdMs', 'holdMsLbl');
+          bind('lowerSlider', '_lowerMs', 'lowerMsLbl');
+        }
+        // Mirrors the real Dumper.dump(): only starts a cycle from STOWED; otherwise it's ignored.
+        _dump(){
+          if (this._state !== 'STOWED'){ this._flashIgnored(); return; }
+          this._cycleRunning = true; this._cycleStart = this._clock; this._clearMs = null;   // start the stopwatch for this dump
+          this._flashCode('dump');
+          this._setState('RAISING');
+        }
+        // Mirrors the real gamepad logic: A starts FORWARD from OFF, or stops a running intake.
+        _pressA(){
+          const next = this._state !== 'OFF' ? 'OFF' : 'FORWARD';
+          this._setState(next);
+          this._flashCode(next === 'OFF' ? 'off' : 'forward');
+        }
+        // Same rule as A, but starts REVERSE instead — both only ever pass through OFF.
+        _pressB(){
+          const next = this._state !== 'OFF' ? 'OFF' : 'REVERSE';
+          this._setState(next);
+          this._flashCode(next === 'OFF' ? 'off' : 'reverse');
+        }
+        _flashIgnored(){
+          const el = this._el('ignoredMsg');
+          el.classList.add('show');
+          clearTimeout(this._ignoredTimeout);
+          this._ignoredTimeout = setTimeout(() => el.classList.remove('show'), 900);
+        }
+        // Only allowed while STOWED (button is disabled otherwise) — spreads fresh balls along the bed.
+        // Fresh pieces rain in from above and drop into the (flat, stowed) bed with a springy bounce.
+        _loadBalls(){
+          if (this._state !== 'STOWED') return;
+          const g = this._geom();
+          const n = 4;
+          this._balls = [];
+          for (let i = 0; i < n; i++){
+            const s = 16 + i * (BED_LEN - 28) / (n - 1);
+            this._balls.push({ state: 'dropping', s, sv: 0, delay: i * 0.14,
+                                moving: false, stickT: 0, stick: 0.14 + Math.random() * 0.34,
+                                x: g.hingeX - s, y: -50 - i * 20 - Math.random() * 30, vy: 0,
+                                color: BALL_COLORS[i % BALL_COLORS.length] });
+          }
+        }
+        // Pulses whichever arrow connects the previous and next state, in either direction — works
+        // for dumper's one-way cycle (wrap LOWERING->STOWED has no arrow, so it's silently skipped)
+        // and intake's symmetric FORWARD<->OFF<->REVERSE toggling.
+        _setState(next){
+          const { states } = this._graph;
+          const prevIdx = states.indexOf(this._state), nextIdx = states.indexOf(next);
+          this._state = next; this._elapsed = 0;
+          if (next === 'STOWED' && this._cycleRunning) this._finishCycle();
+          this._updateNodes();
+          const lo = Math.min(prevIdx, nextIdx), hi = Math.max(prevIdx, nextIdx);
+          if (hi - lo === 1) this._pulseArrow('arrow' + lo);
+        }
+        _pulseArrow(id){
+          const el = this._el(id);
+          el.classList.add('pulse');
+          setTimeout(() => el.classList.remove('pulse'), 500);
+        }
+        _updateNodes(){
+          for (const s of this._graph.states){
+            const node = this._el('node' + s);
+            const active = s === this._state;
+            node.classList.toggle('active', active);
+            node.style.background = active ? GLOW[s] : '';
+            node.style.borderColor = active ? GLOW[s] : '';
+            node.style.color = active ? '#0b0f16' : '';
+            node.style.setProperty('--gc', GLOW[s]);
+          }
+          this._el('busyPill').textContent = 'isBusy: ' + (this._state !== 'STOWED');
+          this._el('loadBtn').disabled = this._state !== 'STOWED';
+          this._updateCodeHighlight();
+        }
+        // Lights up the case-block matching the live state (persistent) — the code-side twin of _updateNodes.
+        _updateCodeHighlight(){
+          this.shadowRoot.querySelectorAll('.case-block').forEach(el => {
+            const active = el.dataset.state === this._state;
+            el.classList.toggle('active', active);
+            el.style.setProperty('--gc', GLOW[el.dataset.state] || '#38bdf8');
+          });
+        }
+        _updateScore(bump){
+          const lbl = this._el('scoreLbl');
+          lbl.innerHTML = this._mode === 'intake'
+            ? 'Collected <b class="ok">' + this._collected + '</b> &middot; Cleared <b class="miss">' + this._cleared + '</b>'
+            : 'Scored <b class="ok">' + this._scored + '</b> &middot; Missed <b class="miss">' + this._missed + '</b>';
+          if (bump){
+            const b = lbl.querySelector('b.' + bump);
+            if (b) b.style.animation = 'scoreBump .5s ease';
+          }
+        }
+        // Stops the stopwatch when the bed returns home; reports the run time + how many pieces cleared.
+        // Safety factor is based on this._clearMs — the ACTUAL elapsed time until the last piece physically
+        // left the bed (a real physics event) — NOT the total cycle time, which is just however long the
+        // student's sliders happen to add up to. Multiplying the raw slider total by 1.5x broke down the
+        // moment a student maxed every slider (it recommended an impossibly larger number); timing the real
+        // clear event instead always yields a sane, achievable RAISE+HOLD target.
+        _finishCycle(){
+          this._cycleRunning = false;
+          this._cycleTime = (this._clock - this._cycleStart) / 1000;
+          const total = this._balls.length;
+          const dumped = this._balls.filter(b => b.state !== 'bed' && b.state !== 'dropping').length;
+          this._lastCleared = dumped;
+          const coach = this._el('coach');
+          if (total > 0 && dumped >= total && this._clearMs != null){
+            const clearS = this._clearMs / 1000;
+            const safe = (clearS * 1.5).toFixed(2);
+            this._lastOutcome = 'ok';
+            coach.className = 'coach dumper-only ok';
+            coach.innerHTML = 'Pieces actually cleared the bed in <b>' + clearS.toFixed(2) + 's</b> (cycle took ' + this._cycleTime.toFixed(2) + 's total). Add a safety factor \u2014 set RAISE+HOLD near <b>' + safe + 's</b> combined so it still works when parts stick.';
+          } else {
+            this._lastOutcome = 'warn';
+            coach.className = 'coach dumper-only warn';
+            coach.innerHTML = 'Only <b>' + dumped + '/' + total + '</b> cleared in <b>' + this._cycleTime.toFixed(2) + 's</b> \u2014 too quick. Give RAISE/HOLD more time until pieces clear cleanly, then time THAT and add ~1.5&times; for safety.';
+          }
+        }
+        // The bed travels at a FIXED physical speed toward its target angle (like a real servo). The
+        // sliders only set how LONG the code waits in each state — the raise/lower speed never changes.
+        // That's the tuning game: hold long enough for pieces to clear, or LOWERING drops them back in.
+        _advanceState(dt){
+          if (this._mode !== 'dumper') return;
+          const target = (this._state === 'RAISING' || this._state === 'DUMPING') ? TILT_MAX : 0;
+          if (this._theta < target) this._theta = Math.min(target, this._theta + BED_RATE * dt);
+          else if (this._theta > target) this._theta = Math.max(target, this._theta - BED_RATE * dt);
+          const fill = this._el('timerFill');
+          if (this._state === 'STOWED'){ fill.style.width = '0%'; fill.style.background = GLOW.STOWED; fill.style.boxShadow = 'none'; return; }
+          this._elapsed += dt * 1000;
+          const dur = this._state === 'RAISING' ? this._raiseMs : this._state === 'DUMPING' ? this._holdMs : this._lowerMs;
+          const t = clamp(this._elapsed / dur, 0, 1);
+          fill.style.width = (t * 100).toFixed(0) + '%';
+          fill.style.background = GLOW[this._state];
+          fill.style.boxShadow = '0 0 8px ' + GLOW[this._state];
+          if (this._elapsed >= dur){
+            const next = this._state === 'RAISING' ? 'DUMPING' : this._state === 'DUMPING' ? 'LOWERING' : 'STOWED';
+            this._setState(next);
+          }
+        }
+        _geom(){
+          const W = this._vw, H = this._vh;
+          const groundY = H * 0.82, wheelR = 13, chassisW = 112, chassisH = 38;
+          const chassisX = W * 0.10;
+          const chassisBottom = groundY - wheelR * 1.3;
+          const chassisTop = chassisBottom - chassisH;
+          const hingeX = chassisX + chassisW, hingeY = chassisTop + 6;
+          const binCX = hingeX + 38, binR = 34;
+          const rollerR = 15, rollerX = chassisX + chassisW + 10, rollerY = chassisBottom - rollerR * 0.5;
+          return { W, H, groundY, wheelR, chassisX, chassisTop, chassisBottom, chassisW, chassisH,
+                   hingeX, hingeY, binCX, binR, rollerR, rollerX, rollerY };
+        }
+        // Pieces slide toward the hinge (down-slope) once tilt passes friction threshold, then pop
+        // free at the hinge and fall/bounce like real projectiles until they settle in the goal pad
+        // or on the floor.
+        _stepPhysics(dt){
+          const g = this._geom();
+          const restY = g.hingeY - BALL_R;                 // flat-bed resting height during load
+          for (const b of this._balls){
+            if (b.state === 'dropping'){
+              if (b.delay > 0){ b.delay -= dt; continue; }
+              b.vy += G * dt; b.y += b.vy * dt;
+              if (b.y >= restY){
+                b.y = restY;
+                if (b.vy > 130){ b.vy = -b.vy * 0.34; }      // one springy bounce as it lands in the bucket
+                else { b.state = 'bed'; b.sv = 0; b.vy = 0; this._spawnDust(b.x, restY + BALL_R); }
+              }
+            } else if (b.state === 'bed'){
+              // Stiction: a resting piece clings until tilt passes STICK_THRESH for a short sticky
+              // moment (b.stick), then breaks loose. Once moving it creeps until tilt drops to SLIDE_THRESH.
+              if (!b.moving){
+                if (this._theta > STICK_THRESH){ b.stickT += dt; if (b.stickT >= b.stick) b.moving = true; }
+                else b.stickT = 0;
+              }
+              if (this._theta <= SLIDE_THRESH) b.moving = false;
+              if (b.moving){
+                b.sv -= BED_ROLL_G * Math.sin(this._theta) * dt;   // creep down-slope toward the hinge
+                b.sv *= (1 - 0.8 * dt);                            // rolling friction
+              } else if (b.sv !== 0){ b.sv *= 0.85; if (Math.abs(b.sv) < 2) b.sv = 0; }
+              b.s += b.sv * dt;
+              if (b.s <= 0){
+                const speed = Math.max(Math.abs(b.sv), 60);
+                b.x = g.hingeX; b.y = g.hingeY;
+                b.vx = Math.cos(this._theta) * speed; b.vy = Math.sin(this._theta) * speed;
+                b.state = 'free';
+                // Real physics event: this piece just broke free of the bed. Track the LATEST such
+                // moment this cycle — that's the true "how long did clearing actually take", independent
+                // of whatever the RAISE/HOLD sliders are set to.
+                if (this._cycleStart != null) this._clearMs = Math.max(this._clearMs || 0, this._clock - this._cycleStart);
+              } else if (b.s > BED_LEN){ b.s = BED_LEN; b.sv = 0; }
+            } else if (b.state === 'free'){
+              b.vy += G * dt;
+              b.x += b.vx * dt; b.y += b.vy * dt;
+              if (b.x < BALL_R){ b.x = BALL_R; b.vx = -b.vx * WALL_REST; }
+              if (b.x > g.W - BALL_R){ b.x = g.W - BALL_R; b.vx = -b.vx * WALL_REST; }
+              if (b.y + BALL_R >= g.groundY){
+                b.y = g.groundY - BALL_R;
+                if (Math.abs(b.vy) > 40){ b.vy = -b.vy * RESTITUTION; b.vx *= 0.7; }
+                else {
+                  b.vy = 0; b.vx *= 0.55;
+                  if (Math.abs(b.vx) < 6){
+                    b.vx = 0;
+                    if (Math.abs(b.x - g.binCX) <= g.binR - BALL_R * 0.4){
+                      b.state = 'scored'; this._scored++; this._spawnSparkles(b.x, b.y, b.color); this._updateScore('ok');
+                    } else { b.state = 'missed'; this._missed++; this._updateScore('miss'); }
+                  }
+                }
+              }
+            }
+          }
+        }
+        _spawnSparkles(x, y, color){
+          for (let i = 0; i < 10; i++){
+            const a = Math.random() * TAU, sp = 40 + Math.random() * 90;
+            this._particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40, life: 1, color });
+          }
+        }
+        // Small gray puff kicked up when a freshly-dropped piece lands — sells the "drop in" moment.
+        _spawnDust(x, y){
+          for (let i = 0; i < 6; i++){
+            const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.7, sp = 28 + Math.random() * 52;
+            this._particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.65, color: '#aab6c6' });
+          }
+        }
+        // ---- intake mode: pieces sit on the field until pulled in (FORWARD) or spit back out (REVERSE) ----
+        _spawnInitialBalls(){
+          const g = this._geom();
+          this._balls = [];
+          let i = 0;
+          for (const off of [90, 170, 250]){
+            this._balls.push({ x: g.rollerX + off, y: -30 - Math.random() * 50, vx: 0, vy: 0,
+                                state: 'falling', delay: i * 0.14,
+                                color: BALL_COLORS[this._ballColorIdx++ % BALL_COLORS.length] });
+            i++;
+          }
+        }
+        _spawnFieldBall(g){
+          const x = g.rollerX + 170 + Math.random() * 70;
+          this._balls.push({ x, y: -30 - Math.random() * 40, vx: 0, vy: 0, state: 'falling', delay: 0,
+                              color: BALL_COLORS[this._ballColorIdx++ % BALL_COLORS.length] });
+        }
+        _stepIntake(dt){
+          const g = this._geom();
+          while (this._respawnQueue.length && this._clock >= this._respawnQueue[0]){
+            this._respawnQueue.shift(); this._spawnFieldBall(g);
+          }
+          const targetSpin = this._state === 'FORWARD' ? 9 : this._state === 'REVERSE' ? -9 : 0;
+          this._rollerSpin += (targetSpin - this._rollerSpin) * Math.min(1, dt * 6);
+          this._rollerAngle += this._rollerSpin * dt;
+          const gy = g.groundY - BALL_R;
+          for (const b of this._balls){
+            if (b.state === 'falling'){
+              if (b.delay > 0){ b.delay -= dt; continue; }
+              b.vy += G * dt; b.y += b.vy * dt;
+              if (b.y >= gy){ b.y = gy; if (b.vy > 130){ b.vy = -b.vy * 0.32; } else { b.state = 'field'; b.vy = 0; this._spawnDust(b.x, gy + BALL_R); } }
+            } else if (b.state === 'field'){
+              const dx = b.x - g.rollerX;
+              if (this._state === 'FORWARD' && dx > 0 && dx < 140){
+                b.vx = -(70 + (140 - dx) * 1.1);
+              } else if (this._state === 'REVERSE' && dx < 40){
+                b.vx = 240; b.state = 'ejecting';
+              } else {
+                b.vx *= Math.max(0, 1 - 6 * dt); if (Math.abs(b.vx) < 2) b.vx = 0;
+              }
+              b.x += b.vx * dt;
+              if (b.state === 'field' && dx <= 4){
+                this._collected++; this._spawnSparkles(g.rollerX, g.rollerY, b.color); this._updateScore('ok');
+                b.dead = true; this._respawnQueue.push(this._clock + 550 + Math.random() * 300);
+              }
+            } else if (b.state === 'ejecting'){
+              b.x += b.vx * dt; b.vx *= (1 - 2.2 * dt);
+              if (b.x > g.W + 30 || Math.abs(b.vx) < 10){
+                this._cleared++; this._updateScore('miss');
+                b.dead = true; this._respawnQueue.push(this._clock + 550 + Math.random() * 300);
+              }
+            }
+          }
+          this._balls = this._balls.filter(b => !b.dead);
+        }
+        _stepParticles(dt){
+          for (let i = this._particles.length - 1; i >= 0; i--){
+            const p = this._particles[i];
+            p.vy += G * 0.3 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt * 1.6;
+            if (p.life <= 0) this._particles.splice(i, 1);
+          }
+        }
+        // Real (wall-clock) dt is clamped first (tab-swap protection), THEN scaled by the sim-speed pill --
+        // every consumer (state timers, stopwatch clock, ball physics, particles) reads this one scaled dt,
+        // so 0.5x/1x always stays consistent across the whole widget.
+        _frame(t){
+          this._raf = requestAnimationFrame(ts => this._frame(ts));
+          const rawDt = Math.min((t - this._last) / 1000, 0.05); this._last = t;
+          const dt = rawDt * this._speed;
+          this._clock += dt * 1000;
+          this._advanceState(dt);
+          if (this._mode === 'intake') this._stepIntake(dt); else this._stepPhysics(dt);
+          this._stepParticles(dt);
+          this._draw();
+        }
+        _draw(){
+          const ctx = this._ctx, g = this._geom();
+          ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+          ctx.clearRect(0, 0, g.W, g.H);
+          const bg = ctx.createLinearGradient(0, 0, 0, g.H);
+          bg.addColorStop(0, '#0d1420'); bg.addColorStop(1, '#0b0f16');
+          ctx.fillStyle = bg; ctx.fillRect(0, 0, g.W, g.H);
+          ctx.save(); ctx.globalAlpha = .35;
+          for (let i = 0; i < 18; i++){
+            const x = (i * 53.7) % g.W, y = (Math.sin(i * 12.9) * 0.5 + 0.5) * g.H * 0.5;
+            ctx.beginPath(); ctx.arc(x, y, 1.4, 0, TAU); ctx.fillStyle = '#3a4a6a'; ctx.fill();
+          }
+          ctx.restore();
+          ctx.fillStyle = '#161c26'; ctx.fillRect(0, g.groundY, g.W, g.H - g.groundY);
+          ctx.strokeStyle = '#2a3242'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(0, g.groundY); ctx.lineTo(g.W, g.groundY); ctx.stroke();
+          if (this._mode === 'intake') this._drawIntakeScene(ctx, g); else this._drawDumperScene(ctx, g);
+          for (const p of this._particles) this._drawParticle(ctx, p);
+          this._drawSpeedControl(ctx, g);
+        }
+        // Clickable 0.5x/1x sim-speed pills, upper-left of the rendering. Hit rects are recomputed here
+        // every frame (cheap) so they always track the canvas's actual CSS size / any resize.
+        _drawSpeedControl(ctx, g){
+          const opts = [0.5, 1];
+          const padX = 10, labelY = 12, btnY = 20, btnW = 34, btnH = 20, gap = 6;
+          this._speedButtons = [];
+          ctx.save();
+          ctx.font = '700 8px ui-monospace, monospace';
+          ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#556072';
+          ctx.fillText('SIM SPEED', padX, labelY);
+          ctx.font = '700 11px ui-monospace, monospace';
+          ctx.textAlign = 'center';
+          opts.forEach((val, i) => {
+            const x = padX + i * (btnW + gap), y = btnY;
+            const active = this._speed === val;
+            roundRect(ctx, x, y, btnW, btnH, 6);
+            ctx.fillStyle = active ? 'rgba(56,189,248,.22)' : 'rgba(18,23,31,.85)';
+            ctx.fill();
+            ctx.lineWidth = 1.4;
+            if (active){ ctx.shadowColor = '#38bdf8'; ctx.shadowBlur = 8; }
+            ctx.strokeStyle = active ? '#38bdf8' : '#3a4150';
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = active ? '#bfe7fb' : '#8291a3';
+            ctx.fillText(val + 'x', x + btnW / 2, y + btnH / 2 + 1);
+            this._speedButtons.push({ x, y, w: btnW, h: btnH, val });
+          });
+          ctx.restore();
+        }
+        _drawDumperScene(ctx, g){
+          this._drawGoalPad(ctx, g);
+          this._drawRobot(ctx, g);
+          this._drawBed(ctx, g);
+          for (const b of this._balls) this._drawBall(ctx, b, g);
+          this._drawStopwatch(ctx, g);
+        }
+        // The "fun graphic" stopwatch: a little analog dial in the corner with a sweeping hand, drawn
+        // right into the scene instead of a text pill. Amber + glowing while a cycle runs, green after
+        // a clean dump, orange after a failed one, gray if nothing has run yet.
+        _drawStopwatch(ctx, g){
+          const running = this._cycleRunning;
+          const et = running ? (this._clock - this._cycleStart) / 1000 : this._cycleTime;
+          const col = running ? '#f0c040' : this._lastOutcome === 'ok' ? '#50c070' : this._lastOutcome === 'warn' ? '#f0883e' : '#7c8699';
+          const cx = g.W - 42, cy = 42, r = 25;
+          ctx.save(); ctx.translate(cx, cy);
+          ctx.fillStyle = col;
+          ctx.save(); ctx.rotate(-0.5); roundRect(ctx, -3, -r - 12, 6, 7, 2); ctx.fill(); ctx.restore();
+          ctx.save(); ctx.rotate(0.5); roundRect(ctx, -3, -r - 12, 6, 7, 2); ctx.fill(); ctx.restore();
+          roundRect(ctx, -4, -r - 8, 8, 7, 2); ctx.fill();
+          ctx.shadowColor = col; ctx.shadowBlur = running ? 14 : 4;
+          ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fillStyle = '#12171f'; ctx.fill();
+          ctx.strokeStyle = col; ctx.lineWidth = 2.4; ctx.stroke();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = '#3a4150'; ctx.lineWidth = 1.4;
+          for (let i = 0; i < 12; i++){
+            const a = (i / 12) * TAU, inr = i % 3 === 0 ? r - 7 : r - 4;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a) * inr, Math.sin(a) * inr);
+            ctx.lineTo(Math.cos(a) * (r - 2), Math.sin(a) * (r - 2));
+            ctx.stroke();
+          }
+          const sweep = (et % 6) / 6 * TAU - Math.PI / 2;   // one lap every 6s — a pure motion cue, not a literal clock
+          ctx.strokeStyle = col; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(sweep) * (r - 6), Math.sin(sweep) * (r - 6)); ctx.stroke();
+          ctx.beginPath(); ctx.arc(0, 0, 2.4, 0, TAU); ctx.fillStyle = col; ctx.fill();
+          ctx.restore();
+          ctx.save();
+          ctx.font = '700 11px ui-monospace, monospace';
+          ctx.textAlign = 'center'; ctx.fillStyle = col;
+          ctx.fillText(et.toFixed(2) + 's', cx, cy + r + 15);
+          ctx.restore();
+        }
+        _drawIntakeScene(ctx, g){
+          this._drawRobot(ctx, g);
+          this._drawRoller(ctx, g);
+          for (const b of this._balls) this._drawFieldBall(ctx, b, g);
+        }
+        // Spinning roller: glows and shows motion only while actually turning (FORWARD/REVERSE); coasts
+        // to a stop (and fades to gray) when OFF, just like a real motor spinning down.
+        _drawRoller(ctx, g){
+          const spinning = Math.abs(this._rollerSpin) > 0.5;
+          const glow = spinning ? GLOW[this._state] : '#556072';
+          ctx.save(); ctx.translate(g.rollerX, g.rollerY);
+          ctx.shadowColor = glow; ctx.shadowBlur = spinning ? 12 : 3;
+          ctx.beginPath(); ctx.arc(0, 0, g.rollerR, 0, TAU); ctx.fillStyle = '#1c2430'; ctx.fill();
+          ctx.strokeStyle = glow; ctx.lineWidth = 2.4; ctx.stroke();
+          ctx.shadowBlur = 0;
+          ctx.rotate(this._rollerAngle);
+          ctx.strokeStyle = glow; ctx.lineWidth = 2.2;
+          for (let i = 0; i < 6; i++){
+            const a = i * Math.PI / 3;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a) * 4, Math.sin(a) * 4);
+            ctx.lineTo(Math.cos(a) * g.rollerR * 0.88, Math.sin(a) * g.rollerR * 0.88);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+        _drawFieldBall(ctx, b, g){
+          ctx.save(); ctx.globalAlpha = .35; ctx.fillStyle = '#000';
+          ctx.beginPath(); ctx.ellipse(b.x, g.groundY + 1, BALL_R * 0.9, BALL_R * 0.32, 0, 0, TAU); ctx.fill();
+          ctx.restore();
+          const grad = ctx.createRadialGradient(b.x - BALL_R * 0.35, b.y - BALL_R * 0.35, 1, b.x, b.y, BALL_R * 1.15);
+          grad.addColorStop(0, '#ffffff'); grad.addColorStop(.3, b.color); grad.addColorStop(1, b.color);
+          ctx.beginPath(); ctx.arc(b.x, b.y, BALL_R, 0, TAU); ctx.fillStyle = grad; ctx.fill();
+        }
+        _drawGoalPad(ctx, g){
+          const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 400);
+          ctx.save(); ctx.translate(g.binCX, g.groundY);
+          const grad = ctx.createRadialGradient(0, 0, 2, 0, 0, g.binR);
+          grad.addColorStop(0, 'rgba(80,192,112,' + (0.55 + 0.25 * pulse) + ')');
+          grad.addColorStop(1, 'rgba(80,192,112,0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath(); ctx.ellipse(0, 0, g.binR, g.binR * 0.32, 0, 0, TAU); ctx.fill();
+          ctx.strokeStyle = '#50c070'; ctx.lineWidth = 2; ctx.globalAlpha = .8;
+          ctx.beginPath(); ctx.ellipse(0, 0, g.binR * 0.72, g.binR * 0.72 * 0.32, 0, 0, TAU); ctx.stroke();
+          ctx.restore();
+        }
+        _drawRobot(ctx, g){
+          ctx.save(); ctx.fillStyle = 'rgba(0,0,0,.3)';
+          roundRect(ctx, g.chassisX - 4, g.chassisBottom - 2, g.chassisW + 8, 10, 4); ctx.fill();
+          ctx.restore();
+          for (const wx of [g.chassisX + 18, g.chassisX + g.chassisW - 18]){
+            ctx.beginPath(); ctx.arc(wx, g.chassisBottom, g.wheelR, 0, TAU); ctx.fillStyle = '#1c2430'; ctx.fill();
+            ctx.strokeStyle = '#333d4a'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.beginPath(); ctx.arc(wx, g.chassisBottom, g.wheelR * 0.4, 0, TAU); ctx.fillStyle = '#333d4a'; ctx.fill();
+          }
+          roundRect(ctx, g.chassisX, g.chassisTop, g.chassisW, g.chassisH, 8);
+          const grad = ctx.createLinearGradient(0, g.chassisTop, 0, g.chassisBottom);
+          grad.addColorStop(0, '#26313f'); grad.addColorStop(1, '#1a212b');
+          ctx.fillStyle = grad; ctx.fill();
+          ctx.strokeStyle = '#333d4a'; ctx.lineWidth = 2; ctx.stroke();
+        }
+        // Bed floor is a hinge->far-end line whose slope IS the tilt angle; a short perpendicular
+        // back wall at the far end reads as a bucket lip. Glows harder in DUMPING (the score moment).
+        _drawBed(ctx, g){
+          const theta = this._theta;
+          const farX = g.hingeX - Math.cos(theta) * BED_LEN, farY = g.hingeY - Math.sin(theta) * BED_LEN;
+          const glow = this._state === 'STOWED' ? '#556072' : GLOW[this._state];
+          ctx.save(); ctx.lineCap = 'round';
+          ctx.strokeStyle = glow; ctx.lineWidth = 7; ctx.globalAlpha = .95;
+          ctx.shadowColor = glow; ctx.shadowBlur = theta > SLIDE_THRESH ? 14 : 4;
+          ctx.beginPath(); ctx.moveTo(g.hingeX, g.hingeY); ctx.lineTo(farX, farY); ctx.stroke();
+          ctx.shadowBlur = 0;
+          const nx = Math.sin(theta), ny = -Math.cos(theta);
+          ctx.strokeStyle = '#7c8699'; ctx.lineWidth = 5; ctx.globalAlpha = .9;
+          ctx.beginPath(); ctx.moveTo(farX - nx * 14, farY - ny * 14); ctx.lineTo(farX + nx * 14, farY + ny * 14); ctx.stroke();
+          ctx.globalAlpha = 1; ctx.fillStyle = '#0b0f16';
+          ctx.beginPath(); ctx.arc(g.hingeX, g.hingeY, 4.5, 0, TAU); ctx.fill();
+          ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 1.6; ctx.stroke();
+          ctx.restore();
+        }
+        _drawBall(ctx, b, g){
+          let x, y;
+          if (b.state === 'bed'){
+            const theta = this._theta;
+            const dirx = -Math.cos(theta), diry = -Math.sin(theta);
+            const nx = Math.sin(theta), ny = -Math.cos(theta);
+            x = g.hingeX + dirx * b.s + nx * BALL_R; y = g.hingeY + diry * b.s + ny * BALL_R;
+          } else { x = b.x; y = b.y; }
+          if (b.state !== 'bed' && b.state !== 'dropping'){
+            ctx.save(); ctx.globalAlpha = .35; ctx.fillStyle = '#000';
+            ctx.beginPath(); ctx.ellipse(x, g.groundY + 1, BALL_R * 0.9, BALL_R * 0.32, 0, 0, TAU); ctx.fill();
+            ctx.restore();
+          }
+          const grad = ctx.createRadialGradient(x - BALL_R * 0.35, y - BALL_R * 0.35, 1, x, y, BALL_R * 1.15);
+          grad.addColorStop(0, '#ffffff'); grad.addColorStop(.3, b.color); grad.addColorStop(1, b.color);
+          ctx.beginPath(); ctx.arc(x, y, BALL_R, 0, TAU); ctx.fillStyle = grad; ctx.fill();
+          if (b.state === 'scored'){ ctx.strokeStyle = '#50c070'; ctx.lineWidth = 2; ctx.stroke(); }
+        }
+        _drawParticle(ctx, p){
+          ctx.save(); ctx.globalAlpha = Math.max(p.life, 0);
+          ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, TAU);
+          ctx.fillStyle = p.color; ctx.shadowColor = p.color; ctx.shadowBlur = 8; ctx.fill();
+          ctx.restore();
+        }
+      }
+      customElements.define('dumper-state-widget', DumperStateWidget);
     })();
   </script>
 </body>
