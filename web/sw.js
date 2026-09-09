@@ -15,6 +15,10 @@ const APP_VERSION = new URL(self.location).searchParams.get('v') || 'dev';
 const SHELL = 'impulse-shell-' + APP_VERSION;
 const RUNTIME = 'impulse-runtime-v1';
 
+// Same-origin jars that hold OUR code (rebuilt on every `tools/build.ps1`). Purged from the
+// RUNTIME cache on each activate so a version bump always serves the freshly built jar.
+const APP_JARS = ['/app.jar', '/shim.jar'];
+
 // Small, always-present shell files worth precaching so the app can boot offline even if the
 // first visit was interrupted before everything got runtime-cached. Big/optional assets (audio,
 // lessons, jars, CheerpJ runtime) are cached opportunistically on first use instead.
@@ -43,6 +47,13 @@ self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
     await Promise.all(keys.map((k) => (k.startsWith('impulse-shell-') && k !== SHELL) ? caches.delete(k) : Promise.resolve()));
+    // Our own app-code jars live in the (unversioned) RUNTIME cache alongside the immutable
+    // CheerpJ CDN runtime, but they change on every build. Purge them on each version bump so a
+    // fresh app.jar/shim.jar is re-fetched instead of served stale from the cached whole file.
+    try {
+      const rt = await caches.open(RUNTIME);
+      await Promise.all(APP_JARS.map((p) => rt.delete(p)));
+    } catch (_) {}
     await self.clients.claim();
   })());
 });
