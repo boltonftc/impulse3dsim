@@ -52,12 +52,26 @@ the ground and a counter ticks up the distance &mdash; no tape measure needed.</
 
 <h2>goBILDA's answer: the Pinpoint</h2>
 
-<p>Our robot does this with a <strong>goBILDA Pinpoint Odometry Computer</strong> &mdash; a small circuit board with
-one job: watch the wheels and keep a running <code>pose</code>. It reads two unpowered
-&ldquo;<strong>dead wheels</strong>&rdquo; (also called <strong>odometry pods</strong>) plus its own built-in gyro that
-senses turning.</p>
+<p>Our robot does this with a goBILDA odometry set &mdash; <strong>three parts that work together</strong>: two
+tracking wheels and one small computer that reads them.</p>
 
-<p>Why <em>dead</em> wheels? They aren't driven by any motor &mdash; they just spring-press against the floor and coast
+<figure>
+  <img src="images/gobilda_odometry_hardware.jpg" alt="Two goBILDA 4-bar odometry pods and one Pinpoint computer">
+  <figcaption>The three pieces of the goBILDA odometry set: <strong>two 4-bar odometry pods</strong> and
+  <strong>one Pinpoint computer</strong>.</figcaption>
+</figure>
+
+<ul>
+  <li><strong>Two 4-bar odometry pods.</strong> Each is a small unpowered wheel on a spring-loaded
+  <strong>4-bar swingarm</strong>. The swingarm keeps the wheel pressed firmly to the floor even over bumps, so it
+  rolls without lifting or slipping. Each pod measures distance <em>along the one direction it points</em> &mdash; which
+  is why we use two of them (you'll see why they sit 90&deg; apart in the next section).</li>
+  <li><strong>One Pinpoint computer.</strong> A tiny circuit board with one job: read both pods, blend in its own
+  built-in <strong>gyro</strong> (which senses turning), and keep a running <code>pose</code> &mdash; your <code>x</code>,
+  <code>y</code>, and <code>heading</code>. The two pods plug into it, and it plugs into the robot's hub.</li>
+</ul>
+
+<p>Why unpowered &ldquo;<strong>dead wheels</strong>&rdquo;? They aren't driven by any motor &mdash; they just coast
 along. Because nothing is pushing them, they roll cleanly without the slipping and skidding that powered drive
 wheels do, so their count is far more trustworthy. As the robot moves, the Pinpoint quietly adds everything up and
 keeps a running <code>pose</code>. Your job is <em>not</em> to do that math &mdash; the sensor does it. Your job is to
