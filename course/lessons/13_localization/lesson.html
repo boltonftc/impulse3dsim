@@ -18,12 +18,50 @@ missing sense: <strong>localization</strong>, the ability to track its own posit
 
 <hr>
 
-<h2>The sensor: a goBILDA Pinpoint</h2>
+<h2>First, what <em>is</em> odometry?</h2>
 
-<p>We track position with a <strong>Pinpoint</strong> &mdash; a small computer wired to two unpowered
-&ldquo;dead wheels&rdquo; and its own gyro. As the robot rolls, the Pinpoint quietly adds up how far it has gone and
-keeps a running <code>pose</code>. Your job is <em>not</em> to do the math &mdash; the sensor does that. Your job is to
-<strong>read</strong> it and share the answer with the rest of the robot.</p>
+<p><strong>Odometry</strong> is a big word for a simple idea: <em>figuring out how far you've traveled by counting how
+much your wheels have turned.</em> You already use one every time you ride in a car &mdash; the <strong>odometer</strong>.</p>
+
+<figure>
+  <img src="images/car_odometer.jpg" alt="A car dashboard showing the odometer reading below the speedometer">
+  <figcaption>The little number under the speedometer is the <strong>odometer</strong> &mdash; total distance the car
+  has ever driven.</figcaption>
+</figure>
+
+<p>Every time a tire makes one full turn, the car rolls forward by the distance around the tire. The odometer just
+keeps multiplying: <em>turns &times; tire size = distance</em>. It never sees a road sign or a map &mdash; it only
+feels its own wheels spinning, and from that alone it knows you've driven 91,308 miles.</p>
+
+<p>Surveyors and construction crews use the exact same trick with a <strong>measuring wheel</strong>. Roll it along
+the ground and a counter ticks up the distance &mdash; no tape measure needed.</p>
+
+<figure>
+  <img src="images/worker_odometry_wheel.jpg" alt="A worker rolling a measuring wheel that counts distance, with X and Y axes drawn">
+  <figcaption>A measuring wheel is odometry you can hold: roll it, and it counts the distance for you.</figcaption>
+</figure>
+
+<div class="blk blk-key">
+  <div class="blk-head">The big idea</div>
+  <p>Odometry turns <strong>wheel spin</strong> into <strong>distance</strong>. And if you track wheels pointed in two
+  different directions <em>plus</em> which way you're facing, you can do better than just &ldquo;how far&rdquo; &mdash; you
+  can figure out <strong>exactly where you are</strong> on the field. That's <strong>localization</strong>.</p>
+</div>
+
+<hr>
+
+<h2>goBILDA's answer: the Pinpoint</h2>
+
+<p>Our robot does this with a <strong>goBILDA Pinpoint Odometry Computer</strong> &mdash; a small circuit board with
+one job: watch the wheels and keep a running <code>pose</code>. It reads two unpowered
+&ldquo;<strong>dead wheels</strong>&rdquo; (also called <strong>odometry pods</strong>) plus its own built-in gyro that
+senses turning.</p>
+
+<p>Why <em>dead</em> wheels? They aren't driven by any motor &mdash; they just spring-press against the floor and coast
+along. Because nothing is pushing them, they roll cleanly without the slipping and skidding that powered drive
+wheels do, so their count is far more trustworthy. As the robot moves, the Pinpoint quietly adds everything up and
+keeps a running <code>pose</code>. Your job is <em>not</em> to do that math &mdash; the sensor does it. Your job is to
+<strong>read</strong> the answer and share it with the rest of the robot.</p>
 
 <div class="blk blk-key">
   <div class="blk-head">Smart sensors are &ldquo;stale until you look&rdquo;</div>
@@ -33,8 +71,106 @@ keeps a running <code>pose</code>. Your job is <em>not</em> to do the math &mdas
   the exact same rhythm the scheduler already uses.</p>
 </div>
 
-<p>Good news: <code>Localization</code> is just another <strong>subsystem</strong>, the same shape you built for the intake
-and dumper. It implements <code>Subsystem</code>, so the scheduler calls its <code>update()</code> for you every loop.</p>
+<hr>
+
+<h2>Mounting the pods: why 90&deg; apart?</h2>
+
+<p>Here's the puzzle. One dead wheel can only measure motion <em>along the line it points</em>. A pod aimed straight
+forward measures forward-and-back beautifully &mdash; but if the robot slides sideways (mecanum wheels can strafe!),
+that pod barely turns and misses the whole sideways trip.</p>
+
+<p>The fix is <strong>two pods mounted 90 degrees apart</strong> &mdash; one lined up <strong>forward/back</strong>, the
+other lined up <strong>side to side</strong>. Together they catch <em>any</em> motion, because every direction on the
+floor is just some forward part plus some sideways part (remember the right triangle from the pose block!).</p>
+
+<figure>
+  <img src="images/odometry_pods.png" alt="Top-down view of the robot with one pod tracking the X axis and one tracking the Y axis, 90 degrees apart">
+  <figcaption>On our robot the front faces <em>left</em> in this drawing. The <strong>top pod tracks X</strong>
+  (forward/back) and the <strong>bottom pod tracks Y</strong> (strafe) &mdash; the two are square to each other,
+  90&deg; apart.</figcaption>
+</figure>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why perpendicular works</div>
+  <p>Think of a graph's two axes. One pod answers &ldquo;how far forward?&rdquo; and the other answers &ldquo;how far
+  sideways?&rdquo; Two numbers that don't overlap can describe <em>any</em> spot on the field. If the pods were parallel
+  (both forward), you'd get the forward answer twice and never learn the sideways one.</p>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Mounting tips</div>
+  <p>Each pod rides on a spring-loaded <strong>4-bar arm</strong> so its wheel stays pressed to the floor over bumps.
+  Keep each pod <em>square</em> to the robot (truly forward or truly sideways, not tilted), mounted low, and clear of
+  the drive wheels. A crooked pod quietly mixes forward and sideways together and throws off every reading.</p>
+</div>
+
+<hr>
+
+<h2>The robot's map: +X and +Y</h2>
+
+<p>For the numbers to mean anything, everyone has to agree which way is &ldquo;positive.&rdquo; goBILDA (and Pedro
+Pathing, coming next lesson) all use the <strong>same</strong> convention, measured from wherever the robot booted
+up:</p>
+
+<ul>
+  <li><strong>+X points <em>forward</em></strong> &mdash; drive ahead and <code>x</code> counts up.</li>
+  <li><strong>+Y points <em>left</em></strong> &mdash; strafe left and <code>y</code> counts up (so strafing <em>right</em>
+  makes <code>y</code> go down).</li>
+  <li><strong>+heading is <em>counter-clockwise</em></strong> &mdash; spin left and the angle grows.</li>
+</ul>
+
+<figure>
+  <img src="images/pinpoint_computer.jpg" alt="Robot top view labeled plus X forward and plus Y left, with the goBILDA Pinpoint computer at the back">
+  <figcaption>goBILDA's frame: <strong>+X forward</strong>, <strong>+Y to the left</strong>. The Pinpoint board itself
+  sits at the back of the robot. Every pose number is measured from the spot where the robot started.</figcaption>
+</figure>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why a left-handed &ldquo;+Y is left&rdquo;?</div>
+  <p>It feels backwards at first &mdash; on a math worksheet, right is usually positive. But robotics uses this frame
+  everywhere so that <strong>forward, left, and counter-clockwise</strong> all agree with each other. Once you learn it
+  here, the same rule works in Pedro Pathing, in autonomous, and on the field.</p>
+</div>
+
+<hr>
+
+<h2>Wiring it up: mind the I2C port</h2>
+
+<p>The Pinpoint talks to the Control/Expansion Hub over a bus called <strong>I2C</strong> (say &ldquo;I-squared-C&rdquo;).
+It has three little ports labeled <strong>X</strong>, <strong>Y</strong>, and <strong>I2C</strong>: the two odometry pods
+plug into <strong>X</strong> and <strong>Y</strong>, and one cable runs from the Pinpoint's <strong>I2C</strong> port to a
+free I2C port on the hub.</p>
+
+<figure>
+  <img src="images/pinpoint_wiring.jpg" alt="Wiring: X pod to X port, Y pod to Y port, and the Pinpoint I2C port to REV hub I2C Port 3">
+  <figcaption><strong>X pod &rarr; X port</strong>, <strong>Y pod &rarr; Y port</strong>, and the Pinpoint's
+  <strong>I2C</strong> port &rarr; the hub's <strong>I2C Port 3</strong>.</figcaption>
+</figure>
+
+<div class="blk blk-key">
+  <div class="blk-head">Do <em>not</em> use I2C Port 0</div>
+  <p>Every REV hub has a hidden guest already living on <strong>I2C Port 0</strong>: the hub's own built-in
+  <strong>IMU</strong> (the gyro that gives you heading). If you plug the Pinpoint into Port 0 too, two devices try to
+  talk over the same wire and step on each other &mdash; readings get scrambled or the Pinpoint won't be found at all.
+  <strong>Use Port 1, 2, or 3 instead.</strong> Our wiring uses <strong>Port 3</strong>, and the configuration file must
+  name that same port.</p>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Match the wiring to the config</div>
+  <p>Whatever port you physically plug into, the robot's configuration must list the Pinpoint on that <em>same</em>
+  port with the <em>same</em> name your code asks for. Wiring and config always have to agree &mdash; a mismatch is the
+  most common reason a Pinpoint &ldquo;disappears.&rdquo;</p>
+</div>
+
+<hr>
+
+<h2>From hardware to code</h2>
+
+<p>The pods are mounted 90&deg; apart, the axes make sense, and the I2C cable is on a safe port. Now the fun part:
+teaching the robot to <em>read</em> all that. Good news &mdash; <code>Localization</code> is just another
+<strong>subsystem</strong>, the same shape you built for the intake and dumper. It implements <code>Subsystem</code>,
+so the scheduler calls its <code>update()</code> for you every loop.</p>
 
 <hr>
 
