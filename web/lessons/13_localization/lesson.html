@@ -179,6 +179,49 @@ free I2C port on the hub.</p>
 
 <hr>
 
+<h2>Tell the Driver Hub it's there: the configuration</h2>
+
+<p>Wiring the Pinpoint in isn't enough &mdash; the robot doesn't magically know what you plugged in. You have to
+<strong>add it to the robot's configuration</strong>, a little list on the Driver Hub that says &ldquo;here is every
+device, where it's plugged in, and what it's called.&rdquo; Your code later asks for the Pinpoint <em>by that name</em>,
+so this is the step that connects the hardware to the software.</p>
+
+<p>On the Driver Hub: tap the three-dot menu &rarr; <strong>Configure Robot</strong> &rarr; pick your active config (or
+tap <strong>New</strong>). Then:</p>
+
+<ol>
+  <li>Tap the <strong>hub</strong> your Pinpoint cable runs to &mdash; <strong>Control Hub</strong> or
+  <strong>Expansion Hub</strong>. Either one is fine; just pick the one you actually plugged into.</li>
+  <li>Open the <strong>I2C Bus</strong> you wired &mdash; we used <strong>I2C Bus 3</strong>.</li>
+  <li>Tap <strong>Add</strong>, and from the dropdown choose <strong>goBILDA&reg; Pinpoint Odometry Computer</strong>.</li>
+  <li>In <strong>Device name</strong>, type <code>pinpoint</code> (all lowercase).</li>
+  <li>Tap <strong>Done</strong>, then <strong>Save</strong> the configuration and <strong>Activate</strong> it.</li>
+</ol>
+
+<figure>
+  <img src="images/driverhub_pinpoint.png" alt="Driver Hub configuration screen: goBILDA Pinpoint Odometry Computer selected on the I2C bus with the device name 'pinpoint'">
+  <figcaption>The finished entry: device type <strong>goBILDA&reg; Pinpoint Odometry Computer</strong>, device name
+  <strong>pinpoint</strong>.</figcaption>
+</figure>
+
+<div class="blk blk-key">
+  <div class="blk-head">The name has to match your code</div>
+  <p>Your program looks the Pinpoint up with <code>hardwareMap.get(&hellip;, "pinpoint")</code>. If the config says
+  <code>pinpoint</code> but your code asks for <code>Pinpoint</code> or <code>odometry</code>, the robot throws a
+  &ldquo;device not found&rdquo; error the moment you press INIT. Spelling and capitalization must match
+  <em>exactly</em>.</p>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">&ldquo;Port 0&rdquo; here is <em>not</em> I2C Bus 0</div>
+  <p>The screen shows the Pinpoint on <strong>Port 0</strong> &mdash; that's just its <em>slot number on the bus you
+  already picked</em> (the first device you add to I2C Bus 3 lands in slot 0). It is <em>not</em> the forbidden
+  <strong>I2C Bus 0</strong> from the wiring step; that's a whole different bus that already holds the hub's built-in
+  IMU. As long as you opened <strong>Bus 3</strong> before tapping Add, slot &ldquo;0&rdquo; is exactly right.</p>
+</div>
+
+<hr>
+
 <h2>From hardware to code</h2>
 
 <p>The pods are mounted 90&deg; apart, the axes make sense, and the I2C cable is on a safe port. Now the fun part:
