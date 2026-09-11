@@ -7,10 +7,9 @@ the robot. Starting with a single small file keeps things clear.</p>
 
 <span class="act" data-action="open_file" data-arg="MecanumDrive.java|MecanumDrive">&#9656; Open MecanumDrive.java</span>
 
-<p>This is an <strong>OpMode</strong> &mdash; a program the robot can run. The name in the
-<code>@TeleOp(...)</code> line at the top is what you'll pick from the menu on the Driver Hub. The word
-<em>TeleOp</em> means "tele-operated": a human drives it with the gamepad (as opposed to an autonomous
-program that drives itself).</p>
+<p>This file is an <strong>OpMode</strong> &mdash; a program the robot can run. Let's read it from the very
+top down, one piece at a time. After each part below, click the link to jump straight to that line in the
+code.</p>
 
 <div class="blk blk-key">
   <div class="blk-head">A package is a folder of related code</div>
@@ -19,34 +18,89 @@ program that drives itself).</p>
   each other. You'll see that identical line at the top of every file you add.</p>
 </div>
 
-<p>Now find the method called <code>runOpMode()</code>. This is where the robot's story happens, and it
-always has the same three parts. Jump to each one:</p>
+<span class="act" data-action="scroll_to" data-arg="package org.firstinspires.ftc.teamcode;">&#9656; MecanumDrive.java : the package line</span>
 
-<span class="act" data-action="scroll_to" data-arg="─── INIT">&#9656; MecanumDrive.java : INIT</span>
+<p><strong>Next come the imports.</strong> Java, and the FTC robot library, come with mountains of
+ready-made code. An <code>import</code> line is how your file says &ldquo;I want to use <em>this</em> tool by
+name.&rdquo; For example, <code>import ...opmode.LinearOpMode;</code> pulls in the <code>LinearOpMode</code>
+tool your program is built on, and <code>...opmode.TeleOp;</code> pulls in the <code>@TeleOp</code> label on
+the next line. Without the import, Java wouldn't know what those names mean. Each time you add a new feature
+in later lessons &mdash; motors, the gyro, and more &mdash; you'll add one more import for the tool it needs.</p>
+
+<span class="act" data-action="scroll_to" data-arg="import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode">&#9656; MecanumDrive.java : the imports</span>
+
+<p><strong>Then the <code>@TeleOp</code> label.</strong> This line is a tag stuck onto your program. The
+<code>name</code> inside it is exactly what you'll pick from the menu on the Driver Hub. The word
+<em>TeleOp</em> means &ldquo;tele-operated&rdquo;: a human drives it with the gamepad (as opposed to an
+<em>autonomous</em> program that drives itself).</p>
+
+<span class="act" data-action="scroll_to" data-arg="@TeleOp(name">&#9656; MecanumDrive.java : the @TeleOp label</span>
+
+<div class="blk blk-key">
+  <div class="blk-head">A class is a blueprint you build on</div>
+  <p>The line <code>public class MecanumDrive extends LinearOpMode</code> begins the <strong>class</strong>.
+  A class is a <em>blueprint</em> &mdash; a plan that describes what something is and what it can do.
+  <code>LinearOpMode</code> is a blueprint the FTC engineers already drew for you: a plain robot program
+  that already knows the essential-but-boring stuff, like how to talk to the Driver Hub and how to wait for
+  the START button. Writing <code>extends LinearOpMode</code> means &ldquo;start from their blueprint, then
+  add my own parts.&rdquo; You get all of their work for free and only have to draw the pieces that make
+  <em>this</em> OpMode yours.</p>
+</div>
+
+<figure>
+  <img src="images/class_blueprint.png" alt="A base blueprint labeled LinearOpMode, with a young engineer laying a transparent overlay of custom parts on top to form MecanumDrive, connected by an arrow labeled extends">
+  <figcaption>A <strong>class</strong> is a blueprint. <code>extends LinearOpMode</code> means you start from
+  FTC's ready-made blueprint and add only your own parts on top.</figcaption>
+</figure>
+
+<span class="act" data-action="scroll_to" data-arg="public class MecanumDrive extends LinearOpMode">&#9656; MecanumDrive.java : the class line</span>
+
+<div class="blk blk-key">
+  <div class="blk-head">A method is the robot's recipe</div>
+  <p>Inside the class, find the <strong>method</strong> called <code>runOpMode()</code>. A method is a named
+  set of steps you can run whenever you call its name &mdash; just like a <em>recipe</em> in a cookbook. You
+  write the steps once, give them a name, and after that the whole set of steps runs anytime that name is
+  &ldquo;called.&rdquo; <code>runOpMode()</code> is the robot's recipe for the entire match: when you press
+  START, the robot controller calls <code>runOpMode()</code> and the robot follows the steps you wrote
+  inside. Bundling steps under one name keeps your program organized and lets you reuse it.</p>
+</div>
+
+<figure>
+  <img src="images/method_recipe.png" alt="A cartoon recipe card titled runOpMode with three numbered steps -- Init, Start, Loop -- being read by a friendly robot chef">
+  <figcaption>A <strong>method</strong> is a named recipe. <code>runOpMode()</code> holds the robot's steps
+  for the match &mdash; and it always has the same three parts below.</figcaption>
+</figure>
+
+<span class="act" data-action="scroll_to" data-arg="public void runOpMode">&#9656; MecanumDrive.java : runOpMode()</span>
+
+<p>Every <code>runOpMode()</code> has the same three parts. Read each one, then jump to it:</p>
+
 <p><strong>1. Init</strong> &mdash; runs <em>once</em>, right after you press the <strong>INIT</strong> button. This is where
 setup goes. Ours just shows a message so the driver knows the robot is ready.</p>
+<span class="act" data-action="scroll_to" data-arg="─── INIT">&#9656; MecanumDrive.java : INIT</span>
 
-<span class="act" data-action="scroll_to" data-arg="START: pause here">&#9656; MecanumDrive.java : START</span>
 <p><strong>2. Start</strong> &mdash; <code>waitForStart()</code> pauses the program right here until the driver
 presses the play button. Nothing past this line happens until the match begins.</p>
+<span class="act" data-action="scroll_to" data-arg="START: pause here">&#9656; MecanumDrive.java : START</span>
 
-<span class="act" data-action="scroll_to" data-arg="THE RUN LOOP">&#9656; MecanumDrive.java : the run loop</span>
 <p><strong>3. The run loop</strong> &mdash; the <code>while (opModeIsActive())</code> block repeats about
 <strong>fifty times every second</strong> until the match ends. This is where you'll spend almost all of your
 time in later lessons: reading the gamepad, driving, and showing information. Right now it does nothing
 but wait.</p>
+<span class="act" data-action="scroll_to" data-arg="THE RUN LOOP">&#9656; MecanumDrive.java : the run loop</span>
 
 <div class="blk blk-todo">
   <div class="blk-head">To Do</div>
   <ul>
-    <li>Open <code>MecanumDrive.java</code> and read through the three parts with the links above.</li>
+    <li>Open <code>MecanumDrive.java</code> and read it top to bottom with the links above.</li>
     <li>Press <strong>Build &amp; Init</strong>, then <strong>Start</strong>.</li>
     <li>The robot won't move yet &mdash; that's expected. You're just proving your program runs.</li>
   </ul>
 </div>
 
-<p>That's your whole starting point: one small OpMode with an init and a loop. In the next lesson you'll
-make it actually <em>say something</em> while it runs.</p>
+<p>That's your whole starting point: a package line, a few imports, one class built on
+<code>LinearOpMode</code>, and a <code>runOpMode()</code> recipe with an init and a loop. In the next lesson
+you'll make it actually <em>say something</em> while it runs.</p>
 
 <hr>
 
