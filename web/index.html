@@ -5867,6 +5867,7 @@
       const STICK_THRESH = 16 * Math.PI / 180; // static friction (stiction): a resting piece won't break loose until tilt passes this
       const RESTITUTION = 0.42, WALL_REST = 0.55, BALL_R = 8;
       const BALL_COLORS = ['#38bdf8', '#f0883e', '#c084fc', '#50c070', '#f43f5e'];
+      const WORLD_SCROLL = 34;                 // px/s the field slides left, so the stationary robot reads as driving forward
       // Each mode's states are always a straight line (arrows[i] joins states[i] and states[i+1]);
       // "initial" is the resting state a fresh instance (and Load/reset) starts in.
       const MODES = {
@@ -6073,7 +6074,7 @@
           this._raiseMs = 150; this._holdMs = 150; this._lowerMs = 150;   // start at the minimum — default settings won't clear the bed
           this._theta = 0;
           this._balls = []; this._particles = []; this._respawnQueue = []; this._clock = 0;
-          this._ballColorIdx = 0; this._rollerAngle = 0; this._rollerSpin = 0;
+          this._ballColorIdx = 0; this._rollerAngle = 0; this._rollerSpin = 0; this._scrollX = 0;
           this._scored = 0; this._missed = 0; this._collected = 0; this._cleared = 0;
           this._cycleRunning = false; this._cycleStart = 0; this._cycleTime = 0; this._lastCleared = -1;
           this._clearMs = null; this._lastOutcome = null;
@@ -6396,25 +6397,29 @@
             this._particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.65, color: '#aab6c6' });
           }
         }
-        // ---- intake mode: pieces sit on the field until pulled in (FORWARD) or spit back out (REVERSE) ----
+        // ---- intake mode: the robot "drives" forward by scrolling the field (ground + pieces) toward it.
+        // FORWARD ingests a piece and a fresh one enters from the right; REVERSE spits it back out to the
+        // right (it slows, then the scroll carries it back); OFF lets pieces pile up against the robot. ----
         _spawnInitialBalls(){
           const g = this._geom();
           this._balls = [];
           let i = 0;
-          for (const off of [90, 170, 250]){
-            this._balls.push({ x: g.rollerX + off, y: -30 - Math.random() * 50, vx: 0, vy: 0,
-                                state: 'falling', delay: i * 0.14,
+          for (const off of [200, 330, 460]){
+            this._balls.push({ x: g.rollerX + off, y: -30 - Math.random() * 50, vx: -WORLD_SCROLL, vy: 0,
+                                state: 'falling', delay: i * 0.14, kickCd: 0,
                                 color: BALL_COLORS[this._ballColorIdx++ % BALL_COLORS.length] });
             i++;
           }
         }
+        // A replacement piece rolls in from just off the right edge, already drifting left with the field.
         _spawnFieldBall(g){
-          const x = g.rollerX + 170 + Math.random() * 70;
-          this._balls.push({ x, y: -30 - Math.random() * 40, vx: 0, vy: 0, state: 'falling', delay: 0,
+          this._balls.push({ x: g.W + 24 + Math.random() * 40, y: g.groundY - BALL_R, vx: -WORLD_SCROLL, vy: 0,
+                              state: 'field', delay: 0, kickCd: 0,
                               color: BALL_COLORS[this._ballColorIdx++ % BALL_COLORS.length] });
         }
         _stepIntake(dt){
           const g = this._geom();
+          this._scrollX += WORLD_SCROLL * dt;            // slide the ground texture left (robot "driving")
           while (this._respawnQueue.length && this._clock >= this._respawnQueue[0]){
             this._respawnQueue.shift(); this._spawnFieldBall(g);
           }
@@ -6422,31 +6427,44 @@
           this._rollerSpin += (targetSpin - this._rollerSpin) * Math.min(1, dt * 6);
           this._rollerAngle += this._rollerSpin * dt;
           const gy = g.groundY - BALL_R;
+          const wallX = g.rollerX + g.rollerR + BALL_R;  // robot front: pieces can't pass unless ingested
           for (const b of this._balls){
             if (b.state === 'falling'){
               if (b.delay > 0){ b.delay -= dt; continue; }
               b.vy += G * dt; b.y += b.vy * dt;
-              if (b.y >= gy){ b.y = gy; if (b.vy > 130){ b.vy = -b.vy * 0.32; } else { b.state = 'field'; b.vy = 0; this._spawnDust(b.x, gy + BALL_R); } }
-            } else if (b.state === 'field'){
-              const dx = b.x - g.rollerX;
-              if (this._state === 'FORWARD' && dx > 0 && dx < 140){
-                b.vx = -(70 + (140 - dx) * 1.1);
-              } else if (this._state === 'REVERSE' && dx < 40){
-                b.vx = 240; b.state = 'ejecting';
-              } else {
-                b.vx *= Math.max(0, 1 - 6 * dt); if (Math.abs(b.vx) < 2) b.vx = 0;
-              }
-              b.x += b.vx * dt;
-              if (b.state === 'field' && dx <= 4){
+              if (b.y >= gy){ b.y = gy; if (b.vy > 130){ b.vy = -b.vy * 0.32; } else { b.state = 'field'; b.vy = 0; b.vx = -WORLD_SCROLL; this._spawnDust(b.x, gy + BALL_R); } }
+              continue;
+            }
+            if (b.state !== 'field') continue;
+            const dx = b.x - g.rollerX;                  // horizontal gap from the roller (right = +)
+            if (this._state === 'FORWARD'){
+              if (dx <= 6){                              // reached the roller -> ingested
                 this._collected++; this._spawnSparkles(g.rollerX, g.rollerY, b.color); this._updateScore('ok');
-                b.dead = true; this._respawnQueue.push(this._clock + 550 + Math.random() * 300);
+                b.dead = true; this._respawnQueue.push(this._clock + 450 + Math.random() * 300);
+                continue;
               }
-            } else if (b.state === 'ejecting'){
-              b.x += b.vx * dt; b.vx *= (1 - 2.2 * dt);
-              if (b.x > g.W + 30 || Math.abs(b.vx) < 10){
+              b.vx = dx < 135 ? -(WORLD_SCROLL + 70 + (135 - dx) * 1.5)   // yank inward, faster as it nears
+                              : b.vx + (-WORLD_SCROLL - b.vx) * Math.min(1, dt * 3);
+            } else if (this._state === 'REVERSE'){
+              if (dx > 0 && dx < 66 && this._clock >= b.kickCd){
+                b.vx = 250; b.kickCd = this._clock + 800;  // spit it back out to the right
                 this._cleared++; this._updateScore('miss');
-                b.dead = true; this._respawnQueue.push(this._clock + 550 + Math.random() * 300);
+              } else {
+                b.vx += (-WORLD_SCROLL - b.vx) * Math.min(1, dt * 2.2);  // friction settles it back to the scroll
               }
+            } else {                                     // OFF -> just drift in with the field
+              b.vx += (-WORLD_SCROLL - b.vx) * Math.min(1, dt * 3);
+            }
+            b.x += b.vx * dt; b.y = gy;
+            if (b.x > g.W + 60){ b.x = g.W + 60; if (b.vx > 0) b.vx = 0; }   // don't let a spat piece leave forever
+          }
+          // Pile-up: when not ingesting, stack grounded pieces against the robot front (and each other).
+          if (this._state !== 'FORWARD'){
+            const field = this._balls.filter(b => b.state === 'field').sort((a, c) => a.x - c.x);
+            let limit = wallX;
+            for (const b of field){
+              if (b.x < limit){ b.x = limit; if (b.vx < 0) b.vx = 0; }
+              limit = b.x + BALL_R * 2;
             }
           }
           this._balls = this._balls.filter(b => !b.dead);
@@ -6485,6 +6503,7 @@
           }
           ctx.restore();
           ctx.fillStyle = '#161c26'; ctx.fillRect(0, g.groundY, g.W, g.H - g.groundY);
+          if (this._mode === 'intake') this._drawGroundTexture(ctx, g);
           ctx.strokeStyle = '#2a3242'; ctx.lineWidth = 2;
           ctx.beginPath(); ctx.moveTo(0, g.groundY); ctx.lineTo(g.W, g.groundY); ctx.stroke();
           if (this._mode === 'intake') this._drawIntakeScene(ctx, g); else this._drawDumperScene(ctx, g);
@@ -6568,6 +6587,23 @@
           this._drawRobot(ctx, g);
           this._drawRoller(ctx, g);
           for (const b of this._balls) this._drawFieldBall(ctx, b, g);
+        }
+        // Scrolling ground: diagonal stripes + top-edge ticks that slide left with _scrollX, selling the
+        // illusion that the robot is driving forward over the field toward the game pieces.
+        _drawGroundTexture(ctx, g){
+          const TILE = 46, top = g.groundY, bot = g.H, band = bot - top;
+          const off = -((this._scrollX % TILE) + TILE) % TILE;
+          ctx.save();
+          ctx.beginPath(); ctx.rect(0, top, g.W, band); ctx.clip();
+          ctx.strokeStyle = 'rgba(255,255,255,0.035)'; ctx.lineWidth = 10;
+          for (let x = off - TILE; x < g.W + band + TILE; x += TILE){
+            ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x - band, bot); ctx.stroke();
+          }
+          ctx.strokeStyle = 'rgba(120,140,170,0.28)'; ctx.lineWidth = 2;
+          for (let x = off; x < g.W + TILE; x += TILE){
+            ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + 7); ctx.stroke();
+          }
+          ctx.restore();
         }
         // Spinning roller: glows and shows motion only while actually turning (FORWARD/REVERSE); coasts
         // to a stop (and fades to gray) when OFF, just like a real motor spinning down.
@@ -6670,6 +6706,303 @@
         }
       }
       customElements.define('dumper-state-widget', DumperStateWidget);
+    })();
+
+    // <edge-detect-widget> — self-contained lesson widget (Shadow DOM, no deps). Teaches gamepad
+    // "edge detection": a slowed-down loop clock (Pause/Step to walk one loop at a time), a scope
+    // timeline with color-coded rows (gamepad1.a green, previousA purple, pressedA cyan), a
+    // naive-vs-edge tally showing why a held button fires once (not every loop), and a code panel
+    // whose tokens are color-matched to the timeline rows. Mirrors the Intake : Loop code above it.
+    (function(){
+      const CODE_LINES = [
+        { id:'lPA',    html:'boolean <span class="t-edge">pressedA</span> = <span class="t-a">gamepad1.a</span> &amp;&amp; !<span class="t-prev">previousA</span>;' },
+        { id:'lPB',    html:'boolean <span class="t-edge">pressedB</span> = <span class="t-a">gamepad1.b</span> &amp;&amp; !<span class="t-prev">previousB</span>;' },
+        { id:'lIfA',   html:'if (<span class="t-edge">pressedA</span>) {' },
+        { id:'lIfA2',  html:'    if (robot.intake.getState() != Intake.State.OFF) robot.intake.off();' },
+        { id:'lIfA3',  html:'    else robot.intake.forward();' },
+        { id:'lIfA4',  html:'}' },
+        { id:'lIfB',   html:'if (<span class="t-edge">pressedB</span>) {' },
+        { id:'lIfB2',  html:'    if (robot.intake.getState() != Intake.State.OFF) robot.intake.off();' },
+        { id:'lIfB3',  html:'    else robot.intake.reverse();' },
+        { id:'lIfB4',  html:'}' },
+        { id:'lSaveA', html:'<span class="t-prev">previousA</span> = <span class="t-a">gamepad1.a</span>;' },
+        { id:'lSaveB', html:'<span class="t-prev">previousB</span> = <span class="t-a">gamepad1.b</span>;' },
+      ];
+      const ALWAYS = new Set(['lPA','lPB','lSaveA','lSaveB']);
+      const GLOW = { FORWARD:'#50c070', OFF:'#7c8699', REVERSE:'#f0883e' };
+      const STATES = ['FORWARD', 'OFF', 'REVERSE'];
+      const STATE_LABELS = ['Forward', 'Off', 'Reverse'];
+
+      const TEMPLATE = `
+      <style>
+        :host{ --a:#50c070; --prev:#c084fc; --edge:#38bdf8; --dim:#3a4150; --off:#7c8699;
+               display:block; font-family:inherit; color:#e2e8f0; }
+        .split{ display:flex; align-items:stretch; gap:14px; }
+        .panel-left{ flex:1 1 56%; min-width:0; }
+        .panel-right{ flex:1 1 44%; min-width:0; display:flex; flex-direction:column; background:#0b0f16;
+               border:1px solid var(--dim); border-radius:10px; padding:10px 12px 12px; }
+        @media (max-width:700px){ .split{ flex-direction:column; } }
+        .pads{ display:flex; gap:26px; justify-content:center; margin:2px 0 26px; }
+        .pad-btn{ position:relative; width:74px; height:74px; border-radius:50%; cursor:pointer; user-select:none;
+               font-weight:900; font-size:1.4rem; color:#0b0f16; border:2px solid #0a0e14; touch-action:none;
+               display:flex; align-items:center; justify-content:center;
+               box-shadow:0 4px 0 #0a0e14, inset 0 2px 4px rgba(255,255,255,.35); transition:transform .06s, box-shadow .1s, filter .1s; }
+        .pad-btn small{ position:absolute; bottom:-17px; left:0; right:0; text-align:center; font-size:.54rem;
+               font-weight:700; color:#8291a3; text-transform:uppercase; letter-spacing:.05em; }
+        .pad-btn.a{ background:radial-gradient(circle at 36% 30%, #7be0a0, var(--a)); color:#08351b; }
+        .pad-btn.b{ background:radial-gradient(circle at 36% 30%, #f0a5cf, #e0559a); color:#3a0f2a; }
+        .pad-btn.held{ transform:translateY(4px); box-shadow:0 0 0 #0a0e14, 0 0 18px currentColor, inset 0 2px 6px rgba(0,0,0,.4); filter:brightness(1.1); }
+        .hint{ text-align:center; font-size:.62rem; color:#8291a3; margin:0 0 12px; line-height:1.5; }
+        .clockbar{ display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+        .clockbar .pill{ font-weight:700; padding:2px 8px; border-radius:6px; background:#161c26; border:1px solid var(--dim);
+               font-family:ui-monospace,monospace; font-size:.66rem; color:#cbd5e1; }
+        button.mini{ font:inherit; font-weight:800; font-size:.64rem; color:#eef4fb; background:linear-gradient(180deg,#28323f,#171e28);
+               border:1px solid #3a4453; border-radius:8px; padding:5px 11px; cursor:pointer; transition:filter .12s, border-color .15s; }
+        button.mini:hover{ border-color:#66748a; filter:brightness(1.14); }
+        button.mini:disabled{ opacity:.4; cursor:not-allowed; }
+        .scope{ border:1px solid var(--dim); border-radius:10px; background:#0b0f16; padding:8px 8px 10px; }
+        .scope-row{ display:flex; align-items:center; gap:6px; margin:2px 0; }
+        .scope-row .rlbl{ flex:0 0 92px; font-family:ui-monospace,monospace; font-size:.58rem; text-align:right; white-space:nowrap; font-weight:700; }
+        .scope-row .track{ display:flex; gap:2px; flex:1 1 auto; }
+        .cell{ flex:1 1 0; height:15px; border-radius:2px; background:#131a24; border:1px solid #1c2530; transition:background .1s; }
+        .cell.newest{ outline:2px solid #556072; outline-offset:1px; }
+        .rlbl.c-a{ color:var(--a); } .rlbl.c-prev{ color:var(--prev); } .rlbl.c-edge{ color:var(--edge); }
+        .cell.on-a{ background:var(--a); border-color:var(--a); }
+        .cell.on-prev{ background:var(--prev); border-color:var(--prev); }
+        .cell.on-edge{ background:var(--edge); border-color:var(--edge); box-shadow:0 0 8px var(--edge); }
+        .scope-gap{ height:9px; }
+        .readout{ display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin:11px 0 2px; font-size:.64rem; font-family:ui-monospace,monospace; }
+        .readout .rd{ padding:3px 8px; border-radius:6px; background:#131a24; border:1px solid var(--dim); }
+        .rd b{ font-weight:800; } .rd.a b{ color:var(--a); } .rd.prev b{ color:var(--prev); } .rd.edge b{ color:var(--edge); }
+        .arrow{ color:#556072; font-weight:800; align-self:center; }
+        .tally{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin:12px 0 2px; }
+        .tally .box{ text-align:center; padding:6px 12px; border-radius:8px; background:#0d121a; border:1px solid var(--dim); min-width:118px; }
+        .tally .box .n{ font-size:1.25rem; font-weight:900; font-family:ui-monospace,monospace; display:block; line-height:1.2; }
+        .tally .box.naive{ border-color:#6b4526; } .tally .box.naive .n{ color:#f0883e; }
+        .tally .box.edge{ border-color:#2f5a7a; } .tally .box.edge .n{ color:var(--edge); }
+        .tally .box .cap{ font-size:.52rem; text-transform:uppercase; letter-spacing:.03em; color:#8291a3; line-height:1.3; }
+        .statelabel{ text-align:center; margin:12px 0 4px; font-size:.6rem; text-transform:uppercase; letter-spacing:.05em; color:#8291a3; }
+        .diagram{ display:flex; align-items:center; justify-content:center; gap:2px; margin:0 0 2px; flex-wrap:wrap; }
+        .state-node{ position:relative; font-size:.64rem; font-weight:800; letter-spacing:.04em; text-transform:uppercase;
+               padding:7px 13px 8px; border-radius:9px; background:linear-gradient(180deg,#1b2330,#12171f);
+               border:1px solid var(--dim); color:#8a97a8;
+               box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 1px 2px rgba(0,0,0,.4);
+               transition:color .25s, border-color .25s, box-shadow .25s, background .25s, transform .18s; }
+        .state-node::after{ content:''; position:absolute; left:50%; bottom:3px; transform:translateX(-50%);
+               width:0; height:2px; border-radius:2px; background:currentColor; opacity:0; transition:width .25s, opacity .25s; }
+        .state-node.active{ animation:nodePop .45s cubic-bezier(.34,1.56,.64,1);
+               background:radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--gc) 26%, #12171f), #12171f);
+               box-shadow:0 0 16px var(--gc), 0 0 4px var(--gc), inset 0 1px 0 rgba(255,255,255,.15); }
+        .state-node.active::after{ width:60%; opacity:.9; }
+        .state-arrow{ color:#3a4150; font-size:.95rem; padding:0 3px; transition:color .3s, text-shadow .3s, transform .3s; }
+        .state-arrow.pulse{ color:#e2e8f0; text-shadow:0 0 10px currentColor; transform:scale(1.25); }
+        @keyframes nodePop{ 0%{ transform:scale(1); } 40%{ transform:scale(1.32) translateY(-2px); } 100%{ transform:scale(1); } }
+        .legend{ font-size:.57rem; color:#8291a3; text-align:center; margin-top:9px; line-height:1.7; }
+        .legend i{ display:inline-block; width:9px; height:9px; border-radius:2px; vertical-align:middle; margin:0 3px 0 8px; }
+        .code-head{ display:flex; align-items:baseline; justify-content:space-between; font-size:.64rem; font-weight:800;
+               letter-spacing:.03em; text-transform:uppercase; color:#8a97a8; margin-bottom:6px; }
+        .code-head .code-tag{ color:#556072; font-weight:700; text-transform:none; letter-spacing:0; }
+        .code-box{ margin:0; font-family:ui-monospace,monospace; font-size:.66rem; line-height:1.65; color:#7c8699; overflow-x:auto; }
+        .code-box .ln{ display:block; padding:1px 8px; border-left:3px solid transparent; border-radius:0 3px 3px 0; white-space:pre; transition:background .15s; }
+        .code-box .ln.active{ color:#e2e8f0; border-left-color:#556072; background:rgba(85,96,114,.14); }
+        .code-box .ln.flash{ animation:edgeFlash .85s ease; }
+        @keyframes edgeFlash{ 0%{ background:rgba(56,189,248,.42); border-left-color:var(--edge); color:#fff; } 100%{ background:transparent; } }
+        .t-a{ color:var(--a); font-weight:700; } .t-prev{ color:var(--prev); font-weight:700; } .t-edge{ color:var(--edge); font-weight:700; }
+      </style>
+      <div class="split">
+        <div class="panel-left">
+          <div class="pads">
+            <div class="pad-btn a" id="btnA">A<small>hold me</small></div>
+            <div class="pad-btn b" id="btnB">B<small>hold me</small></div>
+          </div>
+          <div class="hint">Press &amp; <b>hold</b> a button and watch it stay down across many loops &mdash; but fire
+          only <b>once</b>. Hit <b>Pause</b>, then <b>Step</b> one loop at a time to see exactly how.</div>
+          <div class="clockbar">
+            <span class="pill" id="loopPill">loop #0</span>
+            <button class="mini" id="playBtn">&#10073;&#10073; Pause</button>
+            <button class="mini" id="stepBtn" disabled>&#8677; Step 1 loop</button>
+            <button class="mini" id="resetBtn">&#8635; Reset</button>
+          </div>
+          <div class="scope">
+            <div class="scope-row"><div class="rlbl c-a">gamepad1.a</div><div class="track" id="trackA"></div></div>
+            <div class="scope-row"><div class="rlbl c-prev">previousA</div><div class="track" id="trackPA"></div></div>
+            <div class="scope-row"><div class="rlbl c-edge">pressedA</div><div class="track" id="trackEA"></div></div>
+            <div class="scope-gap"></div>
+            <div class="scope-row"><div class="rlbl c-a">gamepad1.b</div><div class="track" id="trackB"></div></div>
+            <div class="scope-row"><div class="rlbl c-prev">previousB</div><div class="track" id="trackPB"></div></div>
+            <div class="scope-row"><div class="rlbl c-edge">pressedB</div><div class="track" id="trackEB"></div></div>
+          </div>
+          <div class="readout" id="readout"></div>
+          <div class="tally">
+            <div class="box naive"><span class="n" id="naiveN">0</span><span class="cap">naive if (gamepad1.a)<br>fires every loop held</span></div>
+            <div class="box edge"><span class="n" id="edgeN">0</span><span class="cap">edge-detected<br>one per real press</span></div>
+          </div>
+          <div class="statelabel">intake state</div>
+          <div class="diagram" id="diagram"></div>
+          <div class="legend">
+            <i style="background:var(--a)"></i>gamepad1.a is down
+            <i style="background:var(--prev)"></i>previousA (last loop)
+            <i style="background:var(--edge)"></i>pressedA (rising edge!)
+          </div>
+        </div>
+        <div class="panel-right">
+          <div class="code-head"><span>MecanumDrive.java &mdash; loop</span><span class="code-tag">running now &#9654;</span></div>
+          <pre class="code-box" id="codeBox"><code></code></pre>
+        </div>
+      </div>`;
+
+      class EdgeDetectWidget extends HTMLElement {
+        constructor(){
+          super();
+          const root = this.attachShadow({ mode:'open' });
+          root.innerHTML = TEMPLATE;
+          this._el = id => root.getElementById(id);
+          this._maxCells = 18;
+          this._tickMs = 340;
+          this._reset(true);
+          this._bind();
+          this._buildDiagram();
+          this._renderCode(new Set());
+          this._render();
+        }
+        connectedCallback(){ this._play(); }
+        disconnectedCallback(){ this._stop(); }
+
+        _reset(skipRender){
+          this._aDown = false; this._bDown = false;
+          this._prevA = false; this._prevB = false;
+          this._state = 'OFF';
+          this._loop = 0; this._naive = 0; this._edge = 0;
+          this._history = [];
+          this._flash = new Set();
+          this._lastDiagramState = null;
+          if (!skipRender){ this._renderCode(new Set()); this._render(); }
+        }
+        _bind(){
+          const hold = (el, set) => {
+            const down = e => { e.preventDefault(); set(true); el.classList.add('held'); el.setPointerCapture && e.pointerId!=null && el.setPointerCapture(e.pointerId); };
+            const up   = () => { set(false); el.classList.remove('held'); };
+            el.addEventListener('pointerdown', down);
+            el.addEventListener('pointerup', up);
+            el.addEventListener('pointerleave', up);
+            el.addEventListener('pointercancel', up);
+          };
+          hold(this._el('btnA'), v => this._aDown = v);
+          hold(this._el('btnB'), v => this._bDown = v);
+          this._el('playBtn').addEventListener('click', () => this._running ? this._pause() : this._play());
+          this._el('stepBtn').addEventListener('click', () => { if (!this._running) this._tick(); });
+          this._el('resetBtn').addEventListener('click', () => this._reset());
+        }
+        _play(){
+          if (this._running) return;
+          this._running = true;
+          this._el('playBtn').innerHTML = '\u2759\u2759 Pause';
+          this._el('stepBtn').disabled = true;
+          this._timer = setInterval(() => this._tick(), this._tickMs);
+        }
+        _pause(){ this._stop(); this._el('playBtn').innerHTML = '\u25B6 Play'; this._el('stepBtn').disabled = false; }
+        _stop(){ this._running = false; if (this._timer){ clearInterval(this._timer); this._timer = null; } }
+
+        _tick(){
+          const a = this._aDown, b = this._bDown;
+          const edgeA = a && !this._prevA;
+          const edgeB = b && !this._prevB;
+          this._flash = new Set();
+          // naive counter: a plain "if (gamepad1.a)" would fire on EVERY loop the button is down.
+          if (a) this._naive++;
+          if (b) this._naive++;
+          // edge-detected reactions (one clean press each): also drives the intake toggle + code flash.
+          if (edgeA){
+            this._edge++;
+            const wasOff = this._state === 'OFF';
+            this._state = wasOff ? 'FORWARD' : 'OFF';
+            this._flash.add('lIfA'); this._flash.add(wasOff ? 'lIfA3' : 'lIfA2');
+          }
+          if (edgeB){
+            this._edge++;
+            const wasOff = this._state === 'OFF';
+            this._state = wasOff ? 'REVERSE' : 'OFF';
+            this._flash.add('lIfB'); this._flash.add(wasOff ? 'lIfB3' : 'lIfB2');
+          }
+          this._loop++;
+          this._history.push({ a, pa:this._prevA, edgeA, b, pb:this._prevB, edgeB });
+          if (this._history.length > this._maxCells) this._history.shift();
+          // "previousA = gamepad1.a;" — remember this loop's buttons for next loop's comparison.
+          this._prevA = a; this._prevB = b;
+          this._renderCode(this._flash);
+          this._render();
+        }
+        _renderCode(flash){
+          const html = CODE_LINES.map(l => {
+            let cls = 'ln';
+            if (ALWAYS.has(l.id)) cls += ' active';
+            if (flash.has(l.id)) cls += ' flash';
+            return '<span class="' + cls + '">' + l.html + '</span>';
+          }).join('');
+          this._el('codeBox').querySelector('code').innerHTML = html;
+        }
+        // Same FORWARD<->OFF<->REVERSE node/arrow row the intake state-machine widget uses, for consistency.
+        _buildDiagram(){
+          let html = '';
+          STATES.forEach((s, i) => {
+            html += '<span class="state-node" data-state="' + s + '" id="node' + s + '">' + STATE_LABELS[i] + '</span>';
+            if (i < STATES.length - 1) html += '<span class="state-arrow" id="arrow' + i + '">\u21c4</span>';
+          });
+          this._el('diagram').innerHTML = html;
+        }
+        _updateNodes(){
+          for (const s of STATES){
+            const node = this._el('node' + s);
+            const active = s === this._state;
+            node.classList.toggle('active', active);
+            node.style.background = active ? GLOW[s] : '';
+            node.style.borderColor = active ? GLOW[s] : '';
+            node.style.color = active ? '#0b0f16' : '';
+            node.style.setProperty('--gc', GLOW[s]);
+          }
+          if (this._lastDiagramState !== null && this._lastDiagramState !== this._state){
+            ['arrow0','arrow1'].forEach(id => {
+              const a = this._el(id);
+              if (!a) return;
+              a.classList.remove('pulse'); void a.offsetWidth; a.classList.add('pulse');
+              setTimeout(() => a.classList.remove('pulse'), 320);
+            });
+          }
+          this._lastDiagramState = this._state;
+        }
+        _fillTrack(el, pick){
+          const cells = [];
+          const pad = this._maxCells - this._history.length;
+          for (let i = 0; i < pad; i++) cells.push('<div class="cell"></div>');
+          this._history.forEach((h, idx) => {
+            const on = pick(h);
+            const newest = idx === this._history.length - 1 ? ' newest' : '';
+            cells.push('<div class="cell ' + (on || '') + newest + '"></div>');
+          });
+          el.innerHTML = cells.join('');
+        }
+        _render(){
+          this._el('loopPill').textContent = 'loop #' + this._loop;
+          this._fillTrack(this._el('trackA'),  h => h.a  ? 'on-a'    : '');
+          this._fillTrack(this._el('trackPA'), h => h.pa ? 'on-prev' : '');
+          this._fillTrack(this._el('trackEA'), h => h.edgeA ? 'on-edge' : '');
+          this._fillTrack(this._el('trackB'),  h => h.b  ? 'on-a'    : '');
+          this._fillTrack(this._el('trackPB'), h => h.pb ? 'on-prev' : '');
+          this._fillTrack(this._el('trackEB'), h => h.edgeB ? 'on-edge' : '');
+          const h = this._history[this._history.length - 1];
+          const bx = v => (v ? 'true' : 'false');
+          this._el('readout').innerHTML = h
+            ? '<span class="rd a">gamepad1.a=<b>' + bx(h.a) + '</b></span>' +
+              '<span class="rd prev">previousA=<b>' + bx(h.pa) + '</b></span>' +
+              '<span class="arrow">&rarr;</span>' +
+              '<span class="rd edge">pressedA=<b>' + bx(h.edgeA) + '</b></span>'
+            : '';
+          this._el('naiveN').textContent = this._naive;
+          this._el('edgeN').textContent = this._edge;
+          this._updateNodes();
+        }
+      }
+      customElements.define('edge-detect-widget', EdgeDetectWidget);
     })();
   </script>
 </body>
