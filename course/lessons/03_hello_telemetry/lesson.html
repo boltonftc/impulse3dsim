@@ -27,8 +27,24 @@ one line:</p>
 <pre><code>int loops = 0;</code></pre>
 </div>
 
-<p>This runs once, in init, so the count always starts fresh at zero. <code>int</code> means it holds a whole
-number.</p>
+<div class="blk blk-key">
+  <div class="blk-head">A variable is a labeled box</div>
+  <p>Think of a <strong>variable</strong> as a labeled box that holds one value. The label is the name
+  (<code>loops</code>), and whatever you put inside is its value (<code>0</code> to start). Later you can
+  peek in the box to read the value, or swap it for a new one &mdash; the label stays the same while the
+  contents change. So <code>int loops = 0;</code> means: <em>make a box named <code>loops</code> and put the
+  number 0 in it.</em> The word <code>int</code> is the promise that this box only ever holds whole numbers
+  (short for &ldquo;integer&rdquo;). In a moment, <code>loops += 1;</code> will reach into that same box and
+  bump the number up by one.</p>
+</div>
+
+<figure>
+  <img src="images/variable_box.png" alt="A labeled cardboard box named loops holding the number 0, with an arrow showing the value being swapped for 1 then 2 while the loops label stays the same">
+  <figcaption>A <strong>variable</strong> is a labeled box: the name stays put while the value inside can
+  change.</figcaption>
+</figure>
+
+<p>This line runs once, in init, so the count always starts fresh at zero.</p>
 
 <h2>Step 2 &mdash; Say something every loop</h2>
 
