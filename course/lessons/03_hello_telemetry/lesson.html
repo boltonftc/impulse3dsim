@@ -61,6 +61,23 @@ telemetry.addData("Loops", loops);</code></pre>
 </div>
 
 <div class="blk blk-key">
+  <div class="blk-head">The dot means &ldquo;ask this thing to do that&rdquo;</div>
+  <p>See the dot in <code>telemetry.addData(...)</code>? That little <code>.</code> is brand new, and you'll
+  see it everywhere from now on. Read it left to right: the part <em>before</em> the dot is <strong>who</strong>
+  you're talking to (<code>telemetry</code>, your helper for on-screen messages), and the part <em>after</em>
+  the dot is <strong>what</strong> you want it to do (<code>addData</code>, add a line of data). The stuff in
+  the parentheses is the details it needs &mdash; here, a label and a value. It's just like getting someone's
+  attention by name and then giving them an instruction: &ldquo;<em>Telemetry, add this data.</em>&rdquo;</p>
+</div>
+
+<figure>
+  <img src="images/dot_notation.png" alt="A student handing an instruction card labeled addData to a friendly robot named telemetry, with the dot between telemetry and addData highlighted as the connector">
+  <figcaption>The <strong>dot</strong> connects a thing to one of its actions:
+  <code>telemetry</code> <strong>.</strong> <code>addData(&hellip;)</code> means &ldquo;telemetry, please
+  add this data.&rdquo;</figcaption>
+</figure>
+
+<div class="blk blk-key">
   <div class="blk-head">How telemetry works</div>
   <ul>
     <li><code>telemetry.addData("label", value)</code> queues up one line: a label on the left, a value on
