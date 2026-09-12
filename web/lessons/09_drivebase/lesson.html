@@ -18,14 +18,32 @@ shooter, an arm, a climber&hellip; If <em>every</em> mechanism dumped its code i
 with 300+ lines of tangled math. Nobody &mdash; not even you &mdash; could read it, and one tiny typo could break
 everything.</p>
 
+<figure>
+  <img src="images/robot_house.png" alt="Two floor plans side by side: on the left one crowded room stuffed with drive, IMU, intake and shooter code; on the right a tidy house split into labeled rooms Drivebase, Intake, Shooter, and Arm">
+  <figcaption>Left: every job crammed into one room. Right: each job gets its own labeled room. Same house,
+  far easier to live in.</figcaption>
+</figure>
+
 <div class="blk blk-key">
-  <div class="blk-head">The big idea: a class is a room</div>
-  <p>Think of your program as a <strong>house</strong>. Right now everything happens in one crowded room. The fix
-  is to give each job <strong>its own room</strong> with a label on the door.</p>
-  <p>In Java, a room like that is called a <strong>class</strong>. The <code>Drivebase</code> class is the room where
-  <em>everything about driving</em> lives &mdash; the four motors <em>and</em> the math that powers them. Nothing outside
-  that room needs to know <em>how</em> driving works. They just knock on the door and say &ldquo;drive!&rdquo;</p>
+  <div class="blk-head">The big idea: from blueprint to a house of rooms</div>
+  <p>Remember Lesson 2, where we said a <strong>class is a blueprint</strong>? A blueprint is the <em>plan</em>
+  for a room before it's built. Back then you started from FTC's <code>LinearOpMode</code> blueprint. Now you'll
+  draw your <em>own</em> blueprints &mdash; and each one describes a single <strong>room</strong> of your robot's
+  house.</p>
+  <p>Think of your whole program as that <strong>house</strong>. Right now everything happens in one crowded
+  room. The fix is to give each job <strong>its own room</strong>, built from its own blueprint, with a label on
+  the door. In Java that blueprint is a <strong>class</strong>, and the actual room Java builds from it when the
+  robot runs is an <strong>object</strong>. The <code>Drivebase</code> class is the blueprint for the room where
+  <em>everything about driving</em> lives &mdash; the four motors <em>and</em> the math that powers them. Nothing
+  outside that room needs to know <em>how</em> driving works; they just knock on the door and say
+  &ldquo;drive!&rdquo;</p>
 </div>
+
+<figure>
+  <img src="images/blueprint_to_room.png" alt="On the left a blueprint labeled class, an arrow labeled build in the middle, and on the right a furnished room labeled object that was built from that blueprint">
+  <figcaption>Same idea as Lesson 2, one step further: the <strong>class</strong> is the blueprint; the
+  <strong>object</strong> is the actual room Java builds from it.</figcaption>
+</figure>
 
 <p>A class is made of two kinds of things:</p>
 
@@ -35,9 +53,10 @@ everything.</p>
   and <code>stop()</code>.</li>
 </ul>
 
-<p>There's also one special method called the <strong>constructor</strong>. It runs <em>once</em>, the moment you build
-the object &mdash; like unpacking a new appliance and plugging it in. <code>Drivebase</code>'s constructor is where it
-finds its four motors in the <code>hardwareMap</code> and gets them ready.</p>
+<p>There's also one special method called the <strong>constructor</strong>. It runs <em>once</em>, the moment the
+room is built from its blueprint &mdash; think of the crew that shows up, installs the fixtures, and plugs
+everything in. <code>Drivebase</code>'s constructor is where it finds its four motors in the
+<code>hardwareMap</code> and gets them ready.</p>
 
 <div class="blk blk-key">
   <div class="blk-head">Why <code>public</code> and <code>private</code>?</div>
@@ -54,6 +73,12 @@ finds its four motors in the <code>hardwareMap</code> and gets them ready.</p>
   the <strong>only</strong> way to drive is through the one door you control &mdash; so if driving misbehaves, you know
   exactly where the problem is.</p>
 </div>
+
+<figure>
+  <img src="images/public_private_room.png" alt="A room labeled Drivebase with a single public door labeled driveFieldCentric that an OpMode knocks on, and the four motors hidden as private wiring inside the walls">
+  <figcaption>One <strong>public</strong> door to drive through; the motors stay <strong>private</strong>,
+  hidden in the walls where only <code>Drivebase</code> can reach them.</figcaption>
+</figure>
 
 <p>And here's the payoff, the reason pro teams write code this way:</p>
 
@@ -102,12 +127,19 @@ where it belongs.</p>
 
 <div class="blk blk-code">
   <div class="blk-head"><span>Type this into <code>Drivebase.java</code></span><span class="copybtn">&#10850; Copy</span></div>
-  <pre><code>double fl = forward + right + turn;
-double fr = forward - right - turn;
-double bl = forward - right + turn;
-double br = forward + right - turn;
+  <pre><code>// Mix the three driver intents into a raw power for each wheel (the mecanum sign pattern).
+double fl = forward + right + turn;   // front-left
+double fr = forward - right - turn;   // front-right
+double bl = forward - right + turn;   // back-left
+double br = forward + right - turn;   // back-right
+
+// Normalize: find the biggest wheel power, but never let max drop below 1.0. Starting at 1.0
+// means we only scale down when a wheel actually exceeds full power (otherwise we divide by 1.0).
 double max = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)),
                                     Math.max(Math.abs(bl), Math.abs(br))));
+
+// Divide every wheel by max (keeps their ratios, so the direction stays the same),
+// then scale by DRIVE_SPEED_SCALE to cap the top speed to something drivable.
 frontLeft.setPower(fl / max * DRIVE_SPEED_SCALE);
 frontRight.setPower(fr / max * DRIVE_SPEED_SCALE);
 backLeft.setPower(bl / max * DRIVE_SPEED_SCALE);

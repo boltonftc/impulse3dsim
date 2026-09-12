@@ -134,22 +134,30 @@ place. The motor setup in INIT stays exactly as it is &mdash; mecanum uses the s
 
 <div class="blk blk-code">
   <div class="blk-head"><span>Type this code</span><span class="copybtn">&#10697; Copy</span></div>
-<pre><code>double drive  = -gamepad1.left_stick_y;
-double strafe =  gamepad1.left_stick_x;
-double turn   =  gamepad1.right_trigger - gamepad1.left_trigger;
-double powFL =  strafe + drive + turn;
-double powBL = -strafe + drive + turn;
-double powFR = -strafe + drive - turn;
-double powBR =  strafe + drive - turn;
-double max = Math.max(Math.abs(powFL), Math.abs(powBL));
-max = Math.max(max, Math.abs(powFR));
-max = Math.max(max, Math.abs(powBR));
-if (max > 1.0) {
+<pre><code>// --- 1. Read the driver's three intentions from the gamepad ---
+double drive  = -gamepad1.left_stick_y;  // forward / back  (stick up reads negative, so flip the sign)
+double strafe =  gamepad1.left_stick_x;  // sideways        (push right = positive)
+double turn   =  gamepad1.right_trigger - gamepad1.left_trigger;  // rotate: RT clockwise, LT counter-clockwise
+
+// --- 2. Mix those three into a power for each wheel (the mecanum sign pattern) ---
+double powFL =  strafe + drive + turn;   // front-left
+double powBL = -strafe + drive + turn;   // back-left
+double powFR = -strafe + drive - turn;   // front-right
+double powBR =  strafe + drive - turn;   // back-right
+
+// --- 3. Normalize: a motor maxes out at 1.0, so if any power is bigger,
+//        divide ALL four by that biggest value to keep their ratios (the direction) intact ---
+double max = Math.max(Math.abs(powFL), Math.abs(powBL));  // biggest so far: FL vs BL
+max = Math.max(max, Math.abs(powFR));    // now compare against FR
+max = Math.max(max, Math.abs(powBR));    // now compare against BR
+if (max > 1.0) {                         // only rescale when something actually exceeds the limit
     powFL /= max;
     powBL /= max;
     powFR /= max;
     powBR /= max;
 }
+
+// --- 4. Send the final powers to the four motors ---
 frontLeft.setPower(powFL);
 backLeft.setPower(powBL);
 frontRight.setPower(powFR);

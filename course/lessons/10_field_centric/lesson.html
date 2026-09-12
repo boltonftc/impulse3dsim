@@ -8,10 +8,111 @@ driver," no matter which way the robot faces. To do it, we rotate the driver's r
 robot's current heading before mixing the wheels.</p>
 
 <div class="blk blk-key">
-  <div class="blk-head">Rotate, then mix</div>
-  <p>If the robot is turned by some <code>heading</code>, we spin the stick vector back by that same angle.
-  Then the same mecanum mix from the last lesson does the rest &mdash; now relative to the field.</p>
+  <div class="blk-head">The one-sentence version (then we'll slow way down)</div>
+  <p>Before we mix the wheels, we <strong>spin the driver's request</strong> by the robot's heading so that
+  &ldquo;forward&rdquo; always means <em>away from the driver</em>. That's it &mdash; but honestly, that sentence
+  hides three big ideas stacked on top of each other. This is one of the hardest concepts in the whole course,
+  so we're going to take it slowly, one layer at a time. Read this page without rushing; it's normal to go
+  through it twice.</p>
 </div>
+
+<h2>The problem, in a real moment</h2>
+
+<p>Imagine you're driving. Your robot rolls out, then <strong>spins halfway around</strong> to grab a game
+piece. Its front bumper is now pointing straight back at <em>you</em>. You push the left stick <em>up</em>
+&mdash; the direction that used to send it downfield &mdash; and the robot drives <strong>toward you</strong>
+instead. To send it away, you now have to push <em>down</em>. Turn the robot a quarter more and now you have to
+push <em>sideways</em>. Every time the robot rotates, your controls rotate with it, and your brain has to do
+the math mid-match. That is <strong>robot-centric</strong> driving, and it's exhausting.</p>
+
+<p>We want the opposite: no matter how the robot is twisted around, pushing the stick <em>away from your body</em>
+should always send the robot downfield, away from you. That's <strong>field-centric</strong> driving.</p>
+
+<h2>Layer 1 &mdash; there are two different &ldquo;forwards&rdquo;</h2>
+
+<p>The whole confusion comes from the word &ldquo;forward&rdquo; meaning two different things:</p>
+<ul>
+  <li><strong>The robot's forward</strong> &mdash; whichever way its front bumper is pointing <em>right now</em>.
+  This spins around with the robot.</li>
+  <li><strong>Your forward</strong> &mdash; straight away from where you're standing, down the field. This
+  <em>never</em> changes, no matter what the robot does.</li>
+</ul>
+
+<p>Robot-centric driving obeys the robot's forward; field-centric driving obeys <em>yours</em>. The picture
+below is the goal: the robot's front is turned sideways, but a push &ldquo;away from me&rdquo; still drives it
+straight downfield.</p>
+
+<figure>
+  <img src="images/field_centric_idea.png" alt="Top-down field with a driver at the bottom holding a gamepad, a robot in the middle turned sideways, the stick labeled push away from me, and the robot's motion arrow pointing straight downfield away from the driver">
+  <figcaption>Push the stick <em>away from you</em> and the robot goes downfield &mdash; even though its front is
+  pointed sideways. That is field-centric driving.</figcaption>
+</figure>
+
+<h2>Layer 2 &mdash; the wheels only understand &ldquo;robot&rdquo;</h2>
+
+<p>Here's the catch that makes this necessary. The mecanum mix you wrote last lesson thinks purely in
+<em>robot</em> terms: it knows &ldquo;drive the robot toward its own front&rdquo; and &ldquo;strafe the robot
+toward its own side.&rdquo; The wheels have <strong>no idea where you're standing</strong>. So if the driver's
+stick is speaking in <em>field</em> directions (&ldquo;downfield, please&rdquo;) but the wheels only speak
+<em>robot</em> directions, someone has to <strong>translate</strong> the request from field-language into
+robot-language before the wheels ever see it.</p>
+
+<p>That translation is the entire job of this lesson. And it turns out the translation is a <strong>rotation</strong>:
+if the robot is turned by some angle, its idea of &ldquo;forward&rdquo; is off from yours by that same angle, so
+we rotate the driver's arrow by that angle to line the two up.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Layer 3 &mdash; the only trig you need: cos and sin are just shadows</div>
+  <p>To rotate an arrow in code, we need <code>cos</code> and <code>sin</code>. Take a breath &mdash; you do
+  <em>not</em> have to master trigonometry here. You only need <strong>one</strong> mental picture, and this is
+  it.</p>
+  <p>Picture an arrow of length 1 starting at a center dot and tilted at some angle. That arrow reaches a
+  certain distance <strong>across</strong> (left-to-right) and a certain distance <strong>up</strong> (toward the
+  top of the field). Those two reaches are <em>all</em> that <code>cos</code> and <code>sin</code> are:</p>
+  <ul>
+    <li><code>Math.cos(angle)</code> = how far the arrow reaches <strong>across</strong> (its shadow on the
+    floor).</li>
+    <li><code>Math.sin(angle)</code> = how far the arrow reaches <strong>up</strong> (its shadow on the wall).</li>
+  </ul>
+  <p>Watch what happens at the extremes, because this is what makes it click:</p>
+  <ul>
+    <li>Lay the arrow <strong>flat to the right</strong> (angle 0). Its floor-shadow is as long as possible, so
+    <code>cos = 1</code>; it has no height at all, so <code>sin = 0</code>.</li>
+    <li>Stand the arrow <strong>straight up</strong> (a quarter turn). Now it has no width, so <code>cos = 0</code>;
+    its wall-shadow is full, so <code>sin = 1</code>.</li>
+  </ul>
+  <p>So as the arrow spins, cos and sin slide smoothly between those extremes. They are simply the two numbers
+  that pin down which way an arrow points. That's the whole idea &mdash; nothing more.</p>
+</div>
+
+<figure>
+  <img src="images/cos_sin_shadow.png" alt="A length-1 arrow from the origin at an angle, with a dotted line down to the horizontal axis labeled cos equals how far across and a dotted line to the vertical axis labeled sin equals how far up">
+  <figcaption>Any tilted arrow has two shadows: <code>cos</code> is how far it reaches across, <code>sin</code> is
+  how far it reaches up. Those two numbers <em>are</em> the arrow's direction.</figcaption>
+</figure>
+
+<h2>Putting it together &mdash; spin the arrow back</h2>
+
+<p>Now we have all the pieces. Your stick push is an arrow that points where <em>you</em> want to go on the
+field (the <span style="color:#1a73e8"><strong>blue arrow</strong></span> below). The robot, meanwhile, is
+turned by its <code>heading</code>, as if it's parked on a spun-around turntable. To hand the wheels a command
+they understand, we take your blue arrow and <strong>spin it backward by the heading</strong> (the
+<span style="color:#d93025"><strong>red curved arrow</strong></span>). What comes out is the very same push, just
+expressed in the robot's own frame (the <span style="color:#188038"><strong>green arrow</strong></span>) &mdash;
+and <em>that</em> is what we feed into the mecanum mix. The cos and sin shadows are the machinery that performs
+the spin.</p>
+
+<figure>
+  <img src="images/rotate_arrow.png" alt="The driver's blue request arrow pointing downfield, a red curved arrow rotating it backward by the robot's heading, and a green result arrow lined up with the turned robot's frame ready to mix with the motors">
+  <figcaption>Blue = what you asked for (downfield). Red = spin it back by the <code>heading</code>. Green = the
+  same request, now in the robot's frame &mdash; ready for the wheels. Same direction, just rotated to match the
+  robot.</figcaption>
+</figure>
+
+<p>Why <em>backward</em> (a minus sign on the heading)? Because we're not turning the robot &mdash; we're
+un-turning the request. If the robot is rotated one way, we rotate the driver's arrow the <em>opposite</em> way
+by the same amount, and the two cancel out. That leftover is a push measured in robot terms, which is exactly
+what the wheels need.</p>
 
 <p>Open <code>Drivebase.java</code> and find the spot just before the mecanum mix, where <code>forward</code> and
 <code>right</code> are set from the raw sticks.</p>
@@ -29,15 +130,47 @@ robot's current heading before mixing the wheels.</p>
 
 <div class="blk blk-code">
   <div class="blk-head"><span>Type this code</span><span class="copybtn">&#10850; Copy</span></div>
-  <pre><code>double cos = Math.cos(-headingRadians);
+  <pre><code>// cos and sin capture how far the robot is turned. We use -headingRadians to spin the
+// driver's request the OPPOSITE way, which cancels out the robot's rotation.
+double cos = Math.cos(-headingRadians);
 double sin = Math.sin(-headingRadians);
-right   = strafe * cos - drive * sin;
-forward = strafe * sin + drive * cos;</code></pre>
+
+// Spin the stick vector by -heading so "away from the driver" stays "away from the driver",
+// then feed the rotated forward/right into the same mecanum mix you wrote last lesson.
+right   = strafe * cos - drive * sin;   // the sideways part, after the spin
+forward = strafe * sin + drive * cos;   // the forward part, after the spin</code></pre>
 </div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Reading the four lines</div>
+  <ul>
+    <li>The first two lines build the two shadow numbers, <code>cos</code> and <code>sin</code>, for the
+    <em>backward</em> spin (notice the minus sign on <code>headingRadians</code>).</li>
+    <li>The last two lines rebuild the driver's push as <code>forward</code> and <code>right</code> <em>after</em>
+    the spin. Each output is a blend of the two inputs (<code>drive</code> and <code>strafe</code>), weighted by
+    those shadows &mdash; that blend <em>is</em> the rotation.</li>
+    <li>Those new <code>forward</code> and <code>right</code> values then flow straight into the same mecanum mix
+    from last lesson, which never even knows a rotation happened.</li>
+  </ul>
+</div>
+
+<h3>A quick sanity check with real numbers</h3>
+
+<p><strong>Case 1 &mdash; the robot is already facing downfield (heading = 0).</strong> Then <code>cos = 1</code>
+and <code>sin = 0</code>, so <code>right = strafe</code> and <code>forward = drive</code>. The push passes
+through <em>unchanged</em> &mdash; exactly what we'd want when the robot is lined up with the field. The rotation
+quietly does nothing.</p>
+
+<p><strong>Case 2 &mdash; the robot is turned a quarter-turn.</strong> Now <code>cos = 0</code> and
+<code>sin = &plusmn;1</code>. Push straight away from yourself (<code>drive = 1</code>, <code>strafe = 0</code>)
+and the math turns it into <code>forward = 0</code>, <code>right = 1</code> &mdash; a <em>pure sideways</em>
+command. That looks strange until you remember the robot is sitting sideways: to travel downfield, a
+quarter-turned robot has to strafe to its own side. The formula figured that out for you. The driver just
+pushed &ldquo;away,&rdquo; and the robot went downfield.</p>
 
 <p>The <code>headingRadians</code> value is handed in every loop &mdash; it comes straight from the
 <code>IMU</code> you set up last lesson. Because the sensor is already reporting a real heading, this rotation
-takes effect the moment you add it: turn the robot and "forward" stays pointed away from you.</p>
+takes effect the moment you add it: turn the robot and &ldquo;forward&rdquo; stays pointed away from you.</p>
 
 <div class="blk blk-hint">
   <div class="blk-head">Hint</div>

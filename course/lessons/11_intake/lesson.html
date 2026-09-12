@@ -19,9 +19,30 @@ it here on one motor, and the dumper, the arm, the climber &mdash; everything af
 <h2>The big idea: a state machine</h2>
 
 <p>Notice we just described the intake as being in one of exactly <strong>three situations</strong>: pulling in,
-stopped, or spitting out. It is always in <em>one</em> of them, never two at once. When something can only
-ever be in one of a handful of named situations, programmers call it a <strong>state machine</strong>, and each
-situation is a <strong>state</strong>.</p>
+stopped, or spitting out. It is always in <em>one</em> of them, never two at once. When something can only ever
+be in one of a handful of named situations &mdash; and only moves between them by rules &mdash; programmers call it
+a <strong>state machine</strong>, and each situation is a <strong>state</strong>.</p>
+
+<p>You already know a state machine; you just never called it that. A <strong>traffic light</strong> is one. It
+always shows exactly <em>one</em> of green, yellow, or red &mdash; never two at once &mdash; and it moves between
+them along fixed paths (green&nbsp;&rarr;&nbsp;yellow&nbsp;&rarr;&nbsp;red&nbsp;&rarr;&nbsp;green), never jumping
+straight from green to red. Your intake behaves the same way: it sits in one named state and only changes along
+paths you allow.</p>
+
+<figure>
+  <img src="images/state_machine_intro.png" alt="On the left a traffic light with green, yellow, and red as three states joined by arrows; on the right the intake with three states FORWARD, OFF, and REVERSE joined by arrows; a label between them reading same idea">
+  <figcaption>A traffic light is a state machine you already know: always exactly one light, changing only by
+  rules. Your intake works the same way &mdash; three states instead of three colors.</figcaption>
+</figure>
+
+<p>That &ldquo;always exactly one, changed only by rules&rdquo; idea is what makes state machines so handy. It
+buys you two things worth naming:</p>
+<ul>
+  <li><strong>One source of truth.</strong> There is a single, clear answer to &ldquo;what is the intake doing
+  right now?&rdquo; &mdash; instead of that answer being smeared across a dozen spots in your program.</li>
+  <li><strong>No impossible situations.</strong> Because changes only follow the paths you allow, the intake can
+  never try to spin inward and outward at the same time, just as a light is never red <em>and</em> green.</li>
+</ul>
 
 <div class="blk blk-key">
   <div class="blk-head">Why not just call <code>motor.setPower()</code> directly?</div>
@@ -126,15 +147,16 @@ state.&rdquo;</p>
 
 <div class="blk blk-code">
   <div class="blk-head"><span>Type this into <code>Intake.java</code></span><span class="copybtn">&#10850; Copy</span></div>
-  <pre><code>switch (state) {
+  <pre><code>// Runs every loop. Look at the current state and make the motor match it.
+switch (state) {
     case FORWARD:
-        motor.setPower(INTAKE_FORWARD_POWER);
+        motor.setPower(INTAKE_FORWARD_POWER);   // full power inward to collect pieces
         break;
     case REVERSE:
-        motor.setPower(INTAKE_REVERSE_POWER);
+        motor.setPower(INTAKE_REVERSE_POWER);   // gentle reverse to spit out a jam
         break;
     case OFF:
-        motor.setPower(0.0);
+        motor.setPower(0.0);                    // cut power so the roller stops
         break;
 }</code></pre>
 </div>
@@ -173,7 +195,7 @@ it a home &mdash; two small edits, just like <code>Drivebase</code> has.</p>
 
 <div class="blk blk-code">
   <div class="blk-head"><span>Type this into <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
-  <pre><code>public final Intake intake;</code></pre>
+  <pre><code>public final Intake intake;   // the robot's intake subsystem -- built once, shared everywhere</code></pre>
 </div>
 
 <h3>2. Build it (and add it to the scheduler)</h3>
@@ -186,8 +208,8 @@ moves.</p>
 
 <div class="blk blk-code">
   <div class="blk-head"><span>Type this into <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
-  <pre><code>intake = new Intake(hardwareMap);
-subsystems.add(intake);</code></pre>
+  <pre><code>intake = new Intake(hardwareMap);   // build it -- the constructor finds "intake_motor" in the config
+subsystems.add(intake);             // register it so robot.update() calls intake.update() every loop</code></pre>
 </div>
 
 <hr>
@@ -201,20 +223,50 @@ straight from full-forward into reverse &mdash; that protects the intake motor a
 
 <div class="blk blk-key">
   <div class="blk-head">Why we need &ldquo;edge detection&rdquo;</div>
-  <p>The loop runs ~50 times a second. If you just wrote <code>if (gamepad1.a)</code>, then a single half-second
-  press would count as <em>dozens</em> of presses &mdash; the intake would flicker on/off so fast you couldn't
-  control it. <strong>Edge detection</strong> fixes this: we remember whether A was <em>already</em> down last loop, and
-  only react on the loop where it goes from up to down &mdash; the <em>rising edge</em>, one clean press.</p>
+  <p>Here's the trap. Your loop runs about <strong>50 times every second</strong>. To a human, tapping A feels like
+  one quick press &mdash; but your finger stays down for maybe a third of a second, and in that time the loop
+  spins around <em>15 or 20 times</em>. If you wrote the obvious thing, <code>if (gamepad1.a)</code>, the code would
+  see A held on <em>every single one</em> of those loops and try to toggle the intake 15&ndash;20 times in a
+  blink. The intake would stutter on/off/on/off and land wherever it happened to be when you let go. Useless.</p>
+  <p>The fix is to react to the <strong>change</strong>, not the <strong>state</strong>. We only care about the exact loop where A
+  went from <em>up last loop</em> to <em>down this loop</em> &mdash; that instant is called the <strong>rising edge</strong>, and catching
+  it is <strong>edge detection</strong>. To spot it, we need to remember what the button was doing <em>last</em> loop. That's the
+  whole job of <code>previousA</code>: it's a one-loop memory. Then the press we actually want is:</p>
+  <p style="text-align:center"><code>pressedA = gamepad1.a &amp;&amp; !previousA</code> &mdash; &ldquo;A is down <em>now</em>, and it was <em>not</em> down last time.&rdquo;</p>
+  <p>That expression is <code>true</code> for exactly <strong>one loop</strong> per press, no matter how long you hold the
+  button. Hold A for two full seconds and you still get a single <code>pressedA</code>. Let go and press again to
+  get the next one. One physical press &rarr; one clean action.</p>
+</div>
+
+<p>This is a concept that's much easier to <em>see</em> than to read about. In the widget below, the loop has been
+<strong>slowed way down</strong> so you can watch each pass. Press and <strong>hold</strong> the <strong>A</strong> button and notice three
+color-coded rows on the &ldquo;scope&rdquo;: the <span style="color:#3f9b63;font-weight:700">green</span> row (<code>gamepad1.a</code>)
+stays lit the whole time you hold; the <span style="color:#9d6bd6;font-weight:700">purple</span> row (<code>previousA</code>)
+is the same picture shifted one loop to the right &mdash; literally &ldquo;last loop's value&rdquo;; and the
+<span style="color:#2f9fd0;font-weight:700">cyan</span> row (<code>pressedA</code>) flashes on <em>only the very first
+loop</em> of each hold. Watch the two counters underneath: the naive <code>if&nbsp;(gamepad1.a)</code> count races
+upward the whole time you hold, while the edge-detected count ticks up just once. Then hit <strong>Pause</strong> and use
+<strong>Step</strong> to walk one loop at a time and watch <code>previousA</code> catch up to <code>gamepad1.a</code>. The code on the
+right lights up the same colors as you go.</p>
+
+<div class="blk blk-widget">
+  <div class="blk-head">Try it &mdash; Edge Detection</div>
+  <edge-detect-widget></edge-detect-widget>
 </div>
 
 <h3>1. Remember last loop's buttons</h3>
+
+<p>These two fields are the <em>memory</em> that makes edge detection possible. Each one holds what its button
+looked like on the <em>previous</em> loop, so this loop has something to compare against. They live up with your
+other OpMode fields &mdash; <strong>not</strong> inside the loop &mdash; so their values survive from one loop to the next
+(a variable declared inside the loop would be wiped and reset to <code>false</code> every single pass).</p>
 
 <span class="act" data-action="open_file" data-arg="MecanumDrive.java|Intake : Variables">&#9656; MecanumDrive.java : Intake : Variables</span>
 
 <div class="blk blk-code">
   <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code></span><span class="copybtn">&#10850; Copy</span></div>
-  <pre><code>private boolean previousA = false;
-private boolean previousB = false;</code></pre>
+  <pre><code>private boolean previousA = false;   // what gamepad1.a was LAST loop (starts false = not pressed)
+private boolean previousB = false;   // same one-loop memory for the B button</code></pre>
 </div>
 
 <h3>2. In the loop: detect the press, then start or stop the intake</h3>
@@ -228,16 +280,22 @@ save this loop's buttons so next loop can compare.</p>
 
 <div class="blk blk-code">
   <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code></span><span class="copybtn">&#10850; Copy</span></div>
-  <pre><code>boolean pressedA = gamepad1.a &amp;&amp; !previousA;
+  <pre><code>// pressedA is true for exactly ONE loop: the instant A goes from up (last loop) to down (now).
+boolean pressedA = gamepad1.a &amp;&amp; !previousA;
 boolean pressedB = gamepad1.b &amp;&amp; !previousB;
+
+// A was just tapped: if the intake is running at all, stop it; only from a stop does A run it forward.
 if (pressedA) {
     if (robot.intake.getState() != Intake.State.OFF) robot.intake.off();
     else robot.intake.forward();
 }
+// B was just tapped: same safety rule, but from a stop B runs it in reverse to clear a jam.
 if (pressedB) {
     if (robot.intake.getState() != Intake.State.OFF) robot.intake.off();
     else robot.intake.reverse();
 }
+
+// Save this loop's buttons so NEXT loop's pressed check has a "last time" to compare against.
 previousA = gamepad1.a;
 previousB = gamepad1.b;</code></pre>
 </div>

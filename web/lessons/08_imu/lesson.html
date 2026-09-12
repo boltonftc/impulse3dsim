@@ -33,17 +33,45 @@ initialize it. Open <code>MecanumDrive.java</code> and jump to the setup spot:</
 
 <div class="blk blk-code">
   <div class="blk-head"><span>Type this code</span><span class="copybtn">&#10850; Copy</span></div>
-  <pre><code>IMU imu = hardwareMap.get(IMU.class, "imu");
-imu.initialize(new IMU.Parameters(
-    new RevHubOrientationOnRobot(
-        RevHubOrientationOnRobot.LogoFacingDirection.UP,
-        RevHubOrientationOnRobot.UsbFacingDirection.FORWARD)));</code></pre>
+  <pre><code>IMU imu = hardwareMap.get(IMU.class, "imu");   // grab the IMU from the config, by the name "imu"
+
+// Wake the sensor up and tell it how the Control Hub is bolted onto the robot,
+// so it knows which way is up and which way the robot faces.
+imu.initialize(new IMU.Parameters(                            // hand the IMU a settings bundle...
+    new RevHubOrientationOnRobot(                             //   ...that describes the hub's mounting:
+        RevHubOrientationOnRobot.LogoFacingDirection.UP,      //      the REV logo points UP
+        RevHubOrientationOnRobot.UsbFacingDirection.FORWARD)));//     the USB ports point FORWARD</code></pre>
 </div>
 
-<p><code>RevHubOrientationOnRobot</code> tells the IMU how the Control Hub is mounted &mdash; logo facing
-<strong>UP</strong>, USB ports facing <strong>FORWARD</strong>. That matches our robot (and the most common
-real mounting). The imports for <code>IMU</code>, <code>RevHubOrientationOnRobot</code>, and
-<code>AngleUnit</code> are already added for you at the top of the file.</p>
+<p>This block does two things. The first line <strong>fetches</strong> the IMU from the hardware map by its
+config name <code>"imu"</code> &mdash; exactly like fetching a motor. The second statement,
+<code>imu.initialize(&hellip;)</code>, <strong>wakes the sensor up</strong> and tells it how it is mounted.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Read nested code from the inside out</div>
+  <p>That <code>initialize</code> line looks intimidating because it is three <code>new</code> objects nested
+  one inside another. The trick is to read it from the <strong>innermost</strong> parentheses outward, like
+  simplifying a math expression:</p>
+  <ol>
+    <li><code>new RevHubOrientationOnRobot(LogoFacingDirection.UP, UsbFacingDirection.FORWARD)</code> &mdash;
+    the innermost piece. It describes <em>how the Control Hub is mounted on the robot</em>: the REV logo faces
+    <strong>UP</strong>, the USB ports face <strong>FORWARD</strong>.</li>
+    <li><code>new IMU.Parameters( &hellip; )</code> &mdash; wraps that orientation into a tidy <em>settings
+    bundle</em> the IMU knows how to read.</li>
+    <li><code>imu.initialize( &hellip; )</code> &mdash; hands the whole bundle to the IMU so it can start up
+    knowing which way is up and which way is forward.</li>
+  </ol>
+  <p>You will see this &ldquo;<code>new</code> inside <code>new</code>&rdquo; shape often in FTC code. The move
+  is always the same: find the innermost part, understand it, then read outward.</p>
+</div>
+
+<p>Why does the mounting matter? The IMU figures out rotation relative to gravity and its own body. If you
+told it the hub was lying flat when it is really standing on its side, every heading it reported would be
+wrong. <strong>UP</strong> and <strong>FORWARD</strong> match our robot and the most common real mounting &mdash;
+on a physical robot you would change these to match how your hub is actually bolted on.</p>
+
+<p>The imports for <code>IMU</code>, <code>RevHubOrientationOnRobot</code>, and <code>AngleUnit</code> are
+already added for you at the top of the file.</p>
 
 <h2>2 &mdash; Read the heading every loop</h2>
 
@@ -64,11 +92,13 @@ the driver re-zero it with the right bumper. Jump to the loop spot:</p>
 
 <div class="blk blk-code">
   <div class="blk-head"><span>Type this code</span><span class="copybtn">&#10850; Copy</span></div>
-  <pre><code>double heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
-telemetry.addData("Heading (deg)", Math.toDegrees(heading));
-telemetry.addData("Heading (rad)", heading);
-if (gamepad1.right_bumper) {
-    imu.resetYaw();
+  <pre><code>double heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);  // how far the robot has turned, in radians
+
+telemetry.addData("Heading (deg)", Math.toDegrees(heading));  // show it in degrees (easy for humans to read)
+telemetry.addData("Heading (rad)", heading);                  // ...and in radians (what the math will use)
+
+if (gamepad1.right_bumper) {  // driver presses the right bumper...
+    imu.resetYaw();           // ...to call "wherever I'm pointing now" the new zero heading
 }</code></pre>
 </div>
 
