@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.5.55';
+    window.APP_VERSION = '2.5.60';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -1292,9 +1292,10 @@
     wall(WALL_T/2, WALL_H/2, HALF+WALL_T, -HALF, 0);
     wall(HALF+WALL_T, WALL_H/2, WALL_T/2, 0,  HALF);
     wall(HALF+WALL_T, WALL_H/2, WALL_T/2, 0, -HALF);
-    // invisible thick + tall backstop flush inside the thin translucent perimeter: a fast ball that would
-    // tunnel or hop the visible wall is caught by this deep collider instead of escaping the field
-    const BACK_T = 0.30, BACK_H = 0.50, IN = HALF - WALL_T/2;
+    // invisible thick backstop flush inside the thin translucent perimeter: a fast ball that would tunnel
+    // through the thin visible wall is caught by this deep collider. Height matches the ~foot-tall visible
+    // wall so lofted shots can still clear it and leave the field (they're tossed back in by the run loop).
+    const BACK_T = 0.30, BACK_H = WALL_H / 2, IN = HALF - WALL_T/2;
     const back = (hx, hz, x, z) =>
       world.createCollider(RAPIER.ColliderDesc.cuboid(hx, BACK_H, hz).setTranslation(x, BACK_H, z)
         .setRestitution(0.4).setFriction(0.9).setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Min));   // lively enough that a recycled ball rebounds off the perimeter (robots stay at restitution 0 via Min)
@@ -2260,7 +2261,7 @@
       //   8 POLLEN         = 8.0 -> tips;     7 POLLEN         = 7.0 -> holds
       const TIP = 2 * t;                               // 2 * rest tilt flips the seesaw to the mirror stop
       const rand = (a, b) => a + Math.random() * (b - a);
-      const NECTAR_W = 1.8, POLLEN_W = 1, TIP_LOAD = 8, TIP_DWELL = 0.5;
+      const NECTAR_W = 1.8, POLLEN_W = 1, TIP_LOAD = 8, TIP_DWELL = 1.0;
       let ballSource = null;                           // set from outside once the ball registry exists
       let tipCb = null;                                // fired once each time a hive begins to tip
       for (const h of hives) {
@@ -2303,7 +2304,7 @@
           } else if (raisedCellLoad(h) >= TIP_LOAD) {
             h.dwell += dt;
             if (h.dwell >= TIP_DWELL) {                                     // held past the settle window -> flip
-              h.moving = true; h.elapsed = 0; h.dur = rand(3, 4);
+              h.moving = true; h.elapsed = 0; h.dur = rand(2.5, 3.0);
               h.from = h.angle; h.to = h.angle > TIP / 2 ? 0 : TIP;
               if (tipCb) tipCb(h.color);
             }
@@ -2383,6 +2384,7 @@
     function resetFieldForMatch(){
       game.reset();
       setupMatchField();                                      // 4 pollen in the robot, 3 nectar per hive, 4 pollen per garden
+      clearYellowCards();                                     // illegal-possession warnings persist only within a match
       alliances.red.captured = alliances.blue.captured = 0;   // empty every robot's internal store on a fresh field
       resetRobot(robot, HALF * 0.45, Math.PI);
       resetRobot(robotBlue, -HALF * 0.45, 0);
@@ -2775,6 +2777,32 @@
     const POLLEN = { r: 0.0356, density: 230, color: 0xf5d020 };   // ~0.045 kg
     const NECTAR = { r: 0.0457, density: 225, color: 0xd11e28 };   // ~0.09 kg; bigger -> more drag + lower launch efficiency
     const specOf = t => (t === 'nectar' ? NECTAR : POLLEN);
+    const allianceColor = a => (a === 'blue' ? 0x1f6dd6 : 0xd11e28);
+    const pieceColor = item => (item.type === 'nectar' ? allianceColor(item.alliance) : POLLEN.color);
+    // WHIFFLE-ball holes: round pits computed in the fragment shader from the OBJECT-space surface direction
+    // (16 evenly-spread Fibonacci-sphere points), so every hole is the same size/shape (no UV-wrap stretch)
+    // and they spin with the ball. Materials are cached per colour so the shader compiles only a few times.
+    const N_HOLES = 16, HOLE_COS = Math.cos(0.24);
+    const holeDirs = (() => {
+      const out = [], ga = Math.PI * (3 - Math.sqrt(5));
+      for (let i = 0; i < N_HOLES; i++) { const y = 1 - (i + 0.5) / N_HOLES * 2, r = Math.sqrt(Math.max(0, 1 - y*y)), th = ga * i; out.push(new THREE.Vector3(Math.cos(th)*r, y, Math.sin(th)*r)); }
+      return out;
+    })();
+    const ballMats = {};
+    function ballMaterial(hex) {
+      if (ballMats[hex]) return ballMats[hex];
+      const m = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.55 });
+      m.onBeforeCompile = (sh) => {
+        sh.uniforms.uHoleDirs = { value: holeDirs };
+        sh.uniforms.uHoleCos = { value: HOLE_COS };
+        sh.vertexShader = 'varying vec3 vObj;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vObj = position;');
+        sh.fragmentShader = 'varying vec3 vObj;\nuniform vec3 uHoleDirs[16];\nuniform float uHoleCos;\n' +
+          sh.fragmentShader.replace('#include <color_fragment>',
+            '#include <color_fragment>\n  vec3 nd = normalize(vObj);\n  float hole = 0.0;\n  for (int i = 0; i < 16; i++) { hole = max(hole, step(uHoleCos, dot(nd, uHoleDirs[i]))); }\n  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.02), hole);');
+      };
+      ballMats[hex] = m;
+      return m;
+    }
     // ONE registry for every physical ball on the field. Each ball is a single persistent
     // RAPIER body that never gets destroyed+recreated between states — it just changes `state`:
     //   'field'  = settled, collectible by the intake
@@ -2796,28 +2824,28 @@
     function debugStorageState(reason = '') {
       const nField = balls.filter(b => b.state === 'field').length;
       const nFlight = balls.length - nField;
-      const text = `storage=${stored.length}/${STORAGE_CAPACITY} field=${nField} flight=${nFlight} queue=${stored.map(t => t[0]).join('') || '-'} captureCd=${captureCd.toFixed(2)} reason=${reason || 'ok'}`;
+      const text = `storage=${stored.length}/${STORAGE_CAPACITY} field=${nField} flight=${nFlight} queue=${stored.map(s => s.type[0]).join('') || '-'} captureCd=${captureCd.toFixed(2)} reason=${reason || 'ok'}`;
       console.log('[storage]', text);
       const pitTele = document.getElementById('pit-tele');
       if (pitTele) pitTele.textContent = text;
       return text;
     }
-    function enqueueStored(type) {
+    function enqueueStored(item) {
       if (stored.length >= STORAGE_CAPACITY) {
         debugStorageState('full');
         return false;
       }
-      stored.push(type);
+      stored.push(item);                                 // { type, alliance } — alliance set only for nectar
       if (sim && typeof sim === 'object') sim.captured = stored.length;
       debugStorageState('enqueue');
       return true;
     }
     function dequeueStored() {
       if (stored.length === 0) return null;
-      const type = stored.shift();
+      const item = stored.shift();
       if (sim && typeof sim === 'object') sim.captured = stored.length;
       debugStorageState('dequeue');
-      return type;
+      return item;
     }
     function makeBall(type, x, y, z, state, color) {
       const spec = specOf(type);
@@ -2825,11 +2853,11 @@
       const body = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic()
         .setTranslation(x, y, z)
         .setCcdEnabled(true)                                         // sweep test so fast shots don't tunnel through the thin hive walls
-        .setLinearDamping(flight ? 0 : 0.4)
-        .setAngularDamping(flight ? 0.2 : 0.5));
+        .setLinearDamping(flight ? 0 : 0.55)                        // more drag once settled -> ~25% less roll
+        .setAngularDamping(flight ? 0.2 : 0.6));
       world.createCollider(RAPIER.ColliderDesc.ball(spec.r).setDensity(spec.density)
-        .setRestitution(flight ? 0.35 : 0.4).setFriction(flight ? 0.6 : 0.8), body);
-      const mesh = new THREE.Mesh(new THREE.SphereGeometry(spec.r, 16, 12), new THREE.MeshStandardMaterial({ color: color != null ? color : spec.color, roughness: 0.6 }));
+        .setRestitution(flight ? 0.35 : 0.4).setFriction(flight ? 0.6 : 0.95), body);
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(spec.r, 24, 16), ballMaterial(color != null ? color : spec.color));
       mesh.castShadow = mesh.receiveShadow = true; scene.add(mesh);
       const ball = { body, mesh, r: spec.r, type, state, flightT: 0 };
       balls.push(ball);
@@ -2846,8 +2874,8 @@
     function landBall(b) {                          // flight -> field, in place: no teleport, same body
       b.state = 'field';
       b.flightT = 0;
-      b.body.setLinearDamping(0.4);
-      b.body.setAngularDamping(0.5);
+      b.body.setLinearDamping(0.55);
+      b.body.setAngularDamping(0.6);
     }
     function throwBackIn(b) {                       // a human player tosses an escaped ball back onto the field
       const m = HALF - 0.15, along = (Math.random() - 0.5) * 2 * (HALF * 0.7);
@@ -2862,19 +2890,22 @@
       b.state = 'flight'; b.flightT = 0;
       b.body.setLinearDamping(0); b.body.setAngularDamping(0.2);
     }
-    function expelPiece(type, dir) {                // dir +1 = out the front intake, -1 = off the rear dump
+    function expelPiece(item, dir) {                // dir +1 = out the front intake, -1 = off the rear dump
       mainRobot.group.updateWorldMatrix(true, false);
       const q = mainRobot.group.getWorldQuaternion(new THREE.Quaternion());
       const ctr = mainRobot.group.getWorldPosition(new THREE.Vector3());
       const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q); fwd.y = 0; fwd.normalize();
-      const spec = specOf(type);
-      const nb = makeBall(type, ctr.x + fwd.x*dir*0.30, spec.r + 0.14, ctr.z + fwd.z*dir*0.30, 'flight');
-      if (type === 'nectar') nb.alliance = 'red';   // this robot is the red alliance
+      const spec = specOf(item.type);
+      const color = item.type === 'nectar' ? allianceColor(item.alliance) : undefined;
+      const nb = makeBall(item.type, ctr.x + fwd.x*dir*0.30, spec.r + 0.14, ctr.z + fwd.z*dir*0.30, 'flight', color);
+      if (item.type === 'nectar') nb.alliance = item.alliance;
       const sp = 1.2 + Math.random() * 0.9;
       nb.body.setLinvel({ x: fwd.x*dir*sp, y: 1.1, z: fwd.z*dir*sp }, true);
     }
-    function spawnBall(pos, dir, exit, type) {      // launch a stored piece as a flight ball
-      const ball = makeBall(type, pos.x, pos.y, pos.z, 'flight');
+    function spawnBall(pos, dir, exit, item) {      // launch a stored piece as a flight ball, keeping its colour
+      const color = item.type === 'nectar' ? allianceColor(item.alliance) : undefined;
+      const ball = makeBall(item.type, pos.x, pos.y, pos.z, 'flight', color);
+      if (item.type === 'nectar') ball.alliance = item.alliance;
       ball.body.setLinvel({ x: dir.x*exit, y: dir.y*exit, z: dir.z*exit }, true);
     }
     function spawnFieldBall(type, x, z, force = false) {
@@ -2910,11 +2941,51 @@
     }
     function dumpRemainingNectar() { for (const color of ['red', 'blue']) while (addAllianceNectar(color)) {} }
     game.onTip = (color) => { addAllianceNectar(color); };   // only the tipped hive's own alliance is fed
+    // ---- YELLOW CARD: illegal possession of opposing-alliance NECTAR. Latches until the field is reset. ----
+    const illegalNectar = { red: false, blue: false };
+    const yellowCards = {};
+    (function buildYellowCards(){
+      const css = document.createElement('style');
+      css.textContent = `
+        .yellow-card{position:fixed;top:16px;z-index:99999;display:none;width:236px;padding:12px 14px 13px;
+          border-radius:13px;background:linear-gradient(150deg,#ffe23a,#f6b400);color:#241a00;
+          box-shadow:0 10px 30px #000b, inset 0 0 0 2px #fff7, 0 0 0 3px #0007;
+          font:600 12.5px/1.3 system-ui,Segoe UI,sans-serif;pointer-events:none;}
+        .yellow-card.left{left:16px;transform:rotate(-3deg);animation:yc-pop .55s cubic-bezier(.2,1.5,.4,1) both, yc-wigL 2.6s ease-in-out .55s infinite}
+        .yellow-card.right{right:16px;transform:rotate(3deg);animation:yc-pop .55s cubic-bezier(.2,1.5,.4,1) both, yc-wigR 2.6s ease-in-out .55s infinite}
+        .yellow-card .yc-h{display:flex;align-items:center;gap:9px;font-weight:800;font-size:15px;letter-spacing:.4px;text-transform:uppercase}
+        .yellow-card .yc-chip{width:19px;height:26px;border-radius:3px;background:#241a00;box-shadow:inset 0 0 0 2px #ffe680, 0 2px 5px #0007;transform:rotate(-9deg)}
+        .yellow-card .yc-sub{margin-top:7px;font-weight:650;font-size:11.5px;opacity:.9}
+        .yellow-card .yc-team{margin-top:6px;font-weight:800;font-size:10.5px;letter-spacing:.7px;opacity:.75}
+        @keyframes yc-pop{from{opacity:0;transform:scale(.5) rotate(-14deg)}to{opacity:1}}
+        @keyframes yc-wigL{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(-.5deg) translateY(-1px)}}
+        @keyframes yc-wigR{0%,100%{transform:rotate(3deg)}50%{transform:rotate(.5deg) translateY(-1px)}}
+      `;
+      document.head.appendChild(css);
+      for (const [al, side] of [['red','left'],['blue','right']]) {
+        const d = document.createElement('div');
+        d.className = 'yellow-card ' + side;
+        d.innerHTML = '<div class="yc-h"><span class="yc-chip"></span>Yellow Card</div>'
+          + '<div class="yc-sub">Illegal possession of opposing alliance NECTAR</div>'
+          + '<div class="yc-team">' + al.toUpperCase() + ' ALLIANCE</div>';
+        document.body.appendChild(d);
+        yellowCards[al] = d;
+      }
+    })();
+    function flagIllegalNectar(alliance){
+      if (illegalNectar[alliance]) return;                 // latch: only fire once, persists until reset
+      illegalNectar[alliance] = true;
+      if (yellowCards[alliance]) yellowCards[alliance].style.display = 'block';
+    }
+    function clearYellowCards(){
+      illegalNectar.red = illegalNectar.blue = false;
+      for (const k in yellowCards) yellowCards[k].style.display = 'none';
+    }
     function setupMatchField() {
       for (let i = balls.length - 1; i >= 0; i--) removeBall(i);
       stored.length = 0;
       nectarAdds.red = nectarAdds.blue = 0;                               // reset the per-alliance nectar budget
-      for (let i = 0; i < STORAGE_CAPACITY; i++) stored.push('pollen');   // robot pre-loaded with 4 POLLEN
+      for (let i = 0; i < STORAGE_CAPACITY; i++) stored.push({ type: 'pollen' });   // robot pre-loaded with 4 POLLEN
       if (sim && typeof sim === 'object') sim.captured = stored.length;
       // 3 NECTAR, colour-matched to the alliance, pre-loaded into each HIVE's raised cell (3N = 5.4 load, no tip)
       const NCOL = { red: 0xd11e28, blue: 0x1f6dd6 };
@@ -2934,18 +3005,18 @@
     for (let i = 0; i < STORAGE_CAPACITY; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 9), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 })); m.visible = false; m.castShadow = true; scene.add(m); storageViz.push(m); }
     function fireShot() {                                           // FIFO queue: oldest stored piece leaves first
       if (!mainRobot.muzzle) return;
-      const type = dequeueStored();
-      if (type === null) { console.log('no game pieces stored'); return; }
+      const item = dequeueStored();
+      if (item === null) { console.log('no game pieces stored'); return; }
+      const type = item.type;
       const exit = (SH.rpm / SH.MAX_RPM) * SH.MAX_EXIT;
-      if (exit < 0.5) { console.log('flywheel not spun up'); enqueueStored(type); return; }
-      const spec = specOf(type);
+      if (exit < 0.5) { console.log('flywheel not spun up'); enqueueStored(item); return; }
       mainRobot.muzzle.updateWorldMatrix(true, false); mainRobot.group.updateWorldMatrix(true, false);
       const q = mainRobot.group.getWorldQuaternion(new THREE.Quaternion());
       const ce = Math.cos(SH.ELEV), se = Math.sin(SH.ELEV);
       const wh = new THREE.Vector3(0, 0, 1).applyQuaternion(q); wh.y = 0; if (wh.lengthSq() < 1e-6) wh.set(0, 0, 1); wh.normalize();
       const dir = new THREE.Vector3(wh.x*ce, se, wh.z*ce);
       const pos = mainRobot.muzzle.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.12);
-      spawnBall(pos, dir, exit * (type === 'nectar' ? 0.7 : 1.0), type);   // heavier nectar leaves slower -> falls short of the raised cell
+      spawnBall(pos, dir, exit * (type === 'nectar' ? 0.7 : 1.0), item);   // heavier nectar leaves slower -> falls short of the raised cell
       SH.rpm *= (type === 'nectar' ? 0.72 : 0.84);                 // RPM sag from energy transfer (bigger for nectar)
     }
     function stepShooter(dt) {
@@ -2957,7 +3028,12 @@
       const KD = 0.5 * 1.2 * 0.47;
       for (let i = balls.length - 1; i >= 0; i--) {
         const b = balls[i], t = b.body.translation();
-        if (t.y < -0.3 || Math.hypot(t.x, t.z) > HALF * 3) { throwBackIn(b); continue; }   // escaped the field -> tossed back in
+        const outside = Math.abs(t.x) > HALF + 0.05 || Math.abs(t.z) > HALF + 0.05;
+        let stuckEdge = false;                                              // a heavy nectar can come to rest ON TOP of the perimeter
+        if (!outside && (Math.abs(t.x) > HALF - 0.06 || Math.abs(t.z) > HALF - 0.06) && t.y > 0.22) {
+          const v = b.body.linvel(); stuckEdge = (v.x*v.x + v.y*v.y + v.z*v.z) < 0.09;   // only if it's essentially at rest
+        }
+        if (t.y < -0.3 || outside || stuckEdge) { throwBackIn(b); continue; }   // past the wall, fell through, or perched on the perimeter -> tossed back in
         if (b.state === 'flight') {
           const v = b.body.linvel(), sp = Math.hypot(v.x, v.y, v.z);
           if (sp > 0.01) { const k = -KD * (Math.PI*b.r*b.r) * sp * dt; b.body.applyImpulse({ x: k*v.x, y: k*v.y, z: k*v.z }, true); }
@@ -2967,6 +3043,7 @@
           if (b.flightT > 0.35 && t.y <= 0.12 && sp < 0.6) landBall(b);
         }
         b.mesh.position.set(t.x, t.y, t.z);
+        const rq = b.body.rotation(); b.mesh.quaternion.set(rq.x, rq.y, rq.z, rq.w);   // roll: mirror the body's spin so the holes turn
       }
       // INTAKE: with intake on (I) and room in storage, capture the nearest field ball at the front mouth
       mainRobot.group.updateWorldMatrix(true, false);
@@ -2985,7 +3062,7 @@
           const t = b.body.translation(), dx = t.x - mouth.x, dz = t.z - mouth.z;
           if (dx*dx + dz*dz < 0.08 && t.y < 0.22) {
             touchedBall = true;
-            if (enqueueStored(b.type)) {                          // enqueue first; only remove the body once it fits
+            if (enqueueStored({ type: b.type, alliance: b.alliance })) {   // keep nectar's alliance colour through storage
               removeBall(i);
               captureCd = 0.25;
               capturedThisCycle = true;
@@ -3007,11 +3084,11 @@
       for (let i = 0; i < STORAGE_CAPACITY; i++) {
         const m = storageViz[i];
         if (i < stored.length) {
-          const type = stored[i];
-          const spec = specOf(type);
+          const item = stored[i];
+          const spec = specOf(item.type);
           const local = storageSlots[i].clone();
           m.visible = true;
-          m.material.color.setHex(spec.color);
+          m.material.color.setHex(pieceColor(item));
           m.scale.setScalar(spec.r * 1.2);
           if (mainRobot.storageAnchor) {
             m.position.copy(mainRobot.storageAnchor.localToWorld(local.clone()));
@@ -3260,6 +3337,7 @@
       const M = sim.mech;
       game.step(dt);
       stepShooter(dt);
+      if (stored.some(s => s.type === 'nectar' && s.alliance && s.alliance !== 'red')) flagIllegalNectar('red');   // red bot holding a BLUE nectar
       // Canonical storage state is the queued balls themselves. The stubbed game.serviceIntake API
       // can report stale counts, so we treat the real queue as authoritative for this shooter.
       const CAP = STORAGE_CAPACITY;
