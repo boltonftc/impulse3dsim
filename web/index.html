@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.5.14';
+    window.APP_VERSION = '2.5.55';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -1241,10 +1241,11 @@
     const MATCH = { AUTO: 30, TELEOP: 120, ENDGAME: 30 };
     const matchScore = { red: 0, blue: 0 };
     let match = { state: 'IDLE', t: 0, running: false, arming: false, pending: null };
-    // FMS sound cues (real FTC field-control tones); tele_start.mp3 is an unused longer alt clip, swap in if preferred
+    // FMS sound cues (real FTC field-control tones)
     const SFX = {
       matchStart:   new Audio('audio/match_start.mp3'),
       autoComplete: new Audio('audio/autonomous_complete.mp3'),
+      driversPickup:new Audio('audio/tele_start.mp3'),           // "Drivers, pick up your controllers, 3-2-1" (AUTO->TELEOP transition)
       teleBells:    new Audio('audio/tele_start_3_bells.mp3'),
       endgame:      new Audio('audio/endgame_start.mp3'),
       matchEnd:     new Audio('audio/match_end.mp3'),
@@ -1266,6 +1267,18 @@
     const BED_REST = 0.80, BED_DUMP = -0.28;     // bed tilt (rad): rest slopes down to the front; dump rotates past horizontal so balls roll off the rear
     const ROBOT_MASS = 12.0;
     const TAU_LIN = 0.12, TAU_ROT = 0.10;
+
+    // ---- BIOBUZZ HIVE structure (meters) — Competition Manual §9.6 ----
+    const HIVE_FRAME_W = 49.46 * 0.0254;                  // frame BASE width  (feet span in X)   Fig 9-8
+    const HIVE_FRAME_D = 38.95 * 0.0254;                  // frame BASE depth  (feet span in Z)   Fig 9-8
+    const HIVE_PIVOT_Y = 43.95 * 0.0254;                  // pivot axis height above the tiles     Fig 9-8
+    const HIVE_CTC     = 25.5  * 0.0254;                  // the two HIVES / pivots are 25.5" apart in X   Fig 9-10
+    const CELL_W = 20 * 0.0254, CELL_H = 14 * 0.0254, CELL_D = 12 * 0.0254;   // one CELL opening (W x H x D)
+    const CELL_GAP  = 18.84 * 0.0254;                     // a HIVE's two CELLS, center-to-center along Z   Fig 9-9
+    const CELL_TILT = 30 * Math.PI / 180;                 // CELL opening leans back 30 deg from vertical   Fig 9-10
+    const OPEN_BOT  = 53.5 * 0.0254;                      // raised CELL opening: bottom edge above tiles   Fig 9-10
+    const OPEN_TOP  = 65.6 * 0.0254;                      // raised CELL opening: peak above tiles (check)  Fig 9-10
+    const HIVE_BOT  = 25.5 * 0.0254;                      // dropped CELL lowest point above tiles          Fig 9-10
 
     await RAPIER.init();
     const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
@@ -1389,6 +1402,35 @@
     addWallMesh(WALL_T, WALL_H, FIELD+WALL_T, -HALF, 0);
     addWallMesh(FIELD+WALL_T, WALL_H, WALL_T, 0,  HALF);
     addWallMesh(FIELD+WALL_T, WALL_H, WALL_T, 0, -HALF);
+
+    // ---- BIOBUZZ field zones (Manual Fig 9-3): each alliance's LOADING ZONE + GARDEN sit on its own side,
+    // 180deg rotationally symmetric. RED alliance at +Z (driver camera side), BLUE at -Z. GARDEN = 1" border
+    // tape running along a side wall (BLUE on the -X wall/upper, RED on the +X wall/lower); LOADING ZONE =
+    // a 1 tile x 1/2 tile box on the alliance wall, one tile in from the far corner (BLUE top-right, RED
+    // bottom-left). Painted as flat floor decals.
+    (function addFieldZones(){
+      const ZIN = 0.0254, TILE = 2 * 12 * ZIN, inset = WALL_T, edge = HALF - inset, yb = 0.004;
+      const LZ_L = TILE, LZ_D = TILE / 2;            // LOADING ZONE: 1 tile along the wall x 1/2 tile deep
+      const GD_T = 2 * ZIN, GD_L = 23 * ZIN;         // GARDEN: ~2" wide tape x 23" run along the side wall
+      const RED = 0xd11e28, BLUE = 0x1f6dd6;
+      const mkZone = (w, d, cx, cz, color, fill) => {
+        const face = new THREE.Mesh(new THREE.PlaneGeometry(w, d),
+          new THREE.MeshBasicMaterial({ color, transparent: true, opacity: fill, depthWrite: false }));
+        face.rotation.x = -Math.PI/2; face.position.set(cx, yb, cz); scene.add(face);
+        const ln = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, d)),
+          new THREE.LineBasicMaterial({ color }));
+        ln.rotation.x = -Math.PI/2; ln.position.set(cx, yb + 0.001, cz); scene.add(ln);
+      };
+      // LOADING ZONE: BLUE on the -Z (top) wall one tile in from the +X corner; RED mirrored on the +Z wall
+      const lzx = edge - TILE - LZ_L / 2;
+      mkZone(LZ_L, LZ_D,  lzx, -(edge - LZ_D/2), BLUE, 0.28);
+      mkZone(LZ_L, LZ_D, -lzx,  (edge - LZ_D/2), RED,  0.28);
+      // GARDEN tape: BLUE along the -X (left) wall, RED along the +X (right) wall; each slid so its near end
+      // sits in the field corner closest to it (BLUE top-left, RED bottom-right)
+      const gz = edge - GD_L / 2;
+      mkZone(GD_T, GD_L, -(edge - GD_T/2), -gz, BLUE, 0.9);
+      mkZone(GD_T, GD_L,  (edge - GD_T/2),  gz, RED,  0.9);
+    })();
 
     // ================= GYM SHELL: a modest high-school-gym room around the field =================
     // The "feature" wall (bleachers + doors + signage) is the -Z wall, since that's what the Driver
@@ -1699,6 +1741,41 @@
       const tex = new THREE.CanvasTexture(cv); tex.wrapS = THREE.RepeatWrapping; tex.anisotropy = 4; return tex;
     }
     const intakeMat = new THREE.MeshStandardMaterial({ map: makeIntakeTexture(), roughness: 0.8 });
+    // striped flywheel texture (like the intake) so the flywheel's spin is visible once it turns
+    const flywheelTex = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 32; const g = c.getContext('2d'); g.fillStyle = '#26292f'; g.fillRect(0, 0, 256, 32); g.fillStyle = '#d0d5dd'; for (let i = 0; i < 8; i++) g.fillRect(i * 32, 0, 15, 32); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t; })();
+
+    // Load the CAD turret (game_field/turret_assembly2.stl, mm) ONCE and split it into its 3 connected
+    // components -- housing, flywheel, hood -- so each can be articulated (yaw, spin, tilt) independently.
+    // Cached promise; buildRobot clones the geometries into each robot's pivot groups.
+    function loadTurretParts() {
+      if (loadTurretParts._p) return loadTurretParts._p;
+      loadTurretParts._p = (async () => {
+        const buf = await (await fetch('./assets/turret_with_base.stl', { cache: 'force-cache' })).arrayBuffer();
+        const dv = new DataView(buf), n = dv.getUint32(80, true);
+        const tv = new Float32Array(n * 9);
+        let o = 84;
+        for (let i = 0; i < n; i++) {
+          o += 12;                                    // skip face normal
+          for (let v = 0; v < 3; v++) { const k = (i*3 + v)*3; tv[k] = dv.getFloat32(o, true); tv[k+1] = dv.getFloat32(o+4, true); tv[k+2] = dv.getFloat32(o+8, true); o += 12; }
+          o += 2;
+        }
+        // union-find over triangles sharing a quantized vertex -> connected components
+        const parent = new Int32Array(n); for (let i = 0; i < n; i++) parent[i] = i;
+        const find = x => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+        const seen = new Map();
+        for (let i = 0; i < n; i++) for (let v = 0; v < 3; v++) {
+          const k = (i*3 + v)*3;
+          const kk = (Math.round(tv[k]*50)) + ',' + (Math.round(tv[k+1]*50)) + ',' + (Math.round(tv[k+2]*50));
+          if (seen.has(kk)) { const a = find(seen.get(kk)), b = find(i); if (a !== b) parent[a] = b; } else seen.set(kk, i);
+        }
+        const groups = new Map();
+        for (let i = 0; i < n; i++) { const r = find(i); (groups.get(r) || groups.set(r, []).get(r)).push(i); }
+        const comps = [...groups.values()].sort((a, b) => b.length - a.length);
+        const mk = idx => { const pos = new Float32Array(idx.length * 9); for (let t = 0; t < idx.length; t++) pos.set(tv.subarray(idx[t]*9, idx[t]*9 + 9), t*9); const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.rotateX(Math.PI/2); return g; };   // rotateX(+90): STL -Z -> world +Y (up), STL +Y -> +Z (forward launch), axle stays X
+        return { housing: mk(comps[0]), flywheel: mk(comps[1]), base: mk(comps[2]), hood: mk(comps[3]) };   // by tri-count: housing, flywheel, base, hood
+      })();
+      return loadTurretParts._p;
+    }
 
     // build one robot (channel-frame shooter ported from the v1 Godot skin) under `parent`; returns
     // animated handles reused by the field robot and the Pit test-stand so both read the same live signals.
@@ -1804,7 +1881,43 @@
         group.add(w); wheels.push({ o: w, sx, sz });
       }
       const wheelTrack = (outerHalf - ww/2) + half*0.6;           // (Ly+Lx) lever: yaw rate -> wheel surface speed
-      return { group, intakeRoller, bed, wheels, store, wheelR: wr, track: wheelTrack };
+
+      // ---- SHOOTER turret: real CAD (game_field/turret_with_base.stl, mm), reoriented so -Z_stl is up and
+      // +Y_stl is the forward launch (+Z robot). The BASE structure bolts flat to the drivebase top and stays
+      // FIXED; the turret (housing+hood) + flywheel sit on it and YAW; the flywheel also spins. Held LOCKED for
+      // now (P1 adds launch). Geometry is reoriented in loadTurretParts; here we clone + translate so the
+      // mount-bottom (reoriented Y=-55.1mm) sits at MOUNT_Y and the base is centred/biased back.
+      const YOFF = 55.1;                                           // mm: lift reoriented mount-bottom to Y=0
+      const shooter = new THREE.Group();                           // fixed shooter frame on the robot
+      shooter.position.set(0, F + 0.11, -0.03);                    // base bottom on the drivebase top, biased back
+      shooter.scale.setScalar(0.001);                             // parts are mm
+      shooter.rotation.y = Math.PI;                               // mount the whole superstructure 180deg (top-down)
+      group.add(shooter);
+      const turretYaw = new THREE.Group();                         // YAW pivot (locked 0) -- turret + flywheel rotate, base does not
+      shooter.add(turretYaw);
+      const flywheelSpin = new THREE.Group();                      // spins about X (the flywheel axle)
+      flywheelSpin.position.set(0, 93 + YOFF, -78);               // reoriented flywheel centre (0,93,-78) + YOFF
+      turretYaw.add(flywheelSpin);
+      const muzzle = new THREE.Object3D();                         // ball exit / spawn marker (on the hood side of the flywheel)
+      muzzle.position.set(0, 185, 55); turretYaw.add(muzzle);
+      const storageAnchor = new THREE.Object3D();                  // keep stored balls inside the turret volume between the rear wheels
+      storageAnchor.position.set(0, 0.09, -0.18); turretYaw.add(storageAnchor);
+      loadTurretParts().then(parts => {
+        const alu     = new THREE.MeshStandardMaterial({ color: 0x8b929b, metalness: 0.5, roughness: 0.5, side: THREE.DoubleSide, flatShading: true });
+        const baseMat = new THREE.MeshStandardMaterial({ color: 0x767c85, metalness: 0.45, roughness: 0.55, side: THREE.DoubleSide, flatShading: true });
+        const hoodMat = new THREE.MeshStandardMaterial({ color: 0xcfd6e0, metalness: 0.1, roughness: 0.4, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+        const base = new THREE.Mesh(parts.base.clone().translate(0, YOFF, 0), baseMat); base.castShadow = base.receiveShadow = true; shooter.add(base);          // FIXED to robot
+        const hous = new THREE.Mesh(parts.housing.clone().translate(0, YOFF, 0), alu);    hous.castShadow = true; turretYaw.add(hous);
+        const hood = new THREE.Mesh(parts.hood.clone().translate(0, YOFF, 0), hoodMat);   hood.castShadow = true; turretYaw.add(hood);
+        // flywheel: centre on the spin axis (X), add cylindrical UVs about X so the striped texture reveals rotation
+        const flyGeo = parts.flywheel.clone().translate(0, -93, 78);
+        { const p = flyGeo.attributes.position, uv = new Float32Array(p.count * 2); for (let i = 0; i < p.count; i++) { uv[i*2] = Math.atan2(p.getZ(i), p.getY(i)) / (2*Math.PI) + 0.5; uv[i*2+1] = p.getX(i) / 100; } flyGeo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); }
+        const flyMat = new THREE.MeshStandardMaterial({ map: flywheelTex, metalness: 0.2, roughness: 0.85, flatShading: true });
+        const fly = new THREE.Mesh(flyGeo, flyMat); fly.castShadow = true; flywheelSpin.add(fly);
+      });
+      bed.visible = false;                                        // hide the dumper bed -- this robot is the shooter (dumper stays for its track)
+
+      return { group, intakeRoller, bed, wheels, store, wheelR: wr, track: wheelTrack, shooter, turretYaw, flywheelSpin, muzzle, storageAnchor };
     }
 
     // mecanum inverse kinematics: contact speed per wheel from ACTUAL chassis velocity (m/s, rad/s), so
@@ -1920,263 +2033,336 @@
     }
 
 
-    // ---- game-module seam: BIOBUZZ — yellow whiffle balls + central recycling hive ----
+    // ---- game-module seam: BIOBUZZ — central A-frame HIVE structure (static geometry only) ----
+    // Scoring elements (POLLEN/NECTAR balls), scoring, and the bi-stable tip are intentionally NOT built
+    // yet — this pass lays out the physical HIVE so it can be reviewed. The returned API is a no-op shim
+    // so the existing match/robot callers keep working until tip + scoring are wired back in.
     function createBioBuzzGame(world, scene, THREE, RAPIER, C) {
-      const bodies = [], meshes = [], held = [];   // held[i] = ball is captured inside a robot (parked off-field)
-      // procedural wiffle-ball skin: yellow base with a scatter of small recessed dark holes
-      function makeWiffleTexture() {
-        const s = 128, cv = document.createElement('canvas'); cv.width = cv.height = s;
-        const g = cv.getContext('2d');
-        g.fillStyle = '#ffd400'; g.fillRect(0, 0, s, s);
-        const holes = [[.16,.28],[.40,.17],[.63,.29],[.86,.21],[.27,.52],[.52,.46],[.75,.55],[.93,.48],[.14,.76],[.38,.83],[.60,.75],[.83,.84]];
-        for (const [u, v] of holes) {
-          const cx = u * s, cy = v * s, r = s * 0.052;
-          const rg = g.createRadialGradient(cx, cy, 0, cx, cy, r);
-          rg.addColorStop(0, '#140f00'); rg.addColorStop(0.72, '#2a2100'); rg.addColorStop(1, 'rgba(140,105,0,0)');
-          g.fillStyle = rg; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
-        }
-        const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4; return tex;
-      }
-      const BALL_MAT = new THREE.MeshStandardMaterial({ map: makeWiffleTexture(), color: 0xffffff, roughness: 0.6, metalness: 0.0 });
-      let recycled = 0, spawnA = 0, onScore = null;
+      const grp = new THREE.Group(); scene.add(grp);
+      const metalMat = new THREE.MeshStandardMaterial({ color: 0x9aa2ab, metalness: 0.55, roughness: 0.42 });
+      const darkMat  = new THREE.MeshStandardMaterial({ color: 0x2b2f36, metalness: 0.30, roughness: 0.60 });
+      const redMat   = new THREE.MeshStandardMaterial({ color: 0xd11e28, roughness: 0.55, metalness: 0.10, side: THREE.DoubleSide });
+      const blueMat  = new THREE.MeshStandardMaterial({ color: 0x1f6dd6, roughness: 0.55, metalness: 0.10, side: THREE.DoubleSide });
+      // clear, lightly-smoked panels for the CELL walls (the alliance colour lives only in the end frames)
+      const glassMat = new THREE.MeshStandardMaterial({ color: 0x8b939b, transparent: true, opacity: 0.24, roughness: 0.15, metalness: 0.0, side: THREE.DoubleSide, depthWrite: false });
 
-      // central HIVE: hexagonal bin split down the middle by a partition. Driver-left half (-X) scores
-      // RED, driver-right half (+X) scores BLUE -- by zone, no matter which robot put the ball there.
-      // Two floors: a ground bin (1 pt) entered from the two sides adjacent to the driver, and an
-      // elevated deck at ~10" (3 pt) that dumped balls land on. The old +Z mouth is now a closed wall.
-      const a = C.HIVE_R, ht = 0.03, side = 1.1547 * a, deckY = C.DECK_Y;
-      // alliance-colored FLOORS only: the hex walls are all black; each scoring floor is split red (-X) | blue (+X).
-      // procedural pad skin: base color + a subtle diagonal hazard hatch and fine speckle so the pads read as
-      // textured surfaces, not flat plastic. The recessed ground bin uses a darker (shadowed) variant.
-      function makePadTexture(base, line) {
-        const s = 128, cv = document.createElement('canvas'); cv.width = cv.height = s;
-        const g = cv.getContext('2d');
-        g.fillStyle = base; g.fillRect(0, 0, s, s);
-        g.strokeStyle = line; g.lineWidth = 7; g.globalAlpha = 0.30;
-        for (let x = -s; x < s * 2; x += 26) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + s, s); g.stroke(); }
-        g.globalAlpha = 1;
-        for (let i = 0; i < 450; i++) { g.fillStyle = (Math.random() < 0.5 ? 'rgba(255,255,255,' : 'rgba(0,0,0,') + (Math.random() * 0.07) + ')'; g.fillRect(Math.random() * s, Math.random() * s, 1, 1); }
-        const tex = new THREE.CanvasTexture(cv); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(5, 5); tex.anisotropy = 4; return tex;
+      // Yaw the whole HIVE 90deg about Y so the seesaw pivot runs along the red<->blue (Z) axis and the CELLS
+      // open toward the alliances, matching the game manual field. grp carries every HIVE visual; the world-space
+      // colliders below apply the same yaw by hand (qYaw), and ball tests un-yaw with qYawInv.
+      const HIVE_ROT = Math.PI / 2;
+      grp.rotation.y = HIVE_ROT;
+      const X_AXIS = new THREE.Vector3(1, 0, 0);
+      const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), HIVE_ROT);
+      const qYawInv = qYaw.clone().invert();
+      const yawPt = (x, y, z) => new THREE.Vector3(x, y, z).applyQuaternion(qYaw);
+
+      const FW = C.HIVE_FRAME_W, FD = C.HIVE_FRAME_D, PY = C.HIVE_PIVOT_Y;
+      const HX = C.HIVE_CTC / 2;                          // each HIVE / pivot sits at x = +-HX (12.75")
+      const t  = C.CELL_TILT;
+      // --- CAD ground truth (game_field/seesaw.stl + HIVE_DIMENSIONS.md) ---
+      const IN = 0.0254;
+      const AXLE_Y     = 42.10 * IN;   // pivot shaft centre = 22mm bore in seesaw.stl (the rocker turns here)
+      const CROSSBAR_Y = 40.00 * IN;   // crossbar where the legs meet; the pivot brackets lift the shaft above it
+
+      // thin cylindrical strut between two world points (truss member)
+      function strut(ax, ay, az, bx, by, bz, r, mat) {
+        const dx = bx-ax, dy = by-ay, dz = bz-az, len = Math.hypot(dx, dy, dz);
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 12), mat);
+        m.position.set((ax+bx)/2, (ay+by)/2, (az+bz)/2);
+        m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), new THREE.Vector3(dx,dy,dz).normalize());
+        m.castShadow = m.receiveShadow = true; grp.add(m); return m;
       }
-      const redMat   = new THREE.MeshStandardMaterial({ map: makePadTexture('#d11e28', '#7a1218'), roughness: 0.7, side: THREE.DoubleSide });
-      const blueMat  = new THREE.MeshStandardMaterial({ map: makePadTexture('#1f6dd6', '#123f7a'), roughness: 0.7, side: THREE.DoubleSide });
-      const redDimMat  = new THREE.MeshStandardMaterial({ map: makePadTexture('#7d1219', '#420a0e'), roughness: 0.85, side: THREE.DoubleSide });
-      const blueDimMat = new THREE.MeshStandardMaterial({ map: makePadTexture('#123f7d', '#0a2247'), roughness: 0.85, side: THREE.DoubleSide });
-      const blackMat = new THREE.MeshStandardMaterial({ color: 0x101317, roughness: 0.7 });
-      const OPEN = { 0: true, 2: true };                 // the two sides flanking the (now closed) +Z mouth are the ground-floor entrances
-      for (let k = 0; k < 6; k++) {
-        if (OPEN[k]) continue;                           // leave the entrance sides open
-        const phi = Math.PI/6 + k * Math.PI/3;           // 30deg + 60deg*k
-        const beta = Math.PI/2 - phi;                    // yaw so the panel's long axis is tangent
-        const cx = a * Math.cos(phi), cz = a * Math.sin(phi);
-        world.createCollider(
-          RAPIER.ColliderDesc.cuboid(side/2, deckY/2, ht/2)
-            .setTranslation(cx, deckY/2, cz).setRotation({ x:0, y:Math.sin(beta/2), z:0, w:Math.cos(beta/2) })
-            .setRestitution(0.2));
-        const panel = new THREE.Mesh(new THREE.BoxGeometry(side, deckY, ht), blackMat);
-        panel.position.set(cx, deckY/2, cz); panel.rotation.y = beta; panel.castShadow = panel.receiveShadow = true; scene.add(panel);
+
+      // support frame: a wide base rectangle (feet at +-FW/2 x +-FD/2) whose four legs SLANT UP AND INWARD
+      // to the two crossbar apexes (x=+-HX) at CROSSBAR_Y. On the crossbar a pivot BRACKET at each hive
+      // encloses the axle at AXLE_Y; the rocker (real CAD mesh, loaded below) turns on it.
+      const R = 0.018;
+      // base bars: keep only the two nearest/farthest from the driver (they run along world X after the yaw),
+      // make them 50% taller than the round strut and give them a solid collider so the robot + game pieces
+      // hit them. The other two (left/right, along world Z) are dropped entirely.
+      const barT = 2 * R, barH = 2 * R * 1.5;
+      for (const lx of [FW/2, -FW/2]) {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(barT, barH, FD), metalMat);
+        bar.position.set(lx, barH/2, 0);
+        bar.castShadow = bar.receiveShadow = true; grp.add(bar);
+        const p = yawPt(lx, barH/2, 0);
+        world.createCollider(RAPIER.ColliderDesc.cuboid(barT/2, barH/2, FD/2)
+          .setTranslation(p.x, p.y, p.z)
+          .setRotation({ x: qYaw.x, y: qYaw.y, z: qYaw.z, w: qYaw.w })
+          .setRestitution(0.2).setFriction(0.6));
       }
-      // partition wall down x=0 (red -X | blue +X), tall enough to divide both the ground bin and the deck
-      const partH = deckY + 0.05, partLenZ = 2 * a * 0.95;
-      world.createCollider(
-        RAPIER.ColliderDesc.cuboid(ht/2, partH/2, partLenZ/2).setTranslation(0, partH/2, 0).setRestitution(0.2));
-      const partition = new THREE.Mesh(new THREE.BoxGeometry(ht, partH, partLenZ), blackMat);
-      partition.position.set(0, partH/2, 0); partition.castShadow = partition.receiveShadow = true; scene.add(partition);
-      // The hex corners sit on the X axis (left/right) with flat top/bottom edges -- that's how the walls are
-      // placed (centers at phi=30,90,... => corners at 0,60,120,...). Both the black base and the color pads are
-      // built from THOSE SAME corner angles so every seam lands on a wall, and the partition splits them at x=0.
-      const hexPts = R => { const p = []; for (let k = 0; k < 6; k++) { const ang = k * Math.PI/3; p.push([R*Math.cos(ang), R*Math.sin(ang)]); } return p; };
-      const hexMesh = (R, y, mat) => {                    // flat filled hexagon aligned to the walls (world x->sx, world z->-sy)
+      for (const sx of [-HX, HX]) {
+        const fx = Math.sign(sx) * FW/2;                          // feet on the same X-side as this apex
+        strut(fx, 0.02,  FD/2, sx, CROSSBAR_Y, 0, R, metalMat);   // front leg -> crossbar apex (slants in on X and Z)
+        strut(fx, 0.02, -FD/2, sx, CROSSBAR_Y, 0, R, metalMat);   // back  leg -> crossbar apex
+      }
+      strut(-HX, CROSSBAR_Y, 0, HX, CROSSBAR_Y, 0, R*1.2, metalMat);   // crossbar along X (the legs meet here)
+
+      // pivot BRACKETS (game_field/crossbar_and_hive_pivot_bracket.stl): each hive's short pivot axle is fully
+      // enclosed in a cosmetic bearing BLOCK centred on the pivot (Y=AXLE_Y, Z=0); it sandwiches the rocker hub
+      // and hides the axle stub. The crossbar (Y=40) sits ~2.1" below with an open gap, as in the CAD.
+      for (const sx of [-HX, HX]) {
+        const brk = new THREE.Mesh(new THREE.BoxGeometry(2.6 * IN, 2.2 * IN, 1.4 * IN), darkMat);
+        brk.position.set(sx, AXLE_Y, 0);
+        brk.castShadow = brk.receiveShadow = true; grp.add(brk);
+      }
+
+      // one CELL: an open-FRONT "house" bucket. Viewed from the front it's a house silhouette (a pentagon:
+      // vertical side walls under a peaked roof). That pentagon FRONT face is the open mouth — POLLEN/NECTAR
+      // are launched IN and dumped OUT through it (the top/roof is closed, NOT the opening). Local frame:
+      // mouth faces +Z, roof peak toward +Y, back pentagon closed; centered at the bucket's origin.
+      const CELL_WALL = C.CELL_H * 0.58;                 // vertical wall height; remaining height is the peaked roof
+      function houseCell(mat) {
+        const g = new THREE.Group(), tw = 0.012;
+        const W = C.CELL_W, H = C.CELL_H, D = C.CELL_D;
+        const wallTop = -H/2 + CELL_WALL, peak = H/2;
+        // clear smokey panels — identical geometry/positions to before, only the material changed
         const sh = new THREE.Shape();
-        hexPts(R).forEach(([x, z], k) => k ? sh.lineTo(x, -z) : sh.moveTo(x, -z));
+        [[-W/2,-H/2],[W/2,-H/2],[W/2,wallTop],[0,peak],[-W/2,wallTop]].forEach(([x,y],i)=> i ? sh.lineTo(x,y) : sh.moveTo(x,y));
         sh.closePath();
-        const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), mat); m.rotation.x = -Math.PI/2; m.position.y = y; m.receiveShadow = true; scene.add(m); return m;
+        const back = new THREE.Mesh(new THREE.ShapeGeometry(sh), glassMat); back.position.z = -D/2; g.add(back);
+        const floor = new THREE.Mesh(new THREE.BoxGeometry(W, tw, D), glassMat); floor.position.y = -H/2; g.add(floor);
+        const sideGeo = new THREE.BoxGeometry(tw, CELL_WALL, D);
+        const wl = new THREE.Mesh(sideGeo, glassMat); wl.position.set(-W/2, wallTop - CELL_WALL/2, 0); g.add(wl);
+        const wr = new THREE.Mesh(sideGeo, glassMat); wr.position.set( W/2, wallTop - CELL_WALL/2, 0); g.add(wr);
+        const roofH = peak - wallTop, L = Math.hypot(W/2, roofH), ang = Math.atan2(roofH, W/2);
+        const roofGeo = new THREE.BoxGeometry(L, tw, D);
+        const rl = new THREE.Mesh(roofGeo, glassMat); rl.position.set(-W/4, (wallTop+peak)/2, 0); rl.rotation.z =  ang; g.add(rl);
+        const rr = new THREE.Mesh(roofGeo, glassMat); rr.position.set( W/4, (wallTop+peak)/2, 0); rr.rotation.z = -ang; g.add(rr);
+        // alliance-coloured END FRAMES: trace the house profile with tubes at BOTH ends (front opening + back),
+        // rendered on the existing outline so the silhouette and dimensions are unchanged
+        const fr = 0.009, pent = [[-W/2,-H/2],[W/2,-H/2],[W/2,wallTop],[0,peak],[-W/2,wallTop]];
+        const edgeBar = (ax, ay, bx, by, z) => {
+          const dx = bx-ax, dy = by-ay, len = Math.hypot(dx, dy);
+          const m = new THREE.Mesh(new THREE.CylinderGeometry(fr, fr, len, 8), mat);
+          m.position.set((ax+bx)/2, (ay+by)/2, z);
+          m.rotation.z = Math.atan2(dy, dx) - Math.PI/2;
+          g.add(m);
+        };
+        for (const z of [D/2, -D/2]) for (let i = 0; i < pent.length; i++) edgeBar(pent[i][0], pent[i][1], pent[(i+1)%pent.length][0], pent[(i+1)%pent.length][1], z);
+        g.traverse(o => { if (o.isMesh) { o.receiveShadow = true; o.castShadow = (o.material === mat); } });   // clear panels don't cast
+        return g;
+      }
+      // one HIVE: a seesaw (rocker) about the X-axis at (cx, PY, 0) carrying a CELL fore (+Z) and aft (-Z).
+      // In this stable rest state ONE cell is raised & active, the other dropped -- but BOTH keep their roof
+      // peak UP (the dropped cell is mirrored in Z, never flipped upside-down). Openings lean back 30 deg.
+      //   raised: mouth up-and-+Z, opening bottom edge anchored to OPEN_BOT (peak lands at OPEN_TOP)
+      //   dropped: mouth down-and--Z, lowest point anchored to HIVE_BOT
+      // basket placements from the CAD assembly (game_field/seesaw_with_hives.stl, red side): each house-cell
+      // is centered on the real basket's bounding box so it rides the correct tube end. Raised cell is fore
+      // (+Z) and high, dropped cell is aft (-Z) and low; both keep roof-peak UP (dropped mirrored in Z).
+      const RAISED_CY = 54.0  * IN, RAISED_CZ =  10.2  * IN;
+      const DROP_CY   = 38.5  * IN, DROP_CZ   = -16.55 * IN;
+      // Kinematic "bucket" collider for one CELL so shot POLLEN/NECTAR are actually caught (or bounce out).
+      // Shapes mirror houseCell in the cell's local frame; the body is re-posed every frame from the pivot tip
+      // (see syncCells) so the catch basin tracks the seesaw. zSign flips the closed back for the dropped cell.
+      function buildCellCollider(cx, cy, cz, zSign) {
+        const W = C.CELL_W, H = C.CELL_H, D = C.CELL_D, CT = 0.012;
+        const wall = H * 0.58, wallTop = -H/2 + wall, peak = H/2;
+        const roofH = peak - wallTop, L = Math.hypot(W/2, roofH), ang = Math.atan2(roofH, W/2);
+        const dy = cy - AXLE_Y;
+        const p0 = yawPt(cx, AXLE_Y + dy, cz);
+        const q0 = qYaw.clone().multiply(new THREE.Quaternion().setFromAxisAngle(X_AXIS, -t));
+        const body = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased()
+          .setTranslation(p0.x, p0.y, p0.z)
+          .setRotation({ x: q0.x, y: q0.y, z: q0.z, w: q0.w }));
+        const add = (hx, hy, hz, px, py, pz, rz) => {
+          const d = RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(px, py, pz).setRestitution(0.35).setFriction(0.7);
+          if (rz) d.setRotation({ x: 0, y: 0, z: Math.sin(rz/2), w: Math.cos(rz/2) });
+          world.createCollider(d, body);
+        };
+        add(W/2, CT, D/2, 0, -H/2, 0);                                  // floor
+        add(W/2, H/2, CT, 0, 0, -D/2 * zSign);                          // closed back
+        add(CT, wall/2, D/2, -W/2, wallTop - wall/2, 0);                // left wall
+        add(CT, wall/2, D/2,  W/2, wallTop - wall/2, 0);                // right wall
+        add(L/2, CT, D/2, -W/4, (wallTop + peak)/2, 0,  ang);           // roof left panel
+        add(L/2, CT, D/2,  W/4, (wallTop + peak)/2, 0, -ang);           // roof right panel
+        return { body, dy, dz: cz };
+      }
+      // re-pose each cell's kinematic bucket from its hive's current tip angle (pivot rotation only moves the
+      // cell origin; the cell's own -t lean is folded into the orientation quaternion)
+      function syncCells() {
+        const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _qx = new THREE.Quaternion();
+        for (const h of hives) {
+          if (!h.cells) continue;
+          const a = h.angle, ca = Math.cos(a), sa = Math.sin(a);
+          _q.copy(qYaw).multiply(_qx.setFromAxisAngle(X_AXIS, a - t));
+          for (const c of h.cells) {
+            _v.set(h.cx, AXLE_Y + (c.dy*ca - c.dz*sa), c.dy*sa + c.dz*ca).applyQuaternion(qYaw);
+            c.body.setNextKinematicTranslation({ x: _v.x, y: _v.y, z: _v.z });
+            c.body.setNextKinematicRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w });
+          }
+        }
+      }
+      // Each hive is a bi-stable seesaw that tips about its pivot axle. Its moving parts (CAD rocker mesh +
+      // the two baskets) live in a per-hive PIVOT group centred on the axle at (cx, AXLE_Y, 0); tipping is
+      // then just pivot.rotation.x. CAD rest state = rotation 0; the other stop = rotation TIP (see below).
+      const hives = [];   // { pivot, sign, cx }
+      function buildHive(cx, mat, sign, color) {
+        const pivot = new THREE.Group();
+        pivot.position.set(cx, AXLE_Y, 0);
+        grp.add(pivot);
+        // baskets, positioned RELATIVE to the pivot (X is 0 in-group since the pivot already sits at cx)
+        const up = houseCell(mat);                    // raised / active CELL (fore, +Z, high)
+        up.rotation.x = -t;
+        up.position.set(0, RAISED_CY - AXLE_Y, RAISED_CZ);
+        pivot.add(up);
+        const dn = houseCell(mat);                    // dropped CELL: mirror in Z keeps roof UP, mouth down-and-out
+        dn.rotation.x = -t; dn.scale.z = -1;
+        dn.position.set(0, DROP_CY - AXLE_Y, DROP_CZ);
+        pivot.add(dn);
+        const cellUp = buildCellCollider(cx, RAISED_CY, RAISED_CZ,  1);   // catch basin for the raised (active) CELL
+        const cellDn = buildCellCollider(cx, DROP_CY,   DROP_CZ,   -1);   // dropped CELL still bounces balls off
+        hives.push({ pivot, sign, cx, color, cells: [cellUp, cellDn] });
+        return pivot;
+      }
+      buildHive(-HX, redMat,  1, 'red');   // red HIVE at x = -12.75"  (driver-left from the audience)
+      buildHive( HX, blueMat, -1, 'blue');  // blue HIVE at x = +12.75" (mesh mirrored in X)
+
+      // ---- real seesaw ROCKER from CAD (game_field/seesaw.stl, exported in world mm on the red side) ----
+      // The brackets + base tubes are the exact CAD part, so the jog/bend and 30-deg rest tilt are real, not
+      // reconstructed. Parsed straight into a BufferGeometry; scaled mm->m it lands with its 22mm pivot bore
+      // at (x=-12.75", y=42.10", z=0). Mirror in X for the blue hive. (Baskets are still the placeholder
+      // house-cells above — the STL contains only the rocker frame, no baskets.)
+      const rockerMat = new THREE.MeshStandardMaterial({ color: 0x5b616b, metalness: 0.55, roughness: 0.45, side: THREE.DoubleSide, flatShading: true });
+      (async () => {
+        try {
+          const buf = await (await fetch('./assets/seesaw.stl', { cache: 'force-cache' })).arrayBuffer();
+          const dv = new DataView(buf), n = dv.getUint32(80, true);
+          const pos = new Float32Array(n * 9);
+          let o = 84;
+          for (let i = 0; i < n; i++) {
+            o += 12;                                   // skip face normal (flatShading derives its own)
+            for (let v = 0; v < 3; v++) {
+              const k = (i * 3 + v) * 3;
+              pos[k]   = dv.getFloat32(o, true);
+              pos[k+1] = dv.getFloat32(o + 4, true);
+              pos[k+2] = dv.getFloat32(o + 8, true);
+              o += 12;
+            }
+            o += 2;                                    // attribute byte count
+          }
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+          for (const h of hives) {                     // one rocker per hive, parented to its pivot group
+            const m = new THREE.Mesh(geo, rockerMat);
+            m.scale.set(0.001 * h.sign, 0.001, 0.001); // red as-exported (x<0), blue mirrored in X
+            m.position.set(-h.cx, -AXLE_Y, 0);         // cancel the pivot's translation so the CAD lands at world
+            m.castShadow = m.receiveShadow = true; h.pivot.add(m);
+          }
+        } catch (e) { console.warn('seesaw.stl load failed', e); }
+      })();
+
+      // ---- rule-based bi-stable TIPPING (FTC BioBuzz): a HIVE tips when its RAISED cell holds enough
+      // game pieces — NECTAR weighted heavier than POLLEN — sustained long enough they won't bounce out.
+      // Tip when weighted load >= TIP_LOAD for TIP_DWELL s (NECTAR=1.8, POLLEN=1, threshold 8):
+      //   3 NECTAR + 3 POLLEN = 8.4 -> tips;  3 NECTAR + 2 POLLEN = 7.4 -> holds
+      //   8 POLLEN         = 8.0 -> tips;     7 POLLEN         = 7.0 -> holds
+      const TIP = 2 * t;                               // 2 * rest tilt flips the seesaw to the mirror stop
+      const rand = (a, b) => a + Math.random() * (b - a);
+      const NECTAR_W = 1.8, POLLEN_W = 1, TIP_LOAD = 8, TIP_DWELL = 0.5;
+      let ballSource = null;                           // set from outside once the ball registry exists
+      let tipCb = null;                                // fired once each time a hive begins to tip
+      for (const h of hives) {
+        h.startAngle = (h.color === 'blue') ? TIP : 0;   // RED rests up-cell raised; BLUE starts tipped the other way
+        h.angle = h.startAngle;
+        h.moving = false;
+        h.dwell = 0;                                   // seconds the raised cell has held >= TIP_LOAD
+        h.pivot.rotation.x = h.angle;
+      }
+      syncCells();                                     // place the catch buckets at their initial rest tilt
+      // weighted count of pieces sitting inside a hive's currently-raised cell (the higher of its two cells).
+      // The cell's only rotation is about X, so the world->cell-local inverse is a single X-rotation.
+      function raisedCellLoad(h) {
+        const balls = ballSource && ballSource();
+        if (!balls) return 0;
+        const a = h.angle, ca = Math.cos(a), sa = Math.sin(a);
+        let raised = null, Py = -Infinity;
+        for (const c of h.cells) { const py = AXLE_Y + (c.dy * ca - c.dz * sa); if (py > Py) { Py = py; raised = c; } }
+        const th = a - t, ct = Math.cos(th), st = Math.sin(th);
+        const Px = h.cx, Pz = raised.dy * sa + raised.dz * ca;
+        let load = 0;
+        for (const b of balls) {
+          const tr = b.body.translation();
+          const w = new THREE.Vector3(tr.x, tr.y, tr.z).applyQuaternion(qYawInv);   // world -> hive pre-yaw frame
+          const dx = w.x - Px, dy = w.y - Py, dz = w.z - Pz;
+          const lx = dx, ly = dy * ct + dz * st, lz = -dy * st + dz * ct;   // -> cell-local
+          if (Math.abs(lx) <= C.CELL_W/2 + b.r && ly >= -C.CELL_H/2 - b.r && ly <= C.CELL_H/2 + b.r && Math.abs(lz) <= C.CELL_D/2 + b.r) {
+            load += (b.type === 'nectar') ? NECTAR_W : POLLEN_W;
+          }
+        }
+        return load;
+      }
+      function tipStep(dt) {
+        for (const h of hives) {
+          if (h.moving) {
+            h.elapsed += dt;
+            const u = Math.min(1, h.elapsed / h.dur);
+            h.angle = h.from + (h.to - h.from) * (u * u * (3 - 2 * u));     // smoothstep ease-in-out
+            if (u >= 1) { h.moving = false; h.dwell = 0; }
+          } else if (raisedCellLoad(h) >= TIP_LOAD) {
+            h.dwell += dt;
+            if (h.dwell >= TIP_DWELL) {                                     // held past the settle window -> flip
+              h.moving = true; h.elapsed = 0; h.dur = rand(3, 4);
+              h.from = h.angle; h.to = h.angle > TIP / 2 ? 0 : TIP;
+              if (tipCb) tipCb(h.color);
+            }
+          } else {
+            h.dwell = 0;                                                    // load dropped (bounced out) -> reset
+          }
+          h.pivot.rotation.x = h.angle;
+        }
+        syncCells();
+      }
+
+      // static collision: a vertical post at each of the four feet so robots can't drive through a leg,
+      // while leaving the space UNDER the elevated HIVES open to drive through.
+      for (const [fx, fz] of [[FW/2,FD/2],[FW/2,-FD/2],[-FW/2,FD/2],[-FW/2,-FD/2]]) {
+        const p = yawPt(fx, PY/2, fz);
+        world.createCollider(RAPIER.ColliderDesc.cylinder(PY/2, 0.03)
+          .setTranslation(p.x, p.y, p.z).setRestitution(0.2));   // vertical post: yaw only moves its footprint
+      }
+      // bounce surfaces up top: the crossbar and the two pivot brackets, so shots that miss the mouth
+      // ricochet off the structure instead of passing straight through it
+      {
+        const cbP = yawPt(0, CROSSBAR_Y, 0);
+        const cbQ = qYaw.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI/2));
+        world.createCollider(RAPIER.ColliderDesc.cylinder(HX, R * 1.2)
+          .setTranslation(cbP.x, cbP.y, cbP.z)
+          .setRotation({ x: cbQ.x, y: cbQ.y, z: cbQ.z, w: cbQ.w })
+          .setRestitution(0.35));
+      }
+      for (const sx of [-HX, HX]) {
+        const p = yawPt(sx, AXLE_Y, 0);
+        world.createCollider(RAPIER.ColliderDesc.cuboid(1.3 * IN, 1.1 * IN, 0.7 * IN)
+          .setTranslation(p.x, p.y, p.z)
+          .setRotation({ x: qYaw.x, y: qYaw.y, z: qYaw.z, w: qYaw.w })
+          .setRestitution(0.35));
+      }
+
+      // shim API: scoring/intake are still stubs, but step(dt) now drives the rule-based hive tipping
+      return {
+        id: 'biobuzz-rule-tip',
+        reset(){ for (const h of hives) { h.angle = h.startAngle || 0; h.moving = false; h.dwell = 0; h.pivot.rotation.x = h.angle; } syncCells(); },
+        step(dt){ tipStep(dt); }, sync(){},
+        setBallSource(fn){ ballSource = fn; },
+        set onTip(fn){ tipCb = fn; },
+        raisedCellCenters(){   // world centre of each hive's currently-raised cell, for pre-loading nectar
+          const out = [];
+          for (const h of hives) {
+            const a = h.angle, ca = Math.cos(a), sa = Math.sin(a);
+            let Py = -Infinity, Pz = 0;
+            for (const c of h.cells) { const py = AXLE_Y + (c.dy*ca - c.dz*sa); if (py > Py) { Py = py; Pz = c.dy*sa + c.dz*ca; } }
+            const p = new THREE.Vector3(h.cx, Py, Pz).applyQuaternion(qYaw);
+            out.push({ color: h.color, x: p.x, y: p.y, z: p.z });
+          }
+          return out;
+        },
+        serviceIntake(){ return 0; }, ejectBalls(){ return 0; }, dumpBalls(){ return 0; },
+        set onScore(fn){}, get recycled(){ return 0; }
       };
-      // two half-hexagon pads (red -X, blue +X): far point is the hex's left/right corner, cut edge runs up the partition
-      function hivePads(y, matR, matB) {
-        const R = side, A = 0.866 * R;                    // A = apothem (top/bottom flat edge is at world |z| = A)
-        for (const sgn of [-1, 1]) {
-          const sh = new THREE.Shape();
-          sh.moveTo(0, A); sh.lineTo(sgn * 0.5 * R, A); sh.lineTo(sgn * R, 0); sh.lineTo(sgn * 0.5 * R, -A); sh.lineTo(0, -A); sh.closePath();
-          const pad = new THREE.Mesh(new THREE.ShapeGeometry(sh), sgn < 0 ? matR : matB);
-          pad.rotation.x = -Math.PI/2; pad.position.y = y; pad.renderOrder = 1; pad.receiveShadow = true; pad.castShadow = true; scene.add(pad);
-        }
-      }
-      // FLOOR 1 (1 pt): black hex base + red/blue halves; recessed under the deck, so it uses the darker
-      // (shadowed) pad shade and the deck above casts a real shadow onto it -- no more artificial glow.
-      hexMesh(side, 0.006, blackMat);
-      hivePads(0.015, redDimMat, blueDimMat);
-      // FLOOR 2 (3 pt): elevated deck at ~10" -- black hex base + red/blue halves, low lip corrals landed balls
-      const deckBase = hexMesh(side * 0.995, deckY - 0.002, blackMat);
-      deckBase.castShadow = true;                         // the deck shades the ground bin below it
-      hivePads(deckY + 0.008, redMat, blueMat);
-      world.createCollider(RAPIER.ColliderDesc.cuboid(a*0.9, 0.006, a*0.9).setTranslation(0, deckY, 0).setRestitution(0.15).setFriction(0.9));
-      const lipH = 0.03;                                  // small walls around the deck edge to corral landed balls
-      for (let k = 0; k < 6; k++) {
-        const phi = Math.PI/6 + k * Math.PI/3, beta = Math.PI/2 - phi;
-        const cx = a * Math.cos(phi), cz = a * Math.sin(phi);
-        world.createCollider(
-          RAPIER.ColliderDesc.cuboid(side/2, lipH/2, ht/2)
-            .setTranslation(cx, deckY + lipH/2, cz).setRotation({ x:0, y:Math.sin(beta/2), z:0, w:Math.cos(beta/2) })
-            .setRestitution(0.2));
-        const lip = new THREE.Mesh(new THREE.BoxGeometry(side, lipH, ht), blackMat);
-        lip.position.set(cx, deckY + lipH/2, cz); lip.rotation.y = beta; lip.castShadow = lip.receiveShadow = true; scene.add(lip);
-      }
-
-
-      function spawnPoint() {
-        spawnA += 2.399963;                              // golden angle -> spread recycled balls out
-        const rad = C.HALF * 0.72;
-        return { x: Math.cos(spawnA) * rad, z: Math.sin(spawnA) * rad };
-      }
-      function makeBall(x, z) {
-        const body = world.createRigidBody(
-          RAPIER.RigidBodyDesc.dynamic().setTranslation(x, C.BALL_R + 0.02, z)
-            .setCcdEnabled(true)                        // sweep fast/heavy balls so they can't tunnel through walls
-            .setLinearDamping(0.8).setAngularDamping(0.8));
-        world.createCollider(
-          RAPIER.ColliderDesc.ball(C.BALL_R).setRestitution(0.45).setFriction(0.6).setDensity(50), body);
-        const mesh = new THREE.Mesh(new THREE.SphereGeometry(C.BALL_R, 18, 14), BALL_MAT);
-        mesh.castShadow = true; mesh.receiveShadow = true;
-        scene.add(mesh); bodies.push(body); meshes.push(mesh); held.push(false);
-      }
-      function clear() {
-        for (const b of bodies) world.removeRigidBody(b);
-        for (const m of meshes) scene.remove(m);
-        bodies.length = 0; meshes.length = 0; held.length = 0;
-      }
-      function reset() {
-        clear(); recycled = 0;
-        for (let i = 0; i < C.N_BALLS; i++) {
-          const ang = (i / C.N_BALLS) * Math.PI * 2 + (i % 2 ? 0.16 : -0.16);
-          const rad = C.HALF * (0.62 + (i % 3) * 0.06);
-          makeBall(Math.cos(ang) * rad, Math.sin(ang) * rad);
-        }
-      }
-      function recycle(i) {                              // scored ball -> back into play: sprayed hard toward the back wall (-Z) so it reaches it and rebounds
-        bodies[i].setTranslation({ x: (Math.random() - 0.5) * 0.5, y: C.BALL_R + 0.06, z: -C.HIVE_R - 0.06 }, true);
-        const vx = (Math.random() - 0.5) * 3.4, vz = -(3.6 + Math.random() * 2.0);   // wide lateral fan + strong rearward launch
-        bodies[i].setLinvel({ x: vx, y: 0.2 + Math.random() * 0.35, z: vz }, true);   // slight loft so it clears settled pollen on the way to the wall
-        bodies[i].setAngvel({ x: (Math.random()-0.5)*8, y: 0, z: (Math.random()-0.5)*8 }, true);
-        recycled++;
-      }
-      // a ball that clipped out (or fell through) is dropped back into the open ring with a gentle
-      // tangential nudge, so it drifts along the field instead of rocketing at a wall or the hive
-      function respawnStray(i) {
-        const ang = Math.random() * Math.PI * 2;
-        const rad = C.HIVE_R + 0.15 + Math.random() * (C.HALF * 0.6 - C.HIVE_R);
-        bodies[i].setTranslation({ x: Math.cos(ang) * rad, y: C.BALL_R + 0.05, z: Math.sin(ang) * rad }, true);
-        const sp = 0.12 + Math.random() * 0.14;
-        bodies[i].setLinvel({ x: -Math.sin(ang) * sp, y: 0, z: Math.cos(ang) * sp }, true);
-        bodies[i].setAngvel({ x:0, y:0, z:0 }, true);
-      }
-      // intake service: only eat pollen that is actually TOUCHING the intake bar at the open front — no
-      // long-range vacuum. A ball rests against the front face of the chassis at fwd = RBHZ + BALL_R, so we
-      // swallow only on real contact; balls already at the bar but off to one side get a gentle roller nudge
-      // to centre them into the mouth. Returns how many balls it swallowed this tick.
-      function serviceIntake(body, active, current, capMax) {
-        if (!active) return 0;
-        const p = body.translation(), q = body.rotation();
-        const yaw = 2 * Math.atan2(q.y, q.w), fs = Math.sin(yaw), fc = Math.cos(yaw);
-        const barFwd = C.RBHZ + C.BALL_R;              // forward distance from robot centre to a ball pressed on the bar
-        let took = 0;
-        for (let i = 0; i < bodies.length; i++) {
-          if (held[i]) continue;
-          const b = bodies[i].translation();
-          if (b.y > C.CH * 1.2) continue;                // only floor-level pollen feeds the intake
-          const dx = b.x - p.x, dz = b.z - p.z;
-          const fwd = dx * fs + dz * fc, lat = dx * fc - dz * fs;
-          if (fwd <= 0) continue;                        // must be ahead of the open face
-          if (Math.abs(lat) > C.CUBE * 0.44) continue;   // outside the intake mouth
-          if (current < capMax && fwd < barFwd + C.BALL_R * 0.35) {
-            held[i] = true; current++; took++;           // touching the green bar -> swallow it
-            bodies[i].setTranslation({ x: 0, y: -10, z: 0 }, true);
-            bodies[i].setLinvel({ x:0, y:0, z:0 }, true); bodies[i].setAngvel({ x:0, y:0, z:0 }, true);
-            meshes[i].visible = false;
-            continue;
-          }
-          if (fwd < barFwd + C.BALL_R * 1.2) {           // right at the bar but off-centre: roller guides it to the mouth (contact-only, not a vacuum)
-            bodies[i].applyImpulse({ x: -lat * fc * 0.004, y: 0, z: lat * fs * 0.004 }, true);
-          }
-        }
-        return took;
-      }
-      // reverse-fed hopper: intake + indexer run backward to meter `n` held balls back out the front,
-      // each with a small randomized ranged exit speed so they roll into the hive from close range
-      function ejectBalls(body, n) {
-        const p = body.translation(), q = body.rotation();
-        const yaw = 2 * Math.atan2(q.y, q.w), fs = Math.sin(yaw), fc = Math.cos(yaw);
-        const ox = p.x + fs * (C.RBHZ + C.BALL_R * 1.5), oz = p.z + fc * (C.RBHZ + C.BALL_R * 1.5);
-        let spawned = 0;
-        for (let i = 0; i < bodies.length && spawned < n; i++) {
-          if (!held[i]) continue;
-          held[i] = false; meshes[i].visible = true;
-          const spread = (Math.random() - 0.5) * 0.6;                 // +-0.3 rad randomized aim
-          const ex = fs * Math.cos(spread) + fc * Math.sin(spread), ez = fc * Math.cos(spread) - fs * Math.sin(spread);
-          const speed = 0.5 + Math.random() * 0.6;                     // reasonable ranged exit velocity
-          bodies[i].setTranslation({ x: ox, y: C.BALL_R + 0.05, z: oz }, true);
-          bodies[i].setLinvel({ x: ex * speed, y: 0.1, z: ez * speed }, true);
-          bodies[i].setAngvel({ x: 0, y: 0, z: 0 }, true);
-          spawned++;
-        }
-        return spawned;
-      }
-      // dump: meter held balls off the OPEN rear of the tilted bed, out the back of the robot at `height`,
-      // with a randomized backward vector (mirrors the reverse-intake eject, but rearward and from up high)
-      function dumpBalls(body, n, height) {
-        const p = body.translation(), q = body.rotation();
-        const yaw = 2 * Math.atan2(q.y, q.w), fs = Math.sin(yaw), fc = Math.cos(yaw);
-        const bkx = -fs, bkz = -fc;                                  // robot back = -forward
-        let spawned = 0;
-        for (let i = 0; i < bodies.length && spawned < n; i++) {
-          if (!held[i]) continue;
-          held[i] = false; meshes[i].visible = true;
-          const spread = (Math.random() - 0.5) * 0.9;
-          const ex = bkx * Math.cos(spread) + bkz * Math.sin(spread);
-          const ez = bkz * Math.cos(spread) - bkx * Math.sin(spread);
-          const speed = 0.7 + Math.random() * 0.8;
-          bodies[i].setTranslation({ x: p.x + bkx * (C.RBHZ + C.BALL_R * 1.5), y: height, z: p.z + bkz * (C.RBHZ + C.BALL_R * 1.5) }, true);
-          bodies[i].setLinvel({ x: ex * speed, y: 0.15 + Math.random() * 0.2, z: ez * speed }, true);
-          bodies[i].setAngvel({ x: 0, y: 0, z: 0 }, true);
-          spawned++;
-        }
-        return spawned;
-      }
-      // which scoring zone (if any) a SETTLED ball is in: deck (3 pt) vs ground bin (1 pt), colored by side.
-      // only balls that have come to rest inside the hive score, so pollen flying over (or a freshly
-      // recycled ball rocketing back out) can't false-trigger a point.
-      function scoreZone(body) {
-        const p = body.translation();
-        if (Math.hypot(p.x, p.z) > a * 0.98) return null;           // outside the hive footprint
-        const v = body.linvel();
-        if (v.x*v.x + v.y*v.y + v.z*v.z > 0.25) return null;        // still moving (~>0.5 m/s) -> not settled yet
-        const color = p.x < 0 ? 'red' : 'blue';                      // -X = driver-left = red, +X = right = blue
-        if (p.y > deckY - C.BALL_R * 0.5) return { color, pts: 3 };  // resting on the elevated deck
-        return { color, pts: 1 };                                    // otherwise in the ground bin under the deck
-      }
-      function step(dt) {
-        const OUT = C.HALF + 0.02;
-        for (let i = 0; i < bodies.length; i++) {
-          if (held[i]) continue;
-          const p = bodies[i].translation();
-          if (Math.abs(p.x) > OUT || Math.abs(p.z) > OUT || p.y < -0.1) { respawnStray(i); continue; }
-          const z = scoreZone(bodies[i]);
-          if (z) { if (onScore) onScore(z.color, z.pts); recycle(i); }
-        }
-      }
-      function sync() {
-        for (let i = 0; i < bodies.length; i++) {
-          if (held[i]) { meshes[i].visible = false; continue; }
-          const p = bodies[i].translation(), r = bodies[i].rotation();
-          meshes[i].visible = true;
-          meshes[i].position.set(p.x, p.y, p.z);
-          meshes[i].quaternion.set(r.x, r.y, r.z, r.w);
-        }
-      }
-      return { id: 'biobuzz', reset, sync, step, serviceIntake, ejectBalls, dumpBalls,
-               set onScore(fn){ onScore = fn; }, get recycled(){ return recycled; } };
     }
-    const game = createBioBuzzGame(world, scene, THREE, RAPIER, { HALF, CH, CUBE, BALL_R, N_BALLS, HIVE_R, HIVE_H, DECK_Y, RBHX, RBHZ });
+    const game = createBioBuzzGame(world, scene, THREE, RAPIER, { HALF, CH, CUBE, HIVE_FRAME_W, HIVE_FRAME_D, HIVE_PIVOT_Y, HIVE_CTC, CELL_W, CELL_H, CELL_D, CELL_GAP, CELL_TILT, OPEN_BOT, OPEN_TOP, HIVE_BOT });
     // zone-based scoring: a ball in the red (-X) hive half scores red, the blue (+X) half scores blue,
     // regardless of who dumped it. Ground bin = 1 pt, elevated deck = 3 pt.
     game.onScore = (color, pts) => { matchScore[color] += pts; updateMatchClock(); };
@@ -2196,6 +2382,7 @@
     // shared by the ceremony (reset happens while the lights are out) and the practice Field Reset button
     function resetFieldForMatch(){
       game.reset();
+      setupMatchField();                                      // 4 pollen in the robot, 3 nectar per hive, 4 pollen per garden
       alliances.red.captured = alliances.blue.captured = 0;   // empty every robot's internal store on a fresh field
       resetRobot(robot, HALF * 0.45, Math.PI);
       resetRobot(robotBlue, -HALF * 0.45, 0);
@@ -2212,7 +2399,7 @@
       setMatchUI();
     }
     function beginPlay(){
-      match.arming = false; match.running = true; match.state = 'AUTO'; match.t = 0; match.endgameAnnounced = false;
+      match.arming = false; match.running = true; match.state = 'AUTO'; match.t = 0; match.endgameAnnounced = false; match.nectarDumped = false;
       playSfx('matchStart');
       for (const al of participants()){ al.matchArm = false; opStartOn(al); }
       setMatchUI();
@@ -2239,10 +2426,26 @@
       match.t += dt;
       if (match.state === 'AUTO' && match.t >= MATCH.AUTO) {
         match.state = 'TELEOP';
-        playSfx('autoComplete');
-        setTimeout(() => playSfx('teleBells'), 2000);   // classic FTC 3-tone signal, with a clear gap after the autonomous-complete cue
+        playSfx('autoComplete');                                  // AUTO ends: 3-buzzer
+        // chain the transition cues so each waits for the last to finish: buzzer -> "drivers, pick up your
+        // controllers, 3-2-1" -> 3 bells (TELEOP begins). Each step guarded against firing twice.
+        let pickupStarted = false;
+        const startPickup = () => {
+          if (pickupStarted) return; pickupStarted = true;
+          const clip = SFX.driversPickup;
+          playSfx('driversPickup');
+          let rang = false;
+          const ringBells = () => { if (rang) return; rang = true; playSfx('teleBells'); };
+          const durMs = (clip && isFinite(clip.duration) && clip.duration > 0) ? clip.duration * 1000 + 150 : 8000;
+          if (clip) clip.addEventListener('ended', ringBells, { once: true });
+          setTimeout(ringBells, durMs);           // fallback if the clip never signals 'ended'
+        };
+        const buzzer = SFX.autoComplete;
+        if (buzzer) buzzer.addEventListener('ended', startPickup, { once: true });
+        setTimeout(startPickup, 3000);            // fallback so the pickup cue still plays if the buzzer never ends
       }
       if (match.state === 'TELEOP' && !match.endgameAnnounced && inEndgame()) { match.endgameAnnounced = true; playSfx('endgame'); }
+      if (match.state === 'TELEOP' && !match.nectarDumped && periodRemaining() <= 60) { match.nectarDumped = true; dumpRemainingNectar(); }
       if (match.t >= MATCH.AUTO + MATCH.TELEOP) { endMatch(); return; }
       updateMatchClock();
     }
@@ -2549,7 +2752,8 @@
 
     // ================= input -> gamepad axes =================
     const keys = {};
-    let auto = false, debugIntake = false;
+    let auto = false, debugIntake = false, debugFlywheel = false;
+    const padEdge = { x: false, y: false };   // sim gamepad shooter controls: Y=flywheel, X=shoot (intake stays Java-driven)
     // don't steal keys while the user is typing in the code editor or a form field
     const typingInField = e => { const t = e.target; return !!(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))); };
     addEventListener('keydown', e => {
@@ -2557,10 +2761,269 @@
       const k = e.key.toLowerCase();
       if (k === ' ') { auto = !auto; e.preventDefault(); }
       if (k === 'i') { debugIntake = !debugIntake; console.log('DEBUG intake ' + (debugIntake ? 'ON' : 'OFF')); }
+      if (k === 'o') { debugFlywheel = !debugFlywheel; console.log('DEBUG flywheel ' + (debugFlywheel ? 'ON' : 'OFF')); }
+      if (k === 'p') fireShot();
       keys[k] = true;
       if (['w','a','s','d','q','e',' '].includes(k)) e.preventDefault();
     });
     addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+    // ---- P1/P2 shooter: flywheel RPM model + intake/storage/indexer. Real gravity + quadratic drag on the free
+    // ball; exit speed faked from RPM (tuned later). Debug keys: I = intake on/off, O = flywheel on/off, P = index
+    // (feed one stored piece into the flywheel). Wired to student code (motors/servos) in the lessons.
+    const SH = { rpm: 0, MAX_RPM: 3400, TAU: 0.8, MAX_EXIT: 5.625, VIS: 30, ELEV: 58 * Math.PI/180 };   // MAX_EXIT m/s at full RPM; VIS rad/s visual spin; ELEV launch angle
+    const POLLEN = { r: 0.0356, density: 230, color: 0xf5d020 };   // ~0.045 kg
+    const NECTAR = { r: 0.0457, density: 225, color: 0xd11e28 };   // ~0.09 kg; bigger -> more drag + lower launch efficiency
+    const specOf = t => (t === 'nectar' ? NECTAR : POLLEN);
+    // ONE registry for every physical ball on the field. Each ball is a single persistent
+    // RAPIER body that never gets destroyed+recreated between states — it just changes `state`:
+    //   'field'  = settled, collectible by the intake
+    //   'flight' = just launched, arcing under drag, not collectible yet
+    // A shot ball becomes an ordinary field ball the instant it lands (in place, no teleport),
+    // so it behaves identically to a pre-seeded ball.
+    const balls = [];                                              // { body, mesh, r, type, state, flightT }
+    const stored = [];                                             // FIFO queue of pieces in robot storage (max 4)
+    game.setBallSource(() => balls);                               // let the hive rule read settled pieces in its cells
+    const STORAGE_CAPACITY = 4;
+    const storageSlots = [
+      new THREE.Vector3(-0.055, 0.02, 0.02),
+      new THREE.Vector3( 0.055, 0.02, 0.02),
+      new THREE.Vector3(-0.020, 0.06, -0.02),
+      new THREE.Vector3( 0.020, 0.06, -0.02),
+    ];
+    const INITIAL_FIELD_BALLS = 11;
+    let captureCd = 0;
+    function debugStorageState(reason = '') {
+      const nField = balls.filter(b => b.state === 'field').length;
+      const nFlight = balls.length - nField;
+      const text = `storage=${stored.length}/${STORAGE_CAPACITY} field=${nField} flight=${nFlight} queue=${stored.map(t => t[0]).join('') || '-'} captureCd=${captureCd.toFixed(2)} reason=${reason || 'ok'}`;
+      console.log('[storage]', text);
+      const pitTele = document.getElementById('pit-tele');
+      if (pitTele) pitTele.textContent = text;
+      return text;
+    }
+    function enqueueStored(type) {
+      if (stored.length >= STORAGE_CAPACITY) {
+        debugStorageState('full');
+        return false;
+      }
+      stored.push(type);
+      if (sim && typeof sim === 'object') sim.captured = stored.length;
+      debugStorageState('enqueue');
+      return true;
+    }
+    function dequeueStored() {
+      if (stored.length === 0) return null;
+      const type = stored.shift();
+      if (sim && typeof sim === 'object') sim.captured = stored.length;
+      debugStorageState('dequeue');
+      return type;
+    }
+    function makeBall(type, x, y, z, state, color) {
+      const spec = specOf(type);
+      const flight = state === 'flight';
+      const body = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(x, y, z)
+        .setCcdEnabled(true)                                         // sweep test so fast shots don't tunnel through the thin hive walls
+        .setLinearDamping(flight ? 0 : 0.4)
+        .setAngularDamping(flight ? 0.2 : 0.5));
+      world.createCollider(RAPIER.ColliderDesc.ball(spec.r).setDensity(spec.density)
+        .setRestitution(flight ? 0.35 : 0.4).setFriction(flight ? 0.6 : 0.8), body);
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(spec.r, 16, 12), new THREE.MeshStandardMaterial({ color: color != null ? color : spec.color, roughness: 0.6 }));
+      mesh.castShadow = mesh.receiveShadow = true; scene.add(mesh);
+      const ball = { body, mesh, r: spec.r, type, state, flightT: 0 };
+      balls.push(ball);
+      return ball;
+    }
+    function removeBall(index) {
+      const b = balls[index];
+      if (!b) return false;
+      if (b.body) world.removeRigidBody(b.body);
+      if (b.mesh) scene.remove(b.mesh);
+      balls.splice(index, 1);
+      return true;
+    }
+    function landBall(b) {                          // flight -> field, in place: no teleport, same body
+      b.state = 'field';
+      b.flightT = 0;
+      b.body.setLinearDamping(0.4);
+      b.body.setAngularDamping(0.5);
+    }
+    function throwBackIn(b) {                       // a human player tosses an escaped ball back onto the field
+      const m = HALF - 0.15, along = (Math.random() - 0.5) * 2 * (HALF * 0.7);
+      const side = Math.floor(Math.random() * 4);
+      const x = side === 0 ? -m : side === 1 ? m : along;
+      const z = side === 2 ? -m : side === 3 ? m : along;
+      const tx = (Math.random() - 0.5) * HALF, tz = (Math.random() - 0.5) * HALF;
+      const dx = tx - x, dz = tz - z, d = Math.hypot(dx, dz) || 1, sp = 1.5 + Math.random() * 1.5;
+      b.body.setTranslation({ x, y: 0.6, z }, true);
+      b.body.setLinvel({ x: dx/d*sp, y: 1.5, z: dz/d*sp }, true);
+      b.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      b.state = 'flight'; b.flightT = 0;
+      b.body.setLinearDamping(0); b.body.setAngularDamping(0.2);
+    }
+    function expelPiece(type, dir) {                // dir +1 = out the front intake, -1 = off the rear dump
+      mainRobot.group.updateWorldMatrix(true, false);
+      const q = mainRobot.group.getWorldQuaternion(new THREE.Quaternion());
+      const ctr = mainRobot.group.getWorldPosition(new THREE.Vector3());
+      const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q); fwd.y = 0; fwd.normalize();
+      const spec = specOf(type);
+      const nb = makeBall(type, ctr.x + fwd.x*dir*0.30, spec.r + 0.14, ctr.z + fwd.z*dir*0.30, 'flight');
+      if (type === 'nectar') nb.alliance = 'red';   // this robot is the red alliance
+      const sp = 1.2 + Math.random() * 0.9;
+      nb.body.setLinvel({ x: fwd.x*dir*sp, y: 1.1, z: fwd.z*dir*sp }, true);
+    }
+    function spawnBall(pos, dir, exit, type) {      // launch a stored piece as a flight ball
+      const ball = makeBall(type, pos.x, pos.y, pos.z, 'flight');
+      ball.body.setLinvel({ x: dir.x*exit, y: dir.y*exit, z: dir.z*exit }, true);
+    }
+    function spawnFieldBall(type, x, z, force = false) {
+      const spec = specOf(type);
+      if (!force) {
+        const tooClose = balls.some(b => {
+          const t = b.body.translation();
+          return Math.hypot(t.x - x, t.z - z) < spec.r * 2.5;
+        });
+        if (tooClose) return false;
+      }
+      makeBall(type, x, spec.r + 0.02, z, 'field');
+      return true;
+    }
+    // ---- NECTAR economy: 3 per alliance start in its HIVE; each hive tip drops one more into EACH alliance's
+    // LOADING ZONE (up to 5 adds, capped at 8 on the field per alliance, inclusive of the starting 3). At the
+    // 1:00 mark any of the 5 not yet in play are released at once (see tickMatch).
+    const NECTAR_ADDS = 5, NECTAR_MAX = 8;
+    const nectarAdds = { red: 0, blue: 0 };
+    function loadingZoneCenter(color) {
+      const ZIN = 0.0254, TILE = 2 * 12 * ZIN, inset = WALL_T, edge = HALF - inset;
+      const LZ_L = TILE, LZ_D = TILE / 2, lzx = edge - TILE - LZ_L / 2;
+      return color === 'blue' ? { x: lzx, z: -(edge - LZ_D/2) } : { x: -lzx, z: (edge - LZ_D/2) };
+    }
+    function allianceNectarOnField(color) { return balls.reduce((n, b) => n + (b.alliance === color ? 1 : 0), 0); }
+    function addAllianceNectar(color) {
+      if (nectarAdds[color] >= NECTAR_ADDS || allianceNectarOnField(color) >= NECTAR_MAX) return false;
+      const p = loadingZoneCenter(color), col = color === 'red' ? 0xd11e28 : 0x1f6dd6;
+      const nb = makeBall('nectar', p.x + (Math.random()-0.5)*0.12, 0.45, p.z + (Math.random()-0.5)*0.12, 'field', col);   // drop from above so it bounces off anything already in the zone
+      nb.alliance = color;
+      nectarAdds[color]++;
+      return true;
+    }
+    function dumpRemainingNectar() { for (const color of ['red', 'blue']) while (addAllianceNectar(color)) {} }
+    game.onTip = (color) => { addAllianceNectar(color); };   // only the tipped hive's own alliance is fed
+    function setupMatchField() {
+      for (let i = balls.length - 1; i >= 0; i--) removeBall(i);
+      stored.length = 0;
+      nectarAdds.red = nectarAdds.blue = 0;                               // reset the per-alliance nectar budget
+      for (let i = 0; i < STORAGE_CAPACITY; i++) stored.push('pollen');   // robot pre-loaded with 4 POLLEN
+      if (sim && typeof sim === 'object') sim.captured = stored.length;
+      // 3 NECTAR, colour-matched to the alliance, pre-loaded into each HIVE's raised cell (3N = 5.4 load, no tip)
+      const NCOL = { red: 0xd11e28, blue: 0x1f6dd6 };
+      for (const c of game.raisedCellCenters()) {
+        const col = NCOL[c.color];
+        for (let k = 0; k < 3; k++) { const nb = makeBall('nectar', c.x + (k-1)*0.06, c.y + 0.04, c.z + (k-1)*0.03, 'field', col); nb.alliance = c.color; }
+      }
+      // 4 POLLEN on each GARDEN tape, biased toward the field corner; no other POLLEN starts on the field
+      const inset = WALL_T, edge = HALF - inset, gx = edge - 0.07, py = POLLEN.r + 0.02;
+      const layGarden = (xs, cornerZ, dir) => { for (let k = 0; k < 4; k++) makeBall('pollen', xs * gx, py, cornerZ + dir * (0.08 + k * 0.085), 'field'); };
+      layGarden(-1, -edge, +1);   // BLUE garden: -X wall, from the top-left corner
+      layGarden( 1,  edge, -1);   // RED  garden: +X wall, from the bottom-right corner
+      debugStorageState('match-setup');
+    }
+    setupMatchField();
+    const storageViz = [];
+    for (let i = 0; i < STORAGE_CAPACITY; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 9), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 })); m.visible = false; m.castShadow = true; scene.add(m); storageViz.push(m); }
+    function fireShot() {                                           // FIFO queue: oldest stored piece leaves first
+      if (!mainRobot.muzzle) return;
+      const type = dequeueStored();
+      if (type === null) { console.log('no game pieces stored'); return; }
+      const exit = (SH.rpm / SH.MAX_RPM) * SH.MAX_EXIT;
+      if (exit < 0.5) { console.log('flywheel not spun up'); enqueueStored(type); return; }
+      const spec = specOf(type);
+      mainRobot.muzzle.updateWorldMatrix(true, false); mainRobot.group.updateWorldMatrix(true, false);
+      const q = mainRobot.group.getWorldQuaternion(new THREE.Quaternion());
+      const ce = Math.cos(SH.ELEV), se = Math.sin(SH.ELEV);
+      const wh = new THREE.Vector3(0, 0, 1).applyQuaternion(q); wh.y = 0; if (wh.lengthSq() < 1e-6) wh.set(0, 0, 1); wh.normalize();
+      const dir = new THREE.Vector3(wh.x*ce, se, wh.z*ce);
+      const pos = mainRobot.muzzle.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.12);
+      spawnBall(pos, dir, exit * (type === 'nectar' ? 0.7 : 1.0), type);   // heavier nectar leaves slower -> falls short of the raised cell
+      SH.rpm *= (type === 'nectar' ? 0.72 : 0.84);                 // RPM sag from energy transfer (bigger for nectar)
+    }
+    function stepShooter(dt) {
+      // flywheel: 1st-order spin toward the setpoint (heavy inertia); spin the striped wheel to match
+      const tgt = (debugFlywheel ? 1 : 0) * SH.MAX_RPM;
+      SH.rpm += (tgt - SH.rpm) * Math.min(1, dt / SH.TAU);
+      if (mainRobot.flywheelSpin) mainRobot.flywheelSpin.rotation.x += (SH.rpm / SH.MAX_RPM) * SH.VIS * dt;
+      // in-flight balls: quadratic drag impulse + sync mesh; cull when landed/out of bounds
+      const KD = 0.5 * 1.2 * 0.47;
+      for (let i = balls.length - 1; i >= 0; i--) {
+        const b = balls[i], t = b.body.translation();
+        if (t.y < -0.3 || Math.hypot(t.x, t.z) > HALF * 3) { throwBackIn(b); continue; }   // escaped the field -> tossed back in
+        if (b.state === 'flight') {
+          const v = b.body.linvel(), sp = Math.hypot(v.x, v.y, v.z);
+          if (sp > 0.01) { const k = -KD * (Math.PI*b.r*b.r) * sp * dt; b.body.applyImpulse({ x: k*v.x, y: k*v.y, z: k*v.z }, true); }
+          b.flightT += dt;
+          // after a brief launch grace, the moment it drops near the floor at low speed it settles
+          // into a normal collectible right where it landed (same body, no pop, no threshold gap)
+          if (b.flightT > 0.35 && t.y <= 0.12 && sp < 0.6) landBall(b);
+        }
+        b.mesh.position.set(t.x, t.y, t.z);
+      }
+      // INTAKE: with intake on (I) and room in storage, capture the nearest field ball at the front mouth
+      mainRobot.group.updateWorldMatrix(true, false);
+      const q = mainRobot.group.getWorldQuaternion(new THREE.Quaternion());
+      const ctr = mainRobot.group.getWorldPosition(new THREE.Vector3());
+      const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q); fwd.y = 0; fwd.normalize();
+      const intakeActive = debugIntake || (sim && sim.mech && sim.mech.intake < -0.15);   // Java intake forward (reversed motor -> negative) or the 'I' test key
+      captureCd -= dt;
+      if (intakeActive && stored.length < STORAGE_CAPACITY && captureCd <= 0) {
+        const mouth = ctr.clone().addScaledVector(fwd, 0.20);
+        let capturedThisCycle = false;
+        let touchedBall = false;
+        for (let i = balls.length - 1; i >= 0; i--) {
+          const b = balls[i];
+          if (b.state !== 'field') continue;                     // in-flight shots aren't collectible yet
+          const t = b.body.translation(), dx = t.x - mouth.x, dz = t.z - mouth.z;
+          if (dx*dx + dz*dz < 0.08 && t.y < 0.22) {
+            touchedBall = true;
+            if (enqueueStored(b.type)) {                          // enqueue first; only remove the body once it fits
+              removeBall(i);
+              captureCd = 0.25;
+              capturedThisCycle = true;
+              break;
+            }
+            debugStorageState('blocked-by-capacity');
+          }
+        }
+        if (!capturedThisCycle && touchedBall) {
+          debugStorageState('intake-blocked');
+        } else if (!capturedThisCycle && stored.length < STORAGE_CAPACITY) {
+          debugStorageState('no-ball-near-mouth');
+        }
+      } else if (stored.length >= STORAGE_CAPACITY && intakeActive) {
+        debugStorageState('full');
+      }
+      // storage visual: keep the queue inside the robot turret volume, behind the intake and below the flywheel
+      const anchorWorld = mainRobot.storageAnchor ? mainRobot.storageAnchor.getWorldPosition(new THREE.Vector3()) : ctr;
+      for (let i = 0; i < STORAGE_CAPACITY; i++) {
+        const m = storageViz[i];
+        if (i < stored.length) {
+          const type = stored[i];
+          const spec = specOf(type);
+          const local = storageSlots[i].clone();
+          m.visible = true;
+          m.material.color.setHex(spec.color);
+          m.scale.setScalar(spec.r * 1.2);
+          if (mainRobot.storageAnchor) {
+            m.position.copy(mainRobot.storageAnchor.localToWorld(local.clone()));
+          } else {
+            m.position.copy(anchorWorld).add(local);
+          }
+        } else {
+          m.visible = false;
+        }
+      }
+      if (sim && typeof sim === 'object') sim.captured = stored.length;
+    }
     // Chrome only reveals a pad after its first button press — tell the coach when one is live
     addEventListener('gamepadconnected', e => console.log('GAMEPAD connected: ' + e.gamepad.id + ' (index ' + e.gamepad.index + ')'));
     addEventListener('gamepaddisconnected', e => console.log('GAMEPAD disconnected: index ' + e.gamepad.index));
@@ -2602,10 +3065,15 @@
         if (gp.buttons[6]) lt = gp.buttons[6].value;   // left trigger
         if (gp.buttons[7]) rt = gp.buttons[7].value;   // right trigger
         if (gp.buttons[5]) rb = gp.buttons[5].pressed; // right bumper
+        // sim-only shooter controls (no Java behind these): tap Y = flywheel on/off, tap X = shoot
+        const yNow = !!(gp.buttons[3] && gp.buttons[3].pressed), xNow = !!(gp.buttons[2] && gp.buttons[2].pressed);
+        if (yNow && !padEdge.y) { debugFlywheel = !debugFlywheel; console.log('DEBUG flywheel ' + (debugFlywheel ? 'ON' : 'OFF')); }
+        if (xNow && !padEdge.x) fireShot();
+        padEdge.y = yNow; padEdge.x = xNow;
         btns = padButtons(gp);
       }
       if (keys['x']) btns |= (1 << 2);   // keyboard X == gamepad X (TeleOp field/robot-centric toggle)
-      if (keys['y']) btns |= (1 << 3);   // keyboard Y == gamepad Y (dumper) -- lets keyboard-only students run the dump
+      btns &= ~(1 << 3);                 // TEMP: Y is a sim-only flywheel toggle for now — keep it off the Java bitmask so it can't drive the dumper (revisit with the Java lessons)
       sim.pad.ly = ly; sim.pad.lx = lx; sim.pad.rx = rx;
       sim.pad.ry = ry; sim.pad.lt = lt; sim.pad.rt = rt; sim.pad.rb = rb; sim.pad.btns = btns;
     }
@@ -2791,24 +3259,32 @@
       syncRobot(robotBlue, blueRobot, alliances.blue, dt);
       const M = sim.mech;
       game.step(dt);
-      // intake capture: eat floor pollen at the open front, then show the internal stack (count-matched)
-      const CAP = mainRobot.store.length;
+      stepShooter(dt);
+      // Canonical storage state is the queued balls themselves. The stubbed game.serviceIntake API
+      // can report stale counts, so we treat the real queue as authoritative for this shooter.
+      const CAP = STORAGE_CAPACITY;
+      sim.captured = stored.length;
       const intakeOn = M.intake < -0.15 || debugIntake;              // intake motor is REVERSEd -> forward power is negative. 'I' toggles intake on for testing
-      sim.captured = Math.min(CAP, sim.captured + game.serviceIntake(robot, intakeOn, sim.captured, CAP));
       // reverse intake: meter 1-3 held balls back out the front at a time, short randomized gap between bursts.
       // Keyed on the intake motor alone (a simple Intake subsystem drives no feeder), so reversing spits pollen.
       const ejecting = M.intake > 0.15;
       sim.ejectTimer = ejecting ? sim.ejectTimer - dt : 0;
-      if (ejecting && sim.captured > 0 && sim.ejectTimer <= 0) {
-        sim.captured -= game.ejectBalls(robot, Math.min(sim.captured, 1 + Math.floor(Math.random() * 3)));
-        sim.ejectTimer = 0.1 + Math.random() * 0.3;    // 0.1-0.4s gap -> a full 20-ball hopper empties in ~2-4s
+      if (ejecting && stored.length > 0 && sim.ejectTimer <= 0) {
+        const count = Math.min(stored.length, 1 + Math.floor(Math.random() * 3));
+        for (let i = 0; i < count; i++) expelPiece(stored.shift(), 1);   // spit out the FRONT onto the field
+        sim.captured = stored.length;
+        sim.ejectTimer = 0.1 + Math.random() * 0.3;
+        debugStorageState('eject');
       }
       // dump: while the bed is tilted up (servo past mid-travel), cascade held balls off the rear at ~14"
       const dumping = M.dump > 0.6;
       sim.dumpTimer = dumping ? sim.dumpTimer - dt : 0;
-      if (dumping && sim.captured > 0 && sim.dumpTimer <= 0) {
-        sim.captured -= game.dumpBalls(robot, Math.min(sim.captured, 1 + Math.floor(Math.random() * 3)), DUMP_H);
+      if (dumping && stored.length > 0 && sim.dumpTimer <= 0) {
+        const count = Math.min(stored.length, 1 + Math.floor(Math.random() * 3));
+        for (let i = 0; i < count; i++) expelPiece(stored.shift(), -1);   // cascade off the REAR onto the field
+        sim.captured = stored.length;
         sim.dumpTimer = 0.12 + Math.random() * 0.18;
+        debugStorageState('dump');
       }
       if (debugIntake) mainRobot.intakeRoller.rotation.y -= 10 * dt; // spin the roller so the test reads (forward dir)
       renderStore(mainRobot, sim.captured);
