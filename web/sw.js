@@ -28,6 +28,8 @@ const PRECACHE = [
   './vendor/RGBELoader.js', './vendor/ziplite.js',
   './assets/icon-192.png', './assets/icon-512.png',
   './assets/cheerpj_logo.png', './assets/sim_icon_v2.png', './assets/splash.jpg',
+  './assets/seesaw.stl',
+  './assets/turret_with_base.stl',
   // WiFi bridge helper — precached so the robot laptop (often offline) can still download it.
   './downloads/impulse-wifi-bridge.exe'
 ];
