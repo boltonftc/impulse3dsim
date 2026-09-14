@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.5.60';
+    window.APP_VERSION = '2.5.61';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -1240,6 +1240,7 @@
     // FMS match: AUTO(30s) -> TELEOP(120s, last 30s = ENDGAME) = 2:30 of play. Scoring rules TBD (M8b).
     const MATCH = { AUTO: 30, TELEOP: 120, ENDGAME: 30 };
     const matchScore = { red: 0, blue: 0 };
+    const scored = { red: {}, blue: {} };   // one-time AUTO mobility / park awards per alliance
     let match = { state: 'IDLE', t: 0, running: false, arming: false, pending: null };
     // FMS sound cues (real FTC field-control tones)
     const SFX = {
@@ -2359,6 +2360,23 @@
           }
           return out;
         },
+        piecesInHive(color){   // count of pieces resting inside either cell of the given alliance's hive
+          const balls = ballSource && ballSource(); if (!balls) return 0;
+          const h = hives.find(hv => hv.color === color); if (!h) return 0;
+          const a = h.angle, ca = Math.cos(a), sa = Math.sin(a), th = a - t, ct = Math.cos(th), st = Math.sin(th);
+          let count = 0;
+          for (const b of balls) {
+            const tr = b.body.translation();
+            const w = new THREE.Vector3(tr.x, tr.y, tr.z).applyQuaternion(qYawInv);
+            for (const c of h.cells) {
+              const Py = AXLE_Y + (c.dy*ca - c.dz*sa), Pz = c.dy*sa + c.dz*ca;
+              const dx = w.x - h.cx, dy = w.y - Py, dz = w.z - Pz;
+              const lx = dx, ly = dy*ct + dz*st, lz = -dy*st + dz*ct;
+              if (Math.abs(lx) <= C.CELL_W/2 + b.r && ly >= -C.CELL_H/2 - b.r && ly <= C.CELL_H/2 + b.r && Math.abs(lz) <= C.CELL_D/2 + b.r) { count++; break; }
+            }
+          }
+          return count;
+        },
         serviceIntake(){ return 0; }, ejectBalls(){ return 0; }, dumpBalls(){ return 0; },
         set onScore(fn){}, get recycled(){ return 0; }
       };
@@ -2395,6 +2413,7 @@
       setEdge('matchplay', true);   // drop the scoreboard down so the clock/score are visible during play
       const ps = participants();
       matchScore.red = matchScore.blue = 0;
+      scored.red = {}; scored.blue = {};
       match = { state: 'ARMING', t: 0, running: false, arming: true, pending: new Set(ps), ceremonyDone: false };
       for (const al of ps){ al.autoStart = false; al.matchArm = true; hubInit(al); }   // recompile+init; START fires when all ready
       startCeremony();
@@ -2426,9 +2445,14 @@
     function tickMatch(dt){
       if (!match.running) return;
       match.t += dt;
+      if (match.state === 'AUTO' && !scored.red.moved) {                      // AUTO mobility: 3 pts the first time it leaves spawn
+        const p = robot.translation();
+        if (Math.hypot(p.x, p.z - HALF * 0.45) > 0.08) { scored.red.moved = true; matchScore.red += 3; }
+      }
       if (match.state === 'AUTO' && match.t >= MATCH.AUTO) {
         match.state = 'TELEOP';
         playSfx('autoComplete');                                  // AUTO ends: 3-buzzer
+        { const p = robot.translation(); if (inLoadingZone('red', p.x, p.z)) matchScore.red += 5; }   // parked in LOADING ZONE at end of AUTO
         // chain the transition cues so each waits for the last to finish: buzzer -> "drivers, pick up your
         // controllers, 3-2-1" -> 3 bells (TELEOP begins). Each step guarded against firing twice.
         let pickupStarted = false;
@@ -2448,7 +2472,12 @@
       }
       if (match.state === 'TELEOP' && !match.endgameAnnounced && inEndgame()) { match.endgameAnnounced = true; playSfx('endgame'); }
       if (match.state === 'TELEOP' && !match.nectarDumped && periodRemaining() <= 60) { match.nectarDumped = true; dumpRemainingNectar(); }
-      if (match.t >= MATCH.AUTO + MATCH.TELEOP) { endMatch(); return; }
+      if (match.t >= MATCH.AUTO + MATCH.TELEOP) {
+        const p = robot.translation();
+        if (inLoadingZone('red', p.x, p.z)) matchScore.red += 5;              // parked in LOADING ZONE at end of TELEOP
+        for (const color of ['red', 'blue']) matchScore[color] += 2 * game.piecesInHive(color);   // 2 pts / piece left in each HIVE
+        endMatch(); return;
+      }
       updateMatchClock();
     }
     const inEndgame = () => match.state === 'TELEOP' && (MATCH.AUTO + MATCH.TELEOP - match.t) <= MATCH.ENDGAME;
@@ -2930,6 +2959,10 @@
       const LZ_L = TILE, LZ_D = TILE / 2, lzx = edge - TILE - LZ_L / 2;
       return color === 'blue' ? { x: lzx, z: -(edge - LZ_D/2) } : { x: -lzx, z: (edge - LZ_D/2) };
     }
+    function inLoadingZone(color, px, pz) {   // any overlap of the robot footprint with the LOADING ZONE (1 x 1/2 tile)
+      const c = loadingZoneCenter(color), TILE = 2 * 12 * 0.0254;
+      return Math.abs(px - c.x) < TILE/2 + RBHX && Math.abs(pz - c.z) < TILE/4 + RBHZ;
+    }
     function allianceNectarOnField(color) { return balls.reduce((n, b) => n + (b.alliance === color ? 1 : 0), 0); }
     function addAllianceNectar(color) {
       if (nectarAdds[color] >= NECTAR_ADDS || allianceNectarOnField(color) >= NECTAR_MAX) return false;
@@ -2940,7 +2973,10 @@
       return true;
     }
     function dumpRemainingNectar() { for (const color of ['red', 'blue']) while (addAllianceNectar(color)) {} }
-    game.onTip = (color) => { addAllianceNectar(color); };   // only the tipped hive's own alliance is fed
+    game.onTip = (color) => {
+      addAllianceNectar(color);                              // only the tipped hive's own alliance is fed
+      if (match.running) { matchScore[color] += 20; updateMatchClock(); }   // each tip scores 20 for that alliance
+    };
     // ---- YELLOW CARD: illegal possession of opposing-alliance NECTAR. Latches until the field is reset. ----
     const illegalNectar = { red: false, blue: false };
     const yellowCards = {};
