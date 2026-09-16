@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.5.61';
+    window.APP_VERSION = '2.5.63';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -1239,6 +1239,7 @@
     let upMode = 1;              // 1UP = red only; 2UP = red + blue opponent (set by #upbadge)
     // FMS match: AUTO(30s) -> TELEOP(120s, last 30s = ENDGAME) = 2:30 of play. Scoring rules TBD (M8b).
     const MATCH = { AUTO: 30, TELEOP: 120, ENDGAME: 30 };
+    const XION_DUR = 8, XION_PICKUP = 2;   // AUTO->TELEOP: robots STOPPED for 8s; "tele_start" cue at +2s
     const matchScore = { red: 0, blue: 0 };
     const scored = { red: {}, blue: {} };   // one-time AUTO mobility / park awards per alliance
     let match = { state: 'IDLE', t: 0, running: false, arming: false, pending: null };
@@ -1251,7 +1252,8 @@
       endgame:      new Audio('audio/endgame_start.mp3'),
       matchEnd:     new Audio('audio/match_end.mp3'),
     };
-    function playSfx(name){ const a = SFX[name]; if (!a) return; try { a.currentTime = 0; a.play().catch(()=>{}); } catch(e){} }
+    function playSfx(name){ const a = SFX[name]; if (!a) return; try { a.currentTime = 0; } catch(e){} a.play().catch(()=>{}); }
+    for (const k in SFX) { SFX[k].preload = 'auto'; try { SFX[k].load(); } catch(e){} }   // fetch/decode up front so the first cue isn't skipped
 
     // ---- field constants (meters) ----
     const FT = 0.3048;
@@ -2444,31 +2446,25 @@
     // advance the clock + period transitions; called each frame from the render loop
     function tickMatch(dt){
       if (!match.running) return;
+      // AUTO -> TELEOP transition: robots STOPPED, match clock paused for XION_DUR while drivers grab controllers
+      if (match.state === 'XION') {
+        match.xt += dt;
+        if (!match.telePickup && match.xt >= XION_PICKUP) { match.telePickup = true; playSfx('driversPickup'); }   // "drivers, pick up your controllers" (6s)
+        if (match.xt >= XION_DUR) { match.state = 'TELEOP'; }                                                      // only now does TELEOP begin
+        updateMatchClock();
+        return;
+      }
       match.t += dt;
       if (match.state === 'AUTO' && !scored.red.moved) {                      // AUTO mobility: 3 pts the first time it leaves spawn
         const p = robot.translation();
         if (Math.hypot(p.x, p.z - HALF * 0.45) > 0.08) { scored.red.moved = true; matchScore.red += 3; }
       }
       if (match.state === 'AUTO' && match.t >= MATCH.AUTO) {
-        match.state = 'TELEOP';
-        playSfx('autoComplete');                                  // AUTO ends: 3-buzzer
         { const p = robot.translation(); if (inLoadingZone('red', p.x, p.z)) matchScore.red += 5; }   // parked in LOADING ZONE at end of AUTO
-        // chain the transition cues so each waits for the last to finish: buzzer -> "drivers, pick up your
-        // controllers, 3-2-1" -> 3 bells (TELEOP begins). Each step guarded against firing twice.
-        let pickupStarted = false;
-        const startPickup = () => {
-          if (pickupStarted) return; pickupStarted = true;
-          const clip = SFX.driversPickup;
-          playSfx('driversPickup');
-          let rang = false;
-          const ringBells = () => { if (rang) return; rang = true; playSfx('teleBells'); };
-          const durMs = (clip && isFinite(clip.duration) && clip.duration > 0) ? clip.duration * 1000 + 150 : 8000;
-          if (clip) clip.addEventListener('ended', ringBells, { once: true });
-          setTimeout(ringBells, durMs);           // fallback if the clip never signals 'ended'
-        };
-        const buzzer = SFX.autoComplete;
-        if (buzzer) buzzer.addEventListener('ended', startPickup, { once: true });
-        setTimeout(startPickup, 3000);            // fallback so the pickup cue still plays if the buzzer never ends
+        playSfx('autoComplete');                                  // AUTO ends: 3-buzzer
+        match.state = 'XION'; match.xt = 0; match.telePickup = false;   // enter the 8s stop; robots are frozen in the render loop
+        updateMatchClock();
+        return;
       }
       if (match.state === 'TELEOP' && !match.endgameAnnounced && inEndgame()) { match.endgameAnnounced = true; playSfx('endgame'); }
       if (match.state === 'TELEOP' && !match.nectarDumped && periodRemaining() <= 60) { match.nectarDumped = true; dumpRemainingNectar(); }
@@ -2484,6 +2480,7 @@
     const fmtClock = s => { s = Math.max(0, Math.ceil(s)); return Math.floor(s/60) + ':' + String(s%60).padStart(2, '0'); };
     function periodRemaining(){
       if (match.state === 'AUTO') return MATCH.AUTO - match.t;
+      if (match.state === 'XION') return MATCH.TELEOP;              // clock parked at 2:00 during the transition
       if (match.state === 'TELEOP') return (MATCH.AUTO + MATCH.TELEOP) - match.t;
       if (match.state === 'OVER') return 0;
       return MATCH.AUTO + MATCH.TELEOP;
@@ -2495,6 +2492,7 @@
       if (per){
         const label = match.state === 'ARMING' ? 'ARMING…'
           : match.state === 'AUTO' ? 'AUTONOMOUS'
+          : match.state === 'XION' ? 'DRIVERS PICK UP'
           : match.state === 'TELEOP' ? (inEndgame() ? 'ENDGAME' : 'TELEOP')
           : match.state === 'OVER' ? 'MATCH OVER' : 'READY';
         per.textContent = label;
@@ -2519,7 +2517,7 @@
     // together in red, then the same all-at-once in blue -> lights/camera ease back to the Driver
     // Station view -> a foghorn blast + a pulsing "LET'S GO!", and the actual match begins once
     // compiling has also finished.
-    const CEREMONY_DUR = { fadeout: 0.7, red: 3.2, blue: 3.2, horn: 2.0, fadein: 1.4 };
+    const CEREMONY_DUR = { fadeout: 0.7, red: 3.2, blue: 3.2, both: 2.4, horn: 2.0, hold: 3.0, fadein: 1.4 };
     const CEREMONY_WIDE_POS  = new THREE.Vector3(0, 3.6, 6.5);
     const CEREMONY_WIDE_LOOK = new THREE.Vector3(0, 1.6, -4.0);
     const DRIVER_CAM_POS  = new THREE.Vector3(0, 1.65, HALF + 1.5);
@@ -2553,6 +2551,7 @@
     function playHeartbeat(){
       try {
         if (!heartbeatCtx) heartbeatCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (heartbeatCtx.state === 'suspended') heartbeatCtx.resume();   // unlock after autoplay-gating so it fires every match, not just the first
         if (!heartbeatBuf) heartbeatBuf = synthHeartbeatBuffer(heartbeatCtx);
         const src = heartbeatCtx.createBufferSource(); src.buffer = heartbeatBuf;
         const gain = heartbeatCtx.createGain(); gain.gain.value = 0.7;
@@ -2560,6 +2559,7 @@
       } catch (e) {}
     }
     const fogHornSfx = new Audio('audio/fog_horn.mp3');
+    let fogHornPlayed = false;   // the foghorn blasts only on the very first Start Match of the session
 
     // "LET'S GO!" -- a simple glowing pulse (canvas texture, unlit material so it reads through the
     // dimmed ceremony lighting), shown only during the horn phase
@@ -2637,26 +2637,24 @@
       // quick reveal of the darkened room during the very start of the first dark phase
       if (fadeEl) fadeEl.style.opacity = (ceremony.phase === 'red' && ceremony.t < 0.3) ? String(1 - ceremony.t / 0.3) : '0';
 
-      if (ceremony.phase === 'red' || ceremony.phase === 'blue') {
-        // banner spotlight and the four field searchlights sweep together, all in the same color
-        const red = ceremony.phase === 'red';
-        const spot = red ? goRedSpot : goBlueSpot;
-        const color = red ? 0xff4444 : 0x4488ff;
-        if (spot) {
-          spot.intensity = 12.0;
-          const bx = spot.position.x;   // banner spot is mounted directly above its own banner
-          spot.target.position.set(bx + Math.sin(ceremony.t * 3) * 0.9, 3.0, spot.target.position.z);
-        }
+      if (ceremony.phase === 'red' || ceremony.phase === 'blue' || ceremony.phase === 'both') {
+        // banner spotlight(s) + the four field searchlights sweep together
+        const both = ceremony.phase === 'both', red = ceremony.phase === 'red';
+        const sweepBanner = (spot, off) => { if (!spot) return; spot.intensity = 12.0; spot.target.position.set(spot.position.x + Math.sin(ceremony.t * 3 + off) * 0.9, 3.0, spot.target.position.z); };
+        if (both) { sweepBanner(goRedSpot, 0); sweepBanner(goBlueSpot, 1); }
+        else sweepBanner(red ? goRedSpot : goBlueSpot, 0);
         if (fieldSpots) fieldSpots.forEach((s, i) => {
-          s.color.setHex(color); s.intensity = 11.0;
+          s.color.setHex(both ? (i % 2 ? 0x4488ff : 0xff4444) : (red ? 0xff4444 : 0x4488ff)); s.intensity = 11.0;
           const phase = i * (Math.PI / 2);
           s.target.position.set(Math.cos(ceremony.t * 1.3 + phase) * 1.1, 0, Math.sin(ceremony.t * 1.3 + phase) * 1.1);
         });
         if (ceremony.t >= d[ceremony.phase]) {
-          if (spot) spot.intensity = 0;
+          if (goRedSpot) goRedSpot.intensity = 0;
+          if (goBlueSpot) goBlueSpot.intensity = 0;
           if (fieldSpots) for (const s of fieldSpots) s.intensity = 0;
           if (red) { ceremony.phase = 'blue'; ceremony.t = 0; playHeartbeat(); }
-          else { ceremony.phase = 'fadein'; ceremony.t = 0; }   // zoom/lights-up happens BEFORE the horn/LET'S GO finale
+          else if (ceremony.phase === 'blue') { ceremony.phase = 'both'; ceremony.t = 0; playHeartbeat(); }   // BOTH alliances lit + one more heartbeat
+          else { ceremony.phase = 'fadein'; ceremony.t = 0; }
         }
         return;
       }
@@ -2669,19 +2667,17 @@
         ceremonyCamPos.lerpVectors(CEREMONY_WIDE_POS, DRIVER_CAM_POS, e);
         ceremonyCamLook.lerpVectors(CEREMONY_WIDE_LOOK, DRIVER_CAM_LOOK, e);
         if (t >= 1) {
-          fogHornSfx.currentTime = 0; fogHornSfx.play().catch(() => {});
+          if (!fogHornPlayed) { try { fogHornSfx.currentTime = 0; } catch(e){} fogHornSfx.play().then(() => { fogHornPlayed = true; }).catch(() => {}); }   // foghorn: first Start Match only, latched on success
           ceremony.phase = 'horn'; ceremony.t = 0;
         }
         return;
       }
-      if (ceremony.phase === 'horn') {
+      if (ceremony.phase === 'horn' || ceremony.phase === 'hold') {
         const pulse = 1 + Math.sin(ceremony.t * 10) * 0.08;
         letsGoMesh.scale.set(pulse, pulse, 1);
-        const fadeTail = 0.3;
-        letsGoMesh.material.opacity = ceremony.t < d.horn - fadeTail
-          ? Math.min(1, ceremony.t / 0.25)
-          : Math.max(0, (d.horn - ceremony.t) / fadeTail);
-        if (ceremony.t >= d.horn) endCeremony();
+        letsGoMesh.material.opacity = ceremony.phase === 'hold' ? 1 : Math.min(1, ceremony.t / 0.25);
+        if (ceremony.phase === 'horn' && ceremony.t >= d.horn) { ceremony.phase = 'hold'; ceremony.t = 0; }   // 3s beat before the Cavalry Charge + AUTO
+        else if (ceremony.phase === 'hold' && ceremony.t >= d.hold) endCeremony();
       }
     }
 
@@ -3359,14 +3355,14 @@
       // look "stuck" on whatever phase was active when the slowdown hit, for as long as the slowdown lasts
       updateCeremony(rawDt);
 
-      driveBody(robot, sim);
-      driveBody(robotBlue, alliances.blue);
+      const frozen = match.running && match.state === 'XION';   // robots STOPPED during the AUTO->TELEOP transition
+      if (!frozen) { driveBody(robot, sim); driveBody(robotBlue, alliances.blue); }
 
       const t0 = performance.now();
       world.step();
       const stepMs = performance.now() - t0;
-      clampToCommand(robot, sim);
-      clampToCommand(robotBlue, alliances.blue);
+      if (frozen) { for (const b of [robot, robotBlue]) { b.setLinvel({ x: 0, y: 0, z: 0 }, true); b.setAngvel({ x: 0, y: 0, z: 0 }, true); } }
+      else { clampToCommand(robot, sim); clampToCommand(robotBlue, alliances.blue); }
 
       syncRobot(robot, mainRobot, sim, dt);
       syncRobot(robotBlue, blueRobot, alliances.blue, dt);
