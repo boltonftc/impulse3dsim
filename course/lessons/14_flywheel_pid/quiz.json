@@ -1,0 +1,156 @@
+{
+  "title": "Feedforward + PID Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "What is \"open-loop\" control?",
+      "correct": "Picking a power and hoping, with no feedback",
+      "wrong": [
+        "Measuring the real speed and correcting for it",
+        "Reading the encoder on every single loop",
+        "Spinning the wheel with two motors at once"
+      ],
+      "explain": "Open-loop means you set a fixed power and hope it's right \u2014 no feedback. The motor doesn't know a shot just slowed it, so it can't react."
+    },
+    {
+      "q": "The controller works like a car's...",
+      "correct": "Cruise control",
+      "wrong": [
+        "Turn signal",
+        "Windshield wiper",
+        "Parking brake"
+      ],
+      "explain": "Cruise control guesses the base throttle for the set speed, then corrects using the real speed. Feedforward + feedback is exactly that idea."
+    },
+    {
+      "q": "What is feedforward (kV)?",
+      "correct": "A smart starting guess for the power",
+      "wrong": [
+        "A correction based on the current error",
+        "The encoder's raw tick-per-second count",
+        "The stick's deadzone threshold value"
+      ],
+      "explain": "Feedforward (kV) is the physics-based guess: about 1/6000 power per RPM for this motor. kV * target lands the wheel near its speed with no measuring."
+    },
+    {
+      "q": "What is the P term (kP)?",
+      "correct": "A correction based on how far off you are",
+      "wrong": [
+        "A fixed guess made before spinning up",
+        "The number of encoder ticks per revolution",
+        "The target RPM the driver dials in"
+      ],
+      "explain": "kP is feedback: the farther the real RPM is from target, the harder it pushes. It cleans up whatever the feedforward guess missed, like after a shot."
+    },
+    {
+      "q": "What is the controller's formula?",
+      "correct": "power = kV * target + kP * error",
+      "wrong": [
+        "power = kV * error + kP * target",
+        "power = kV - kP + target",
+        "power = target / kV * kP"
+      ],
+      "explain": "power = kV * targetRpm + kP * error, where error = targetRpm - actualRpm. The guess (kV*target) plus the correction (kP*error) holds the speed."
+    },
+    {
+      "q": "In the formula, error means...",
+      "correct": "Target RPM minus the actual RPM",
+      "wrong": [
+        "Actual RPM minus the target RPM",
+        "Target RPM times the actual RPM",
+        "The battery voltage minus the RPM"
+      ],
+      "explain": "error = targetRpm - actualRpm \u2014 how far below (or above) target you are right now. A positive error means \"too slow, add power.\""
+    },
+    {
+      "q": "Why can kP be small when kV is good?",
+      "correct": "Feedforward already provides the baseline power",
+      "wrong": [
+        "A small kP makes the motor spin faster",
+        "The rules limit how large kP is allowed",
+        "The battery can't handle a large kP"
+      ],
+      "explain": "With feedforward supplying the baseline, kP only has to fix small disturbances \u2014 so it stays gentle. Without feedforward, kP does all the work and wobbles."
+    },
+    {
+      "q": "What is the right tuning order?",
+      "correct": "Calibrate kV first with kP at zero, then raise kP",
+      "wrong": [
+        "Raise kP first, then set kV back to zero",
+        "Set both of them to the maximum at once",
+        "Leave both at zero and just start firing"
+      ],
+      "explain": "First set kP=0 and adjust kV until the RPM holds the target. Then raise kP until shots snap back without bouncing. kV first, kP second."
+    },
+    {
+      "q": "What does too much kP cause?",
+      "correct": "Oscillation \u2014 bouncing above and below target",
+      "wrong": [
+        "The wheel to spin up a lot slower",
+        "The battery to drain about twice as fast",
+        "The encoder to stop counting its ticks"
+      ],
+      "explain": "Push kP too high and it overcorrects, so the RPM bounces above and below the target line. The sweet spot is a fast snap-back with no bounce."
+    },
+    {
+      "q": "Why do flywheels usually skip the I term?",
+      "correct": "Feedforward removes lingering error, and I winds up",
+      "wrong": [
+        "The I term makes the wheel spin backward",
+        "The I term is against the FTC competition rules",
+        "The battery cannot supply power to the I term"
+      ],
+      "explain": "With good feedforward there's no lingering error for I to erase, and I tends to \"wind up\" and overshoot. So flywheels leave it out."
+    },
+    {
+      "q": "Why do flywheels often skip or shrink the D term?",
+      "correct": "The speed reading is noisy and D amplifies noise",
+      "wrong": [
+        "The D term slows the wheel down far too much",
+        "The D term drains the battery very quickly",
+        "The rules flatly forbid using the D term"
+      ],
+      "explain": "The encoder's speed reading is a little noisy, and D reacts to how fast the error changes \u2014 so it amplifies that noise. Many teams skip it or keep it tiny."
+    },
+    {
+      "q": "After the upgrade, the driver's trim now adjusts...",
+      "correct": "The target RPM, not the raw power",
+      "wrong": [
+        "The raw power, not the target RPM",
+        "The encoder's ticks per revolution",
+        "The robot's heading read from the IMU"
+      ],
+      "explain": "The controller sets power itself, so trimming power would get overwritten. Instead the trim nudges the target, and the controller holds whatever target you dial."
+    },
+    {
+      "q": "What does kV roughly equal for this motor?",
+      "correct": "About 1 divided by 6000",
+      "wrong": [
+        "About 6000 divided by 1",
+        "Exactly 28 times 60",
+        "About 1 divided by 28"
+      ],
+      "explain": "The motor hits about 6000 RPM at full power, so holding a speed needs about power = RPM/6000 \u2014 which makes kV \u2248 1/6000 (about 0.000167)."
+    },
+    {
+      "q": "What does the P stand for in PID?",
+      "correct": "Proportional",
+      "wrong": [
+        "Power",
+        "Position",
+        "Percent"
+      ],
+      "explain": "PID is Proportional, Integral, Derivative. You built the Proportional part (plus feedforward), which is the sweet spot most flywheels use."
+    },
+    {
+      "q": "Without feedforward, the kP term must...",
+      "correct": "Do all the work, so it gets jittery",
+      "wrong": [
+        "Stay at exactly zero the whole time",
+        "Spin a second backup flywheel motor",
+        "Reset the encoder count every loop"
+      ],
+      "explain": "With no feedforward baseline, kP has to supply all the power AND correct \u2014 so it needs to be large, which makes it overshoot and jitter. Feedforward keeps kP gentle."
+    }
+  ]
+}

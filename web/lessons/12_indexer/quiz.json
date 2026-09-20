@@ -1,0 +1,156 @@
+{
+  "title": "Indexer Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "Where does the indexer sit in the game-piece path?",
+      "correct": "Between storage and the flywheel",
+      "wrong": [
+        "Before the intake pulls pieces in",
+        "After the flywheel launches a piece",
+        "Inside the drivetrain's main gearbox"
+      ],
+      "explain": "The path is intake \u2192 storage \u2192 indexer \u2192 flywheel. The indexer feeds stored pieces up to the spinning flywheel to be launched."
+    },
+    {
+      "q": "What kind of servo is the indexer's feeder?",
+      "correct": "A continuous-rotation servo (CRServo)",
+      "wrong": [
+        "A positional servo that holds an angle",
+        "A DcMotorEx with a built-in encoder",
+        "A stepper motor with fine little steps"
+      ],
+      "explain": "The feeder is a CRServo \u2014 it just spins at a speed, like a little motor. It uses setPower(), not an angle like a positional servo."
+    },
+    {
+      "q": "How does a CRServo differ from a positional servo?",
+      "correct": "A CRServo sets a speed, not a held angle",
+      "wrong": [
+        "A CRServo holds an exact angle and stays",
+        "A CRServo is powered by its own battery",
+        "A CRServo can only ever spin one way"
+      ],
+      "explain": "A positional servo goes to an exact angle and holds (a \"Pointer\"); a CRServo just spins at a speed (a \"Spinner\"). The feeder needs to spin, so it's a CRServo."
+    },
+    {
+      "q": "How do you drive a CRServo in code?",
+      "correct": "feeder.setPower(value), just like a motor",
+      "wrong": [
+        "feeder.setPosition(value), like an angle",
+        "feeder.setAngle(value), given in degrees",
+        "feeder.spinForever(value), only once"
+      ],
+      "explain": "A CRServo uses setPower() from -1.0 to 1.0, just like a motor \u2014 1.0 full one way, -1.0 the other, 0.0 stop. There's no angle to set."
+    },
+    {
+      "q": "The indexer's state machine has how many states?",
+      "correct": "Two: feeding or not feeding",
+      "wrong": [
+        "Three: forward, off, and reverse",
+        "Four: stowed, raising, holding, lowering",
+        "One: it only ever keeps feeding"
+      ],
+      "explain": "The indexer is a simple two-state machine \u2014 a boolean feeding that's either true or false. Simpler than the intake's three-state enum."
+    },
+    {
+      "q": "When does the constructor run?",
+      "correct": "Once, when the Robot builds the indexer",
+      "wrong": [
+        "Every loop, about 50 times a second",
+        "Only when the X button is pressed",
+        "After the match has completely ended"
+      ],
+      "explain": "The constructor runs once at build time to find the feeder servo. update() is what runs every loop. Once for setup, forever for use."
+    },
+    {
+      "q": "Feeding the shooter is a \"hold,\" which means...",
+      "correct": "It feeds while X is held and stops when released",
+      "wrong": [
+        "One press feeds forever until you press again",
+        "A single press feeds exactly one piece each time",
+        "It feeds only during the autonomous phase"
+      ],
+      "explain": "Feeding is a hold: while X is down, feed; when it's up, stop. That's different from the intake's press-to-toggle behavior."
+    },
+    {
+      "q": "Does a hold-to-feed button need edge detection?",
+      "correct": "No \u2014 a plain if (gamepad1.x) is correct",
+      "wrong": [
+        "Yes \u2014 without it the feeder never runs",
+        "Yes \u2014 otherwise it feeds much too fast",
+        "No \u2014 but only during autonomous mode"
+      ],
+      "explain": "Holds don't need edge detection; you want it to feed the whole time X is held. Edge detection is for toggles, where one press flips a state once."
+    },
+    {
+      "q": "What is a logic guard like if (feeder == null) return;?",
+      "correct": "A check that handles a special case and returns early",
+      "wrong": [
+        "A command that spins the feeder at full speed",
+        "A line that prints the feeder's current state",
+        "A loop that waits for the feeder to warm up"
+      ],
+      "explain": "A guard checks a special case first (here, no feeder configured) and returns early so the rest of the method is safely skipped. It prevents crashes."
+    },
+    {
+      "q": "What does the ternary feeding ? FEED_POWER : 0.0 do?",
+      "correct": "Picks one of two values based on feeding",
+      "wrong": [
+        "Adds FEED_POWER and 0.0 together",
+        "Loops until feeding becomes true",
+        "Prints feeding to the telemetry line"
+      ],
+      "explain": "The ternary reads \"if feeding, use FEED_POWER, else 0.0.\" It's a compact if/else that produces the power to send to the servo."
+    },
+    {
+      "q": "What does isFeeding() return?",
+      "correct": "Whether the indexer is currently feeding",
+      "wrong": [
+        "How many pieces have been fed so far",
+        "The exact speed of the feeder servo",
+        "The robot's current heading angle value"
+      ],
+      "explain": "isFeeding() returns the boolean feeding \u2014 true while feeding, false otherwise. It lets the OpMode show the state on telemetry."
+    },
+    {
+      "q": "If you put edge detection on the hold-to-feed button...",
+      "correct": "You'd have to tap repeatedly to keep feeding",
+      "wrong": [
+        "The feeder servo would spin twice as fast",
+        "The robot's battery would last much longer",
+        "The servo would hold one exact angle"
+      ],
+      "explain": "Edge detection fires once per press, so a hold-to-feed button with edge detection would only feed for a single loop per tap \u2014 ruining the smooth hold."
+    },
+    {
+      "q": "If the feeder never moves, a likely cause is...",
+      "correct": "The indexer wasn't added to the scheduler list",
+      "wrong": [
+        "The battery is charged a little too much",
+        "The telemetry is printing far too many lines",
+        "The A button was pressed instead of the X"
+      ],
+      "explain": "If update() never runs (the indexer isn't in subsystems), the servo is never told to spin. Adding it to the scheduler list fixes that."
+    },
+    {
+      "q": "The commands feed() and stop() change...",
+      "correct": "The feeding field, not the servo directly",
+      "wrong": [
+        "The servo power, skipping the field",
+        "The robot's heading from the IMU",
+        "The telemetry text on the screen"
+      ],
+      "explain": "feed() sets feeding = true and stop() sets it false. update() reads that field and drives the servo. Commands decide; update() does."
+    },
+    {
+      "q": "Why does the indexer feed WHILE X is held?",
+      "correct": "So pieces flow steadily up to the flywheel",
+      "wrong": [
+        "So the flywheel spins at a higher RPM",
+        "So the battery charges between the shots",
+        "So the robot strafes toward the hive"
+      ],
+      "explain": "Holding X runs the feeder continuously, pushing stored pieces into the spinning flywheel for a steady stream of shots. Release to stop feeding."
+    }
+  ]
+}

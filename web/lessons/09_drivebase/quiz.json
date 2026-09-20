@@ -1,0 +1,156 @@
+{
+  "title": "Clean Classes Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "What is a class?",
+      "correct": "A blueprint that describes how something is built",
+      "wrong": [
+        "The actual object that is built from a plan",
+        "A single number stored somewhere in memory",
+        "A wire running from the hub to a motor"
+      ],
+      "explain": "A class is a blueprint; the object is the actual \"room\" Java builds from it. Drivebase is the plan; new Drivebase(...) makes a real one."
+    },
+    {
+      "q": "What is an object?",
+      "correct": "The actual thing built from a class blueprint",
+      "wrong": [
+        "The blueprint itself, before anything is built",
+        "A single button on the driver's gamepad",
+        "A telemetry line printed on the screen"
+      ],
+      "explain": "An object is what Java builds from the class \u2014 like a room built from a blueprint. You make one with new, e.g. new Drivebase(hardwareMap)."
+    },
+    {
+      "q": "What two kinds of things does a class hold?",
+      "correct": "Fields (what it owns) and methods (what it does)",
+      "wrong": [
+        "Imports (what it needs) and comments only",
+        "Buttons (its inputs) and wires (its outputs)",
+        "Wheels (its parts) and batteries (its power)"
+      ],
+      "explain": "A class has fields (data it owns, like its motors) and methods (things it can do, like driveFieldCentric). Together they make a working subsystem."
+    },
+    {
+      "q": "What is the constructor's job?",
+      "correct": "Set up the object once, finding hardware and starting state",
+      "wrong": [
+        "Run every loop to keep moving the motors",
+        "Print telemetry values out to the Driver Hub screen every loop",
+        "Reverse the direction of a motor mid-match"
+      ],
+      "explain": "The constructor runs once when the object is built. Its job is to find hardware (from hardwareMap) and set the starting state \u2014 not to run every loop."
+    },
+    {
+      "q": "A constructor's name is...",
+      "correct": "Exactly the same as the class",
+      "wrong": [
+        "Always the single word main",
+        "Always the single word build",
+        "Any name that you like"
+      ],
+      "explain": "The constructor is named exactly after its class (Drivebase's constructor is Drivebase). It also has no return type, not even void."
+    },
+    {
+      "q": "What does \"private\" do to a field?",
+      "correct": "Hides it so only that class can touch it",
+      "wrong": [
+        "Shares it with every other class freely",
+        "Makes it run a little bit faster on every single loop",
+        "Prints it automatically to the telemetry"
+      ],
+      "explain": "private is like wiring sealed inside the wall \u2014 only the subsystem can touch its motors. That keeps bugs local, since only one place drives them."
+    },
+    {
+      "q": "What does \"public\" mean for a method?",
+      "correct": "Any outside code is allowed to call it",
+      "wrong": [
+        "Only the class itself is allowed to call it",
+        "It runs all by itself on every loop",
+        "It can never be called from anywhere"
+      ],
+      "explain": "public is a door everyone can use \u2014 outside code (like the OpMode) calls public methods such as driveFieldCentric(...). private is sealed inside."
+    },
+    {
+      "q": "Why hide motors as private inside a subsystem?",
+      "correct": "So only one place drives them, keeping bugs local",
+      "wrong": [
+        "So the drive motors spin about twice as fast",
+        "So the robot's battery lasts a lot longer",
+        "So the telemetry updates all by itself"
+      ],
+      "explain": "If only the subsystem can touch its motors, there's exactly one place to look when something's wrong. That's encapsulation \u2014 it keeps bugs from spreading."
+    },
+    {
+      "q": "What does the Robot class do?",
+      "correct": "Builds each subsystem once and coordinates them all",
+      "wrong": [
+        "Replaces every subsystem with one giant file",
+        "Stores the driver's all-time high score",
+        "Charges the robot's battery between matches"
+      ],
+      "explain": "Robot.java builds each subsystem once and acts as the coordinator. The OpMode makes one Robot and talks to it instead of wiring everything itself."
+    },
+    {
+      "q": "If you forget subsystems.add(intake)...",
+      "correct": "Its update() never runs, so it never moves",
+      "wrong": [
+        "The whole program refuses to build",
+        "The robot's battery drains twice as fast",
+        "The robot starts spinning in a circle"
+      ],
+      "explain": "The scheduler only calls update() on subsystems in its list. Forget to add one and its update() never runs \u2014 the mechanism just sits there dead."
+    },
+    {
+      "q": "After refactoring, the run loop shrinks to about...",
+      "correct": "robot.update() and one clean drive call",
+      "wrong": [
+        "fifty long lines of tangled motor math",
+        "a single telemetry line and nothing else",
+        "nothing at all, since it is now empty"
+      ],
+      "explain": "With subsystems, the loop becomes clean: robot.update() advances every subsystem, then one line like robot.drive.driveFieldCentric(...). The mess moved into classes."
+    },
+    {
+      "q": "Why do pro teams split code into subsystems?",
+      "correct": "Different people can work on different files at once",
+      "wrong": [
+        "It makes the robot drive a great deal faster",
+        "The rules require the code to be one file",
+        "It saves a lot of space on the battery"
+      ],
+      "explain": "Subsystems in separate files let one person build the Drivebase while another builds the Intake \u2014 no stepping on each other's code, and easier to debug."
+    },
+    {
+      "q": "A constructor has what return type?",
+      "correct": "None at all, not even void",
+      "wrong": [
+        "Always the type int",
+        "Always the type boolean",
+        "Always the type double"
+      ],
+      "explain": "Constructors have NO return type \u2014 not even void. They're special methods, named after the class, that set up a new object."
+    },
+    {
+      "q": "A private field can be reached from the OpMode by...",
+      "correct": "Calling a public method on the subsystem",
+      "wrong": [
+        "Reading the field directly by its name",
+        "Rewiring the motor's cable by hand",
+        "Adding one more telemetry line for it"
+      ],
+      "explain": "Private fields are sealed inside, so outside code goes through public methods. That's the point \u2014 a controlled door instead of reaching into the wiring."
+    },
+    {
+      "q": "What does the constructor use to find its motors?",
+      "correct": "The hardwareMap passed into it",
+      "wrong": [
+        "The telemetry object it prints to",
+        "The gamepad1 stick and button inputs",
+        "The battery voltage on the hub"
+      ],
+      "explain": "The constructor takes a HardwareMap and calls hardwareMap.get(...) to find each motor by name. That's why you pass hardwareMap when building the subsystem."
+    }
+  ]
+}

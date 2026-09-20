@@ -1,0 +1,175 @@
+// @begin(13_flywheel)
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+
+/*
+ * ============================================================================
+ *  Flywheel  --  the shooter's heavy spinning wheel
+ * ============================================================================
+ *
+ *  A flywheel shooter works like a baseball pitching machine: a heavy wheel
+ *  spins up to high speed, and when the indexer feeds a game piece against it,
+ *  the wheel's stored energy flings the piece across the field into the hive.
+ *
+ *  Three ideas live in this one subsystem, and you'll build them in order:
+ *
+ *    1. SPIN-UP. The wheel is heavy, so setPower(...) does NOT reach full speed
+ *       instantly -- it ramps up over about a second. Fire too early and the
+ *       shot falls short. That slow ramp is the wheel's INERTIA.
+ *    2. THE ENCODER. The shooter motor counts its own turns, so we can MEASURE
+ *       the real speed in RPM with getVelocity() -- no more guessing.
+ *    3. TRIM. One hardcoded power is never right for every shot, so the driver
+ *       nudges the power up or down live with the right stick.
+ * ============================================================================
+ */
+public class Flywheel implements Subsystem {
+
+    // Encoder resolution of the goBILDA Yellow Jacket 1:1 motor: 28 ticks per
+    // output-shaft revolution. We use this to turn encoder ticks into RPM.
+    private static final double TICKS_PER_REV = 28.0;
+
+    // POWER TUNING. Start near a good shot, then nudge from there. The clamps keep
+    // the commanded power inside a sensible range no matter how long you hold the stick.
+    private static final double BASE_POWER    = 0.67;   // ~4000 RPM of the motor's 6000 free speed
+    private static final double NUDGE_STEP    = 0.005;  // how much one loop of full stick changes power
+    private static final double STICK_DEADZONE = 0.15;  // ignore tiny stick drift near center
+    private static final double MIN_POWER     = 0.30;   // softest allowed shot
+    private static final double MAX_POWER     = 1.00;   // full power
+
+    // @begin(14_flywheel_pid)
+    // ===============================================
+    // Flywheel : PID Constants
+    // Do not remove this comment
+    // Add the target RPM and the feedforward + P gains below
+    // ===============================================
+    // @fill(14_flywheel_pid)
+    private static final double TARGET_RPM = 4000.0;   // the STARTING target speed the controller holds
+    private static final double kV = 0.000167;         // feedforward: power per RPM (about 1 / 6000 free speed)
+    private static final double kP = 0.00020;          // correction: how hard to fix an RPM error
+    private static final double TRIM_STEP  = 8.0;      // RPM the right stick trims the target per loop
+    private static final double TARGET_MIN = 2500.0;   // limits the driver can trim the target between
+    private static final double TARGET_MAX = 5500.0;
+    // @end(14_flywheel_pid)
+    // @end(14_flywheel_pid)
+
+    // The physical flywheel motor. It's a DcMotorEx (an "extended" DcMotor) because
+    // only DcMotorEx can report speed with getVelocity(). `private` -- go through the commands.
+    private final DcMotorEx shooter;
+
+    // ===============================================
+    // Flywheel : Fields
+    // Do not remove this comment
+    // Add the fields that remember on/off and the current power below
+    // ===============================================
+    // @fill(13_flywheel)
+    private boolean spinning = false;    // is the flywheel running right now?
+    private double power = BASE_POWER;   // the nudgeable power level, remembered between loops
+    // @end(13_flywheel)
+
+    // @begin(14_flywheel_pid)
+    // ===============================================
+    // Flywheel : Target Field
+    // Do not remove this comment
+    // Add the trimmable target-RPM field below
+    // ===============================================
+    // @fill(14_flywheel_pid)
+    private double targetRpm = TARGET_RPM;   // the speed the controller holds; the right stick trims it
+    // @end(14_flywheel_pid)
+    // @end(14_flywheel_pid)
+
+    /*
+     * CONSTRUCTOR -- runs once when Robot builds the flywheel. Finds the shooter
+     * motor and leaves it stopped. Note the type is DcMotorEx.class (not DcMotor.class)
+     * so we're allowed to call getVelocity() later.
+     */
+    public Flywheel(HardwareMap hardwareMap) {
+        shooter = hardwareMap.get(DcMotorEx.class, "shooter");
+        shooter.setPower(0.0);
+    }
+
+    // ===============================================
+    // Flywheel : Commands
+    // Do not remove this comment
+    // Add toggle(), nudge(), isSpinning(), getRpm(), and getPower() below
+    // ===============================================
+    // @fill(13_flywheel)
+    /** Flip the flywheel on or off. Call this once per button press. */
+    public void toggle() {
+        spinning = !spinning;
+    }
+
+    /** Nudge the power up or down. Pass the stick amount (up = positive). */
+    public void nudge(double amount) {
+        if (Math.abs(amount) < STICK_DEADZONE) return;            // ignore tiny drift
+        power += amount * NUDGE_STEP;                             // creep up or down a little
+        power = Math.max(MIN_POWER, Math.min(MAX_POWER, power));  // keep it in range
+    }
+
+    /** True while the flywheel is running -- lets the OpMode show it or gate a shot. */
+    public boolean isSpinning() {
+        return spinning;
+    }
+
+    /** The flywheel's REAL speed in RPM, measured by the encoder. */
+    public double getRpm() {
+        double ticksPerSecond = shooter.getVelocity();   // the encoder's speed, in ticks per second
+        return ticksPerSecond / TICKS_PER_REV * 60.0;    // ticks/sec -> revs/sec -> revs/min (RPM)
+    }
+
+    /** The power level we're currently commanding (0..1), for telemetry. */
+    public double getPower() {
+        return power;
+    }
+    // @end(13_flywheel)
+
+    // @begin(14_flywheel_pid)
+    // ===============================================
+    // Flywheel : Trim
+    // Do not remove this comment
+    // The controller now sets the power, so the right stick trims the TARGET
+    // (not raw power). Add trim() and getTarget() below.
+    // ===============================================
+    // @fill(14_flywheel_pid)
+    /** Trim the target RPM up or down (right stick). The controller then holds the new target. */
+    public void trim(double amount) {
+        if (Math.abs(amount) < STICK_DEADZONE) return;                     // ignore tiny drift
+        targetRpm += amount * TRIM_STEP;                                   // creep the target up or down
+        targetRpm = Math.max(TARGET_MIN, Math.min(TARGET_MAX, targetRpm)); // keep it in range
+    }
+
+    /** The RPM the controller is trying to hold -- for telemetry. */
+    public double getTarget() {
+        return targetRpm;
+    }
+    // @end(14_flywheel_pid)
+    // @end(14_flywheel_pid)
+
+    /*
+     * update()  --  APPLY THE STATE. Called every loop by the scheduler. When the
+     * flywheel is on, drive it at the current (nudged) power; when off, stop it.
+     */
+    @Override
+    public void update() {
+        // ===============================================
+        // Flywheel : Apply State
+        // Do not remove this comment
+        // Add the line that drives the motor from the state below
+        // ===============================================
+        // @fill(14_flywheel_pid, supersedes=13_flywheel)
+        if (spinning) {
+            double error = targetRpm - getRpm();                // how far off the target speed we are
+            power = kV * targetRpm + kP * error;                // feedforward (kV*target) + correction (kP*error)
+            power = Math.max(0.0, Math.min(1.0, power));         // keep it a legal motor power
+            shooter.setPower(power);
+        } else {
+            shooter.setPower(0.0);
+        }
+        // @end(14_flywheel_pid)
+        // @fill(13_flywheel)
+        shooter.setPower(spinning ? power : 0.0);
+        // @end(13_flywheel)
+    }
+}
+// @end(13_flywheel)

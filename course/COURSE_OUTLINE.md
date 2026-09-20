@@ -18,10 +18,10 @@ feel the pain, then refactor into classes** (alan412's arc):
 1. **Procedural basics** (standalone editing of one OpMode) — telemetry, gamepad, tank, mecanum.
 2. **The refactor** — the OpMode gets messy; we *organize it into a `Drivebase` class*. OOP is
    born here because the student *wanted* it, not because they were told to.
-3. **Subsystems** — Intake, Dumper on the `Robot` scheduler (interface, enums, state machines).
+3. **Subsystems** — Intake, Indexer, Flywheel (+PID), Hood on the `Robot` scheduler (interface, enums, state machines).
 4. **Localization & Autonomous** — Pinpoint pose, Pedro paths.
 5. **Tooling** — FTC Dashboard.
-6. **Transfer capstone** — student builds their *own* subsystem (Elevator) from the Intake/Dumper
+6. **Transfer capstone** — student builds their *own* subsystem (Elevator) from the Intake/shooter
    patterns.
 
 ## 2. How the build machinery serves this (already in place)
@@ -42,7 +42,7 @@ feel the pain, then refactor into classes** (alan412's arc):
 **Design consequence:** the code package is a *single anchor file that grows*, with subsystem files
 **appearing beside it** as their lessons arrive. Anchor file = `MecanumDrive.java` (the TeleOp), which
 starts as a bare skeleton and evolves into the full field-centric teleop; `Drivebase`, `RobotConfig`,
-`Subsystem`, `Robot`, `Intake`, `Dumper`, `Localization`, `SimpleAuto`, etc. materialize on schedule.
+`Subsystem`, `Robot`, `Intake`, `Indexer`, `Flywheel`, `Hood`, `Localization`, `SimpleAuto`, etc. materialize on schedule.
 
 ### Runtime edit model (decided 2026-08-23) — three tiers
 
@@ -149,11 +149,12 @@ for now. IDs 03–08 fill the on-ramp; 09/10 keep the existing Drivebase/Field-C
   - Do: fill `Intake`; wire a button to cycle states.
   - Package: **+ new** `Subsystem.java`, `Robot.java`, `Intake.java`. active: `Intake.java`.
 
-- **12 · Servo Dumper**
-  - New: **`Servo`**, a **multi-state machine** (`STOWED/RAISING/DUMPING/LOWERING`), **non-blocking
-    timing** with `ElapsedTime`, `isBusy()`, *why `sleep()` in a loop is bad*.
-  - Do: fill `Dumper`; one button press runs the whole sequence without freezing the loop.
-  - Package: **+ new** `Dumper.java`. active: `Dumper.java`.
+- **12\u201315 · Shooter subsystems (Indexer, Flywheel, Flywheel PID, Hood)**
+  - New: **`CRServo`** feeder (Indexer), **`DcMotorEx`** encoder speed + trim (Flywheel), a
+    **feedforward + P controller** (Flywheel PID), and a **positional `Servo`** for aim (Hood).
+  - Do: fill each subsystem; toggle the flywheel, hold to feed, tune the controller, aim with the hood.
+  - Package: **+ new** `Indexer.java`, `Flywheel.java`, `Hood.java`. active: the lesson's subsystem.
+  - (The earlier Servo *Dumper* lesson was retired in favor of this shooter series.)
 
 ### Tier: Advanced
 

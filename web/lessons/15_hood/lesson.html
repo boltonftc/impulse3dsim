@@ -1,0 +1,198 @@
+<h1>Aiming: The Adjustable Hood</h1>
+
+<p>Your flywheel now holds a rock-steady speed &mdash; every shot leaves at the same power. But <em>consistent</em>
+isn't the same as <em>on target</em>. To hit the hive from anywhere on the field you need to change <strong>where</strong>
+the ball lands. That's <strong>aiming</strong>, and it's the last piece of the shooter.</p>
+
+<figure>
+  <img src="images/hood_angle_trajectory.png" alt="A robot shooter firing at three different hood angles. A flat hood sends a low, far-reaching line drive; a middle hood arcs neatly into the hive; a high hood throws a tall, short lob that drops in front. An arrow labeled instant shows the hood snapping between angles right away.">
+  <figcaption>Tilt the hood and you change the launch <strong>angle</strong>: flat = a far line drive, high = a short high lob.
+  The sweet spot arcs the ball right into the hive.</figcaption>
+</figure>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why aim with the hood, not the flywheel?</div>
+  <p>You could change where a shot lands by changing the flywheel <em>speed</em> instead &mdash; but the flywheel is
+  <strong>heavy</strong>, and changing its RPM takes time (that's the whole reason it sags after a shot). The hood is
+  <strong>light</strong>: tilt it and the new angle is there <strong>instantly</strong>. So the pro move is to hold the
+  flywheel at one steady speed and do your fine aiming with the hood &mdash; near-instant, no waiting on inertia.</p>
+</div>
+
+<hr>
+
+<h2>How the hood moves: rack &amp; pinion</h2>
+
+<p>A hood needs to hold a <strong>precise angle</strong> and hold it steady against the ball hammering past it. Teams
+usually drive it with a <strong>rack and pinion</strong>: a small round gear (the <strong>pinion</strong>) on the servo
+horn meshes with a curved row of teeth (the <strong>rack</strong>) on the back of the hood. Turn the pinion a little and
+the hood tilts a little &mdash; geared down so tiny servo moves become smooth, fine angle changes.</p>
+
+<!-- TODO: restore when rack_and_pinion.png is ready
+<figure>
+  <img src="images/rack_and_pinion.png" alt="A close-up of a shooter hood mechanism. A servo turns a small round pinion gear that meshes with a curved sector rack fixed to the back of the hood. As the pinion turns, the hood tilts up or down. Labels point to servo, pinion gear, curved rack, and hood.">
+  <figcaption>The servo's <strong>pinion</strong> gear meshes with a curved <strong>rack</strong> on the hood. Gearing it
+  down turns a small servo motion into precise, steady aim.</figcaption>
+</figure>
+-->
+
+<div class="blk blk-key">
+  <div class="blk-head">Positional servo &mdash; a &ldquo;Pointer,&rdquo; not a &ldquo;Spinner&rdquo;</div>
+  <p>Back in the indexer lesson you met two kinds of servo. The feeder was a <strong>CR servo</strong> &mdash; a
+  &ldquo;Spinner&rdquo; that only knows a <em>speed</em> and has no idea where it is. The hood is the other kind: a
+  <strong>positional servo</strong>, a &ldquo;Pointer&rdquo; that goes to an <em>exact angle</em> and holds it. That's
+  exactly what aim needs &mdash; you tell it an angle, it goes there and stays. In code that's <code>Servo</code> with
+  <code>setPosition(...)</code>, not <code>CRServo</code> with <code>setPower(...)</code>.</p>
+</div>
+
+<hr>
+
+<h2>Play with it first</h2>
+
+<p>Same shooter, now with an <strong>Angle</strong> slider next to the flywheel controls. Spin up with <strong>Y</strong>, then fire and drag the
+angle. Watch how a <strong>flat</strong> hood throws long and low &mdash; too flat and it <strong>clanks the front wall</strong>
+&mdash; while a <strong>high</strong> hood lobs short. Notice you can also change reach with <strong>Target</strong> (the flywheel speed), but the
+hood re-aims <em>instantly</em> where the flywheel takes time to change speed.</p>
+
+<div class="blk blk-widget">
+  <flywheel-widget mode="hood"></flywheel-widget>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Find the sweet spot</div>
+  <p>At a fixed speed there's a band of hood angles that scores. Too <strong>flat</strong> and the shot slams the wall;
+  too <strong>high</strong> and it falls short. Somewhere in the middle it arcs cleanly in. Change the <strong>Target</strong>
+  and the whole sweet spot shifts &mdash; more speed lets a higher, safer arc still reach. That interplay of
+  <em>angle</em> and <em>speed</em> is exactly what real shooter tuning is.</p>
+</div>
+
+<hr>
+
+<h2>A closer look at <code>Hood.java</code></h2>
+
+<p>A new subsystem is waiting for you in <code>Hood.java</code>. The constants and the constructor are already written
+&mdash; note the constructor grabs a <code>Servo</code> (positional), not a <code>CRServo</code>. You'll fill in the state,
+the commands, and the one line that applies the angle.</p>
+
+<h3>Part A &mdash; Remember the hood setting</h3>
+
+<p>The hood needs a <em>field</em> to remember its current setting &mdash; a number from <code>0.0</code> (lowest angle)
+to <code>1.0</code> (highest). Start it in the middle.</p>
+
+<span class="act" data-action="open_file" data-arg="Hood.java|Hood : Field">&#9656; Hood.java : Hood : Field</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Hood.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>private double position = 0.5;   // 0.0 = lowest angle, 1.0 = highest; start in the middle</code></pre>
+</div>
+
+<h3>Part B &mdash; Add <code>aim()</code> and <code>getPosition()</code></h3>
+
+<p><code>aim()</code> takes the stick amount and creeps the angle up or down, clamped to the safe range &mdash; the same
+&ldquo;trim a little each loop&rdquo; pattern your flywheel target uses. <code>getPosition()</code> just reports the
+setting for telemetry.</p>
+
+<span class="act" data-action="open_file" data-arg="Hood.java|Hood : Commands">&#9656; Hood.java : Hood : Commands</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Hood.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>/** Aim the hood up or down. Pass the stick amount (right = positive). */
+public void aim(double amount) {
+    if (Math.abs(amount) &lt; AIM_DEADZONE) return;                  // ignore tiny drift
+    position += amount * AIM_STEP;                                // creep the angle up or down
+    position = Math.max(HOOD_MIN, Math.min(HOOD_MAX, position));  // keep it in range
+}
+
+/** The current hood setting (0..1), for telemetry. */
+public double getPosition() {
+    return position;
+}</code></pre>
+</div>
+
+<h3>Part C &mdash; Apply the angle every loop</h3>
+
+<p>Here's where the &ldquo;Pointer&rdquo; earns its name. In <code>update()</code> you send the stored setting to the
+servo with <code>setPosition(...)</code>. A positional servo drives itself to that exact angle and <strong>holds</strong>
+it &mdash; no speed, no guessing.</p>
+
+<span class="act" data-action="open_file" data-arg="Hood.java|Hood : Apply State">&#9656; Hood.java : Hood : Apply State</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Hood.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>hood.setPosition(position);</code></pre>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">CR servo vs positional servo &mdash; side by side</div>
+  <p>Your indexer's feeder is a <code>CRServo</code> and its update calls <code>feeder.setPower(...)</code> &mdash; a
+  <em>speed</em>. Your hood is a <code>Servo</code> and its update calls <code>hood.setPosition(...)</code> &mdash; an
+  <em>angle</em>. Same subsystem shape, different servo, different verb. Picking the right kind of servo for the job is
+  a real design decision.</p>
+</div>
+
+<h3>Part D &mdash; Give the robot a hood</h3>
+
+<p>The <code>Robot</code> class owns every subsystem. Add the hood field, then build it in the constructor and add it
+to the subsystem list so its <code>update()</code> runs every loop.</p>
+
+<span class="act" data-action="open_file" data-arg="Robot.java|Hood : Field">&#9656; Robot.java : Hood : Field</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>public final Hood hood;</code></pre>
+</div>
+
+<span class="act" data-action="open_file" data-arg="Robot.java|Hood : Setup">&#9656; Robot.java : Hood : Setup</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>hood = new Hood(hardwareMap);
+subsystems.add(hood);</code></pre>
+</div>
+
+<h3>Part E &mdash; Aim with the right stick</h3>
+
+<div class="blk blk-key">
+  <div class="blk-head">One stick, two jobs</div>
+  <p>The right stick already trims the flywheel target <strong>up/down</strong>. Now the <strong>left/right</strong> axis
+  aims the hood. Up/down = how <em>hard</em> (speed); left/right = how <em>high</em> (angle). One stick controls the
+  whole shot.</p>
+</div>
+
+<p>Open the hood loop in the OpMode and pass the stick's left/right value to <code>aim()</code>.</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Hood : Loop">&#9656; MecanumDrive.java : Hood : Loop</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>// Right stick LEFT/RIGHT aims the hood (up/down trims the flywheel target).
+robot.hood.aim(gamepad1.right_stick_x);</code></pre>
+</div>
+
+<hr>
+
+<h2>Test it &mdash; aim and fire</h2>
+
+<div class="blk blk-todo">
+  <div class="blk-head">Test it</div>
+  <ul>
+    <li>Build, Init, Start. Press <strong>Y</strong> to spin the flywheel up to its steady speed.</li>
+    <li>Push the right stick <strong>left and right</strong>: watch the <strong>Hood</strong> telemetry change. The angle
+    snaps to its new value <strong>instantly</strong> &mdash; no spin-up wait.</li>
+    <li>Hold <strong>X</strong> to fire while sweeping the hood. Find the angle that arcs the ball cleanly into the hive;
+    too flat clanks the wall, too high drops short.</li>
+    <li>Now change your <strong>spot</strong> on the field &mdash; re-aim with the hood (and trim speed up/down) to score
+    from the new distance. That's real aiming.</li>
+  </ul>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">What's next: automatic aim</div>
+  <p>You can now aim by <em>hand</em>. Down the road you'll put the shooter on a <strong>turret</strong> and use the
+  camera's <strong>AprilTags</strong> to find the hive &mdash; so the robot aims itself. Everything you just built (a
+  steady speed and a precise angle) is what makes that auto-aim possible.</p>
+</div>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

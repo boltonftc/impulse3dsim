@@ -1,0 +1,156 @@
+{
+  "title": "Intake State Machine Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "What is a state machine?",
+      "correct": "A system always in exactly one state, changing by rules",
+      "wrong": [
+        "A machine that runs many states at the same time",
+        "A motor that only ever spins at full power",
+        "A sensor that measures the robot's heading angle"
+      ],
+      "explain": "A state machine is always in exactly one state and only changes by allowed rules \u2014 like a traffic light that's red, yellow, OR green, never two at once."
+    },
+    {
+      "q": "The intake has which three states?",
+      "correct": "FORWARD, OFF, and REVERSE",
+      "wrong": [
+        "RED, YELLOW, and GREEN",
+        "LOW, MEDIUM, and HIGH",
+        "LEFT, RIGHT, and CENTER"
+      ],
+      "explain": "The intake's states are FORWARD (pulling in), OFF (stopped), and REVERSE (pushing out). It's always in exactly one of them."
+    },
+    {
+      "q": "What is an enum?",
+      "correct": "A tiny custom type with only the values you name",
+      "wrong": [
+        "A number that counts up every single loop",
+        "A motor command that sets a power level",
+        "A wire connecting the hub to the intake"
+      ],
+      "explain": "An enum is a small custom type whose only values are the ones you list, like State { FORWARD, OFF, REVERSE }. It keeps the state to legal values only."
+    },
+    {
+      "q": "What do the commands forward(), off(), and reverse() actually change?",
+      "correct": "Only the state field, not the motor directly",
+      "wrong": [
+        "The motor's power level, skipping the state",
+        "The telemetry line on the Driver Hub",
+        "The robot's heading read from the IMU"
+      ],
+      "explain": "Commands only change the state field \u2014 they decide. update() is what reads the state and drives the motor. Deciding and doing are kept separate."
+    },
+    {
+      "q": "What does update() do each loop?",
+      "correct": "Makes the motor match the current state",
+      "wrong": [
+        "Changes the state to the next one",
+        "Prints the state onto the telemetry",
+        "Reverses the two left drive motors"
+      ],
+      "explain": "update() reads the state field and sets the motor to match \u2014 FORWARD power, zero, or REVERSE power. It runs every loop so the motor always matches the state."
+    },
+    {
+      "q": "Why split the commands from update()?",
+      "correct": "Deciding what to do is kept separate from doing it",
+      "wrong": [
+        "It makes the intake motor spin much faster",
+        "The rules require you to write two methods",
+        "It saves battery by skipping the run loop"
+      ],
+      "explain": "Commands decide (set the state); update() does (drives the motor). Splitting them keeps the logic clean and means one place controls the hardware."
+    },
+    {
+      "q": "What Java structure handles \"one behavior per state\"?",
+      "correct": "A switch statement on the state",
+      "wrong": [
+        "A for loop counting up to the state",
+        "An import at the top of the file",
+        "A telemetry line printing the state"
+      ],
+      "explain": "A switch (state) block gives each state its own case \u2014 FORWARD sets full power, OFF sets zero, REVERSE sets a gentle negative power."
+    },
+    {
+      "q": "What is edge detection?",
+      "correct": "Reacting to a button press, not to it being held",
+      "wrong": [
+        "Reacting to a button the whole time it is held",
+        "Measuring how hard the button is being pressed",
+        "Detecting the edge of the field's perimeter wall"
+      ],
+      "explain": "Edge detection fires on the moment of a press, not while held. Without it, a single press held for a few loops would toggle the intake many times."
+    },
+    {
+      "q": "Which line detects a fresh A press?",
+      "correct": "gamepad1.a && !previousA",
+      "wrong": [
+        "gamepad1.a == true always",
+        "gamepad1.a || previousA",
+        "!gamepad1.a && previousA"
+      ],
+      "explain": "pressedA = gamepad1.a && !previousA is true for exactly one loop \u2014 when A is down now but wasn't last loop. Then you save previousA = gamepad1.a."
+    },
+    {
+      "q": "If a single button press toggles the intake many times...",
+      "correct": "Edge detection is missing (no previousA memory)",
+      "wrong": [
+        "The battery voltage is far too low",
+        "The intake motor is wired backward",
+        "The telemetry update is being skipped"
+      ],
+      "explain": "The loop runs ~50 times a second, so a held press flips the state every loop unless you use edge detection to fire only on the press."
+    },
+    {
+      "q": "Where must the previousA memory variable live?",
+      "correct": "Outside the loop, so it survives each pass",
+      "wrong": [
+        "Inside the loop, resetting on every pass",
+        "Inside an import line at the very top",
+        "After the class's final closing brace"
+      ],
+      "explain": "previousA must persist between loops to compare \"now\" against \"last loop,\" so declare it outside the run loop where its value is kept."
+    },
+    {
+      "q": "Why is only one state field the \"source of truth\"?",
+      "correct": "So the intake can't do two things at once",
+      "wrong": [
+        "So the motor spins at twice the speed",
+        "So the battery drains a lot slower",
+        "So telemetry prints two lines at once"
+      ],
+      "explain": "One field always says what the intake is doing. That prevents impossible situations \u2014 it can't be pulling in and pushing out at the same time."
+    },
+    {
+      "q": "If you forget subsystems.add(intake)...",
+      "correct": "Its update() never runs, so the motor never moves",
+      "wrong": [
+        "The whole program refuses to build at all",
+        "The intake spins at full power forever",
+        "The robot drives in a slow steady circle"
+      ],
+      "explain": "The scheduler only calls update() on subsystems in its list. Miss the add and update() never runs \u2014 your commands change the state but nothing moves."
+    },
+    {
+      "q": "A typical FORWARD power for the intake is...",
+      "correct": "1.0, full power to pull pieces in",
+      "wrong": [
+        "0.0, which means fully stopped",
+        "-1.0, which means full reverse",
+        "50, measured on a percent scale"
+      ],
+      "explain": "INTAKE_FORWARD_POWER is around 1.0 (full inward), while REVERSE is a gentler negative like -0.5 to un-jam. OFF is 0.0."
+    },
+    {
+      "q": "What happens if you reach the private motor from the OpMode?",
+      "correct": "It breaks encapsulation, which the design avoids",
+      "wrong": [
+        "It makes the intake spin much faster",
+        "It charges the battery a little bit",
+        "It adds a telemetry line all by itself"
+      ],
+      "explain": "The motor is private so only the subsystem drives it. Reaching in from outside breaks encapsulation \u2014 the whole point of commands like forward() and off()."
+    }
+  ]
+}

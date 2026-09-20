@@ -259,6 +259,96 @@ def report_links(failures):
         print(f"  [{lid}] {kind} \"{arg}\"  ->  {reason}")
 
 
+# -- quiz checker -------------------------------------------------------------
+# A lesson may ship a quiz.json beside its lesson.html. Schema:
+#   { "draw": 10, "questions": [ { "q", "correct", "wrong": [3 items], "explain" }, ... ] }
+# The engine draws `draw` questions at random from the pool and shuffles each question's options,
+# so the pool must be at least `draw` long. Each question is 1 correct + exactly 3 wrong = 4 options.
+QUIZ_WRONG = 3
+QUIZ_MIN_POOL = 10
+
+
+def quiz_path(lesson):
+    folder = lesson.get("folder", lesson["id"])
+    return os.path.join(LESSONS_SRC_DIR, folder, "quiz.json")
+
+
+def check_quizzes(module):
+    """Validate each lesson's quiz.json if present. Returns (set_of_lesson_ids_with_quiz, failures, warnings)."""
+    have, failures, warnings = set(), [], []
+    for lesson in module["lessons"]:
+        path = quiz_path(lesson)
+        if not os.path.isfile(path):
+            continue
+        lid = lesson["id"]
+        have.add(lid)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            failures.append((lid, f"quiz.json is not valid JSON: {e}"))
+            continue
+        qs = data.get("questions")
+        if not isinstance(qs, list):
+            failures.append((lid, "quiz.json has no 'questions' list"))
+            continue
+        draw = data.get("draw", QUIZ_MIN_POOL)
+        if len(qs) < max(QUIZ_MIN_POOL, draw):
+            failures.append((lid, f"pool has {len(qs)} question(s); need at least {max(QUIZ_MIN_POOL, draw)} to draw {draw}"))
+        longest = correct_words = wrong_words = valid = 0   # answer-length balance stats
+        for i, q in enumerate(qs):
+            where = f"Q{i + 1}"
+            if not isinstance(q, dict):
+                failures.append((lid, f"{where} is not an object"))
+                continue
+            correct = str(q.get("correct", "")).strip()
+            if not str(q.get("q", "")).strip():
+                failures.append((lid, f"{where} missing 'q' text"))
+            if not correct:
+                failures.append((lid, f"{where} missing 'correct' answer"))
+            wrong = q.get("wrong")
+            good_shape = isinstance(wrong, list) and len(wrong) == QUIZ_WRONG
+            if not good_shape:
+                failures.append((lid, f"{where} needs exactly {QUIZ_WRONG} 'wrong' options"))
+            elif any(not str(w).strip() for w in wrong):
+                failures.append((lid, f"{where} has an empty 'wrong' option"))
+            if not str(q.get("explain", "")).strip():
+                failures.append((lid, f"{where} missing 'explain' text"))
+            if correct and good_shape:   # tally answer-length balance
+                cwc = len(correct.split())
+                wl = [len(str(w).split()) for w in wrong]
+                correct_words += cwc
+                wrong_words += sum(wl)
+                valid += 1
+                if cwc > max(wl):
+                    longest += 1
+        # length bias makes the answer guessable ("the longest option is always right"); warn, don't fail
+        if valid:
+            frac = longest / valid
+            delta = correct_words / valid - wrong_words / (valid * QUIZ_WRONG)
+            if frac > 0.5:
+                warnings.append((lid, f"correct is the LONGEST option in {longest}/{valid} questions ({frac:.0%}) -- balance answer lengths"))
+            elif delta > 2.0:
+                warnings.append((lid, f"correct answers average {delta:.1f} more words than the wrong ones -- lengthen the distractors"))
+    return have, failures, warnings
+
+
+def report_quizzes(have, failures, warnings):
+    if not have:
+        print("Quiz check: no quizzes authored yet.")
+        return
+    if failures:
+        print(f"Quiz check: {len(failures)} problem(s):")
+        for lid, reason in failures:
+            print(f"  [{lid}] {reason}")
+    else:
+        print(f"Quiz check: {len(have)} quiz(zes) OK. \u2713")
+    for lid, reason in warnings:
+        print(f"  \u26a0 [{lid}] {reason}")
+
+
+
+
 def main():
     check = "--check" in sys.argv
     module = load_module()
@@ -279,9 +369,12 @@ def main():
     print()
     report_links(link_failures)
 
+    quiz_have, quiz_failures, quiz_warnings = check_quizzes(module)
+    report_quizzes(quiz_have, quiz_failures, quiz_warnings)
+
     if check:
         print("\n--check: nothing written.")
-        sys.exit(1 if link_failures else 0)
+        sys.exit(1 if (link_failures or quiz_failures) else 0)
 
     os.makedirs(WEB_DIR, exist_ok=True)
     with open(COURSE_JSON_OUT, "w", encoding="utf-8", newline="\n") as f:
@@ -293,11 +386,16 @@ def main():
         if os.path.isdir(WEB_LESSONS_DIR):
             shutil.rmtree(WEB_LESSONS_DIR)
         shutil.copytree(LESSONS_SRC_DIR, WEB_LESSONS_DIR)
-        # module.json lives beside the lessons in the web tree
-        shutil.copyfile(MODULE_JSON, os.path.join(WEB_LESSONS_DIR, "module.json"))
+        # module.json lives beside the lessons; stamp "quiz": true onto lessons that ship a quiz.json
+        published = dict(module)
+        published["lessons"] = [
+            ({**l, "quiz": True} if l["id"] in quiz_have else l) for l in module["lessons"]
+        ]
+        with open(os.path.join(WEB_LESSONS_DIR, "module.json"), "w", encoding="utf-8", newline="\n") as f:
+            json.dump(published, f, indent=2, ensure_ascii=False)
         print(f"Published lessons -> {os.path.relpath(WEB_LESSONS_DIR, WEB_DIR)}/ (+ module.json)")
 
-    if link_failures:
+    if link_failures or quiz_failures:
         sys.exit(1)
 
 

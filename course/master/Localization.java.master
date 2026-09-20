@@ -46,7 +46,7 @@ public class Localization implements Subsystem {
     /*
      * CONSTRUCTOR -- runs once while Robot is being built, during INIT.
      * It looks up the Pinpoint and sets up its tracking wheels. The same
-     * null-guard you saw in the Intake and Dumper protects code that runs on a
+     * null-guard you saw in the Intake protects code that runs on a
      * robot without a Pinpoint (or in a test): if the sensor is not there, we
      * store null and skip everything else.
      */

@@ -1,0 +1,156 @@
+{
+  "title": "FTC Robot Basics Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "At the start of a match, an FTC robot must fit inside...",
+      "correct": "An 18-by-18-by-18-inch cube",
+      "wrong": [
+        "A 24-by-24-by-24-inch cube",
+        "A 12-by-12-by-12-inch cube",
+        "A 36-by-36-by-36-inch cube"
+      ],
+      "explain": "FTC robots must start each match fitting inside an 18 \u00d7 18 \u00d7 18 inch cube. They can expand once the match begins, but they start compact."
+    },
+    {
+      "q": "What is the Control Hub?",
+      "correct": "The robot's brain \u2014 it runs Android and your Java code",
+      "wrong": [
+        "A spare battery pack that powers the drive motors",
+        "The controller the human driver holds in a match",
+        "A sensor that only measures the robot's ground speed"
+      ],
+      "explain": "The Control Hub is the robot's brain. It runs Android, executes your Java, and has motor ports, servo ports, and a built-in IMU."
+    },
+    {
+      "q": "How do you add more motor and servo ports?",
+      "correct": "Connect an Expansion Hub to the Control Hub",
+      "wrong": [
+        "Solder some extra wires onto the main battery",
+        "Install a second copy of the Android app",
+        "Swap the gamepad for a much bigger controller"
+      ],
+      "explain": "The Expansion Hub plugs into the Control Hub and adds 4 more motor ports, 6 more servo ports, and extra sensor ports when one hub isn't enough."
+    },
+    {
+      "q": "What powers the whole robot?",
+      "correct": "One 12-volt rechargeable battery",
+      "wrong": [
+        "Four small AA alkaline batteries",
+        "A cord plugged into a wall outlet",
+        "A solar panel on the robot's top"
+      ],
+      "explain": "Everything on the robot runs off a single 12-volt rechargeable battery. The power switch has to be quick to reach in case you need to cut power."
+    },
+    {
+      "q": "What is the Driver Hub?",
+      "correct": "The touchscreen drivers use to pick and start programs",
+      "wrong": [
+        "The brain that runs your Java code on the robot",
+        "The wheel base that carries the robot around",
+        "A sensor that tracks the robot's heading angle"
+      ],
+      "explain": "The Driver Hub is the touchscreen device drivers use to select programs, start the match, and read telemetry. Controllers plug into it over USB."
+    },
+    {
+      "q": "How many controllers can plug into the Driver Hub?",
+      "correct": "Two \u2014 gamepad1 and gamepad2",
+      "wrong": [
+        "Only one, which is called gamepad1",
+        "Four, one for each alliance member",
+        "None; it uses only its own touchscreen"
+      ],
+      "explain": "Two controllers plug in: gamepad1 and gamepad2. Usually driver 1 handles movement and driver 2 handles the mechanisms."
+    },
+    {
+      "q": "What are the two phases of an FTC match?",
+      "correct": "Autonomous (30 seconds) then Tele-Op (2 minutes)",
+      "wrong": [
+        "Practice (1 minute) then the Finals (5 minutes)",
+        "Setup (2 minutes) then Cleanup (30 seconds)",
+        "Offense (2 minutes) then Defense (2 minutes)"
+      ],
+      "explain": "A match is a 30-second Autonomous phase (no human input) followed by a roughly 2-minute Tele-Op phase where drivers control the robot."
+    },
+    {
+      "q": "During Autonomous, who controls the robot?",
+      "correct": "No one \u2014 the robot runs your code by itself",
+      "wrong": [
+        "The driver, using only the left stick",
+        "A referee, using a special handheld remote",
+        "The judges, from the main scoring table"
+      ],
+      "explain": "Autonomous means no human input for the first 30 seconds \u2014 the robot follows the plan your code lays out entirely on its own."
+    },
+    {
+      "q": "When you press a button, what path does the signal take?",
+      "correct": "Controller to Driver Hub to Control Hub to your code",
+      "wrong": [
+        "Controller straight to the motor, skipping the hubs",
+        "Control Hub to Driver Hub to the controller only",
+        "Driver Hub to the battery and then back again"
+      ],
+      "explain": "A press travels controller \u2192 Driver Hub \u2192 Control Hub \u2192 your Java code \u2192 the motor, many times a second. Your code sits in the middle deciding what happens."
+    },
+    {
+      "q": "Who decides what each button and stick actually does?",
+      "correct": "The programmer, through the code they write",
+      "wrong": [
+        "The controller's factory settings, permanently",
+        "The head referee, before each match starts",
+        "The battery, based on its current charge level"
+      ],
+      "explain": "The same hardware can behave completely differently depending on the code. As the programmer, YOU decide what every button and joystick does."
+    },
+    {
+      "q": "What are most FTC robots built from?",
+      "correct": "Pre-made kit parts like goBILDA and REV, no welding",
+      "wrong": [
+        "Custom welded steel made in a real machine shop",
+        "Wood and glue cut apart with a hand saw",
+        "Only 3D-printed plastic, with no metal at all"
+      ],
+      "explain": "Most teams build from pre-fabricated kits (goBILDA, REV, Actobotics, Tetrix). No welding or machining is required \u2014 parts bolt together like heavy-duty building sets."
+    },
+    {
+      "q": "What sensor is built into the Control Hub?",
+      "correct": "An IMU that can track the robot's heading",
+      "wrong": [
+        "A camera that records the entire match",
+        "A GPS that reads the robot's map location",
+        "A microphone that listens for the whistle"
+      ],
+      "explain": "The Control Hub has a built-in IMU (inertial measurement unit) that can track rotation and heading \u2014 you'll use it in a later lesson."
+    },
+    {
+      "q": "Typically, how do two drivers split the work?",
+      "correct": "One drives the base, the other runs mechanisms",
+      "wrong": [
+        "Both drive the base at the exact same time",
+        "One plays offense, the other watches the clock",
+        "They take turns, one minute on and one off"
+      ],
+      "explain": "Usually gamepad1's driver handles movement and gamepad2's driver runs the mechanisms (intake, shooter, etc.). Splitting roles keeps a hectic match manageable."
+    },
+    {
+      "q": "How big is the FTC playing field?",
+      "correct": "About 12 by 12 feet",
+      "wrong": [
+        "About 6 by 6 feet",
+        "About 20 by 20 feet",
+        "About 3 by 3 feet"
+      ],
+      "explain": "The FTC field is roughly 12 \u00d7 12 feet, walled in on all sides, and shared by both alliances during a match."
+    },
+    {
+      "q": "Can the same robot hardware behave differently with new code?",
+      "correct": "Yes \u2014 the code decides how the hardware acts",
+      "wrong": [
+        "No \u2014 hardware always behaves one single fixed way",
+        "Only if you also rewire all of the motors",
+        "Only during the autonomous part of a match"
+      ],
+      "explain": "Absolutely. The hardware is fixed, but the code decides what it does \u2014 the same motors and buttons can drive, shoot, or lift depending on what you program."
+    }
+  ]
+}

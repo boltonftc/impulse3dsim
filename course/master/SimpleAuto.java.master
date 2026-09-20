@@ -11,6 +11,7 @@ import com.pedropathing.paths.PathChain;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 /*
  * ============================================================================
@@ -27,14 +28,14 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
  *       use Pedro Pathing's Follower. The Follower needs two helpers you met in
  *       this package: a PinpointLocalizer (where am I?) and a
  *       MecanumDrivetrainSubsystem (how do I push the wheels?).
- *    2. MECHANISMS (intake, dumper) are the SAME subsystems from TeleOp. We
- *       build the same Robot and call the same robot.update() scheduler, so the
- *       dumper code you wrote in TeleOp works here unchanged.
+ *    2. MECHANISMS (intake, flywheel, indexer) are the SAME subsystems from
+ *       TeleOp. We build the same Robot and call the same robot.update()
+ *       scheduler, so the shooter code you wrote in TeleOp works here unchanged.
  *
  *  HOW WE "WAIT" WITHOUT FREEZING (no sleep!)
- *    Some actions take time (following a path; the dumper's raise/hold/lower).
- *    We never sleep(). Instead we run a small loop that keeps pumping updates
- *    until the thing reports it is done:
+ *    Some actions take time (following a path; the flywheel spinning up to
+ *    speed; feeding the game pieces through). We never sleep(). Instead we run a
+ *    small loop that keeps pumping updates until the thing reports it is done:
  *        while (opModeIsActive() && follower.isBusy()) {
  *            follower.update();   // drive one small step along the path
  *            robot.update();      // let mechanisms advance too
@@ -42,7 +43,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
  *    Same rhythm as the scheduler -- lots of tiny steps, never one long freeze.
  * ============================================================================
  */
-@Autonomous(name = "SimpleAuto", group = "Dumper OOP")
+@Autonomous(name = "SimpleAuto", group = "BIOBUZZ")
 public class SimpleAuto extends LinearOpMode {
 
     // ── TUNING CONSTANTS ("defines") ─────────────────────────────────────
@@ -66,8 +67,8 @@ public class SimpleAuto extends LinearOpMode {
 
         // ── MECHANISMS: the same Robot/subsystems TeleOp uses ────────────
         // Building Robot also configures its Localization (Pinpoint). We build
-        // it here for its intake and dumper. HOLD THE ROBOT STILL during INIT --
-        // the Pinpoint calibrates now.
+        // it here for its flywheel and indexer. HOLD THE ROBOT STILL during
+        // INIT -- the Pinpoint calibrates now.
         Robot robot = new Robot(hardwareMap);
 
         // ── DRIVING: Pedro Pathing setup (closed-loop path following) ────
@@ -103,8 +104,8 @@ public class SimpleAuto extends LinearOpMode {
         // Each spot on the field is a Pose(x, y, headingRadians). Units are
         // inches; heading 0 = facing +X, counter-clockwise positive.
         Pose startPose = new Pose(START_X_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));
-        Pose pose1 = new Pose(12.0, -36.0, Math.toRadians(0.0));   // 48" straight forward (+X)
-        Pose pose2 = new Pose(12.0,  12.0, Math.toRadians(0.0));   // then 48" to the left (+Y)
+        Pose pose1 = new Pose(12.0, -36.0, Math.toRadians(0.0));   // 48" forward to the SHOOTING spot
+        Pose pose2 = new Pose(12.0,  12.0, Math.toRadians(0.0));   // then 48" left to park (+Y)
 
         // A BezierLine is a straight path from one pose to the next. A PathChain
         // wraps it up for the Follower. We keep the heading constant along each
@@ -148,16 +149,35 @@ public class SimpleAuto extends LinearOpMode {
             telemetry.update();
         }
 
-        // ── Action: dump, then WAIT for the dump to finish ───────────────
-        // dump() only STARTS the raise/hold/lower. We pump BOTH updates so the
-        // robot holds its spot on the path while the bucket cycles. No sleep().
-        robot.dumper.dump();
-        while (opModeIsActive() && robot.dumper.isBusy()) {
-            robot.update();      // advance the dumper's state machine
-            follower.update();   // hold position while dumping
-            telemetry.addData("Phase", "Dumping");
+        // ── Action: SHOOT -- spin up, then fire all four ─────────────────
+        // The heavy flywheel takes time to reach speed, so we turn it ON and
+        // PUMP updates until the encoder says it is up to target RPM (with a
+        // time cap so we never wait forever). No sleep().
+        robot.flywheel.toggle();                 // turn the flywheel ON
+        ElapsedTime shotTimer = new ElapsedTime();
+        while (opModeIsActive()
+                && robot.flywheel.getRpm() < robot.flywheel.getTarget() * 0.95
+                && shotTimer.seconds() < 3.0) {
+            robot.update();      // advance the flywheel controller (spins it up)
+            follower.update();   // hold our spot on the field
+            telemetry.addData("Phase", "Spin-up");
+            telemetry.addData("RPM", "%.0f", robot.flywheel.getRpm());
             telemetry.update();
         }
+
+        // Up to speed: run the feeder for a couple seconds so all four pieces
+        // launch, then stop the feeder and the flywheel.
+        robot.indexer.feed();
+        shotTimer.reset();
+        while (opModeIsActive() && shotTimer.seconds() < 2.0) {
+            robot.update();      // keep the flywheel at speed AND run the feeder
+            follower.update();   // hold position while firing
+            telemetry.addData("Phase", "Firing");
+            telemetry.addData("RPM", "%.0f", robot.flywheel.getRpm());
+            telemetry.update();
+        }
+        robot.indexer.stop();
+        robot.flywheel.toggle();                 // turn the flywheel back OFF
 
         // ── Segment 2: strafe left to pose2 ──────────────────────────────
         follower.followPath(chain2, SPEED, true);

@@ -64,7 +64,7 @@ can read but do not have to write:</p>
 </div>
 
 <p>Your mechanisms are <em>not</em> new: autonomous builds the same <code>Robot</code> as TeleOp and calls the same
-<code>robot.update()</code> scheduler, so the dumper you wrote earlier works here unchanged.</p>
+<code>robot.update()</code> scheduler, so the shooter you built earlier works here unchanged.</p>
 
 <hr>
 
@@ -107,8 +107,8 @@ drive forward, and one to strafe left.</p>
   <div class="blk-head"><span>Type this into <code>SimpleAuto.java</code></span><span class="copybtn">&#10850; Copy</span></div>
   <pre><code>// Each spot on the field is a Pose(x, y, headingRadians).
 Pose startPose = new Pose(START_X_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));
-Pose pose1 = new Pose(12.0, -36.0, Math.toRadians(0.0));   // 48" straight forward (+X)
-Pose pose2 = new Pose(12.0,  12.0, Math.toRadians(0.0));   // then 48" to the left (+Y)
+Pose pose1 = new Pose(12.0, -36.0, Math.toRadians(0.0));   // 48" forward to the SHOOTING spot
+Pose pose2 = new Pose(12.0,  12.0, Math.toRadians(0.0));   // then 48" left to park (+Y)
 
 // A BezierLine is a straight path; a PathChain wraps it for the Follower.
 // Keep the heading constant so the robot faces the same way the whole time.
@@ -134,7 +134,7 @@ PathChain chain2 = follower.pathBuilder()
 
 <h2>Part B &mdash; Run the plan</h2>
 
-<p>Now sequence the match. Seed the start pose, follow chain 1, dump, then follow chain 2. The key pattern is the
+<p>Now sequence the match. Seed the start pose, follow chain 1, shoot, then follow chain 2. The key pattern is the
 <strong>follow-and-wait loop</strong>: after <code>followPath(...)</code> you keep pumping <code>follower.update()</code>
 (to drive) and <code>robot.update()</code> (to keep mechanisms alive) until the Follower says it is no longer busy.</p>
 
@@ -145,21 +145,33 @@ PathChain chain2 = follower.pathBuilder()
   <pre><code>// Tell the localizer where the robot is starting (field inches from here on).
 follower.setStartingPose(startPose);
 
-// Segment 1: drive forward to pose1.
+// Segment 1: drive forward to the shooting spot.
 follower.followPath(chain1, SPEED, true);
 while (opModeIsActive() &amp;&amp; follower.isBusy()) {
     follower.update();   // drive one step along the path
     robot.update();      // keep the mechanisms' state machines alive
 }
 
-// Action: dump, then WAIT for the dump to finish (pump both, never sleep).
-robot.dumper.dump();
-while (opModeIsActive() &amp;&amp; robot.dumper.isBusy()) {
-    robot.update();      // advance the dumper's state machine
-    follower.update();   // hold position while dumping
+// Action: spin up the flywheel, then fire all four (pump both, never sleep).
+robot.flywheel.toggle();                 // turn the flywheel ON
+ElapsedTime shotTimer = new ElapsedTime();
+while (opModeIsActive()
+        &amp;&amp; robot.flywheel.getRpm() &lt; robot.flywheel.getTarget() * 0.95
+        &amp;&amp; shotTimer.seconds() &lt; 3.0) {
+    robot.update();      // spin the flywheel up to speed
+    follower.update();   // hold our spot on the field
 }
 
-// Segment 2: strafe left to pose2.
+robot.indexer.feed();                    // feed the pieces through
+shotTimer.reset();
+while (opModeIsActive() &amp;&amp; shotTimer.seconds() &lt; 2.0) {
+    robot.update();
+    follower.update();
+}
+robot.indexer.stop();
+robot.flywheel.toggle();                 // flywheel back OFF
+
+// Segment 2: strafe left to park.
 follower.followPath(chain2, SPEED, true);
 while (opModeIsActive() &amp;&amp; follower.isBusy()) {
     follower.update();
@@ -170,7 +182,7 @@ while (opModeIsActive() &amp;&amp; follower.isBusy()) {
 <div class="blk blk-key">
   <div class="blk-head">The follow-and-wait loop is just the scheduler again</div>
   <p>You never call <code>sleep()</code>. Instead you take thousands of tiny steps: each <code>follower.update()</code>
-  nudges the wheels a little and re-checks the position, and each <code>robot.update()</code> advances the dumper a
+  nudges the wheels a little and re-checks the position, and each <code>robot.update()</code> advances the shooter a
   little. When the Follower reaches the target it reports <code>isBusy() == false</code> and the loop ends &mdash; the
   exact same &ldquo;lots of small steps, never one big freeze&rdquo; rhythm you have used all along.</p>
 </div>
@@ -192,12 +204,12 @@ while (opModeIsActive() &amp;&amp; follower.isBusy()) {
     <code>MecanumDrivetrainSubsystem.java</code> and skim them &mdash; the sensor and wheels you already know.</li>
     <li><strong>Part A:</strong> in <code>SimpleAuto.java</code>, define <code>startPose</code>, <code>pose1</code>,
     <code>pose2</code> and build <code>chain1</code> and <code>chain2</code>.</li>
-    <li><strong>Part B:</strong> seed the start pose, then follow each chain with a pump-wait loop, with a dump in
+    <li><strong>Part B:</strong> seed the start pose, then follow each chain with a pump-wait loop, with a shot in
     between.</li>
     <li><strong>Build</strong>, pick <strong>SimpleAuto</strong> from the autonomous list, <strong>Init</strong> (hold
     still while the Pinpoint calibrates), then <strong>Start</strong>.</li>
-    <li><strong>Watch it drive itself:</strong> the robot should roll forward about 4&nbsp;feet, dump, then strafe left
-    about 4&nbsp;feet &mdash; following the gray path drawn on the field.</li>
+    <li><strong>Watch it drive itself:</strong> the robot should roll forward about 4&nbsp;feet, spin up and shoot, then
+    strafe left about 4&nbsp;feet &mdash; following the gray path drawn on the field.</li>
   </ul>
 </div>
 

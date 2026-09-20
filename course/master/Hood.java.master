@@ -1,0 +1,87 @@
+// @begin(15_hood)
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+
+/*
+ * ============================================================================
+ *  Hood  --  aims the shot by tilting the hood to a precise ANGLE
+ * ============================================================================
+ *
+ *  Your flywheel now holds a rock-steady speed, so every shot leaves at the
+ *  same power. The last piece is AIM. The hood is a curved shield over the
+ *  flywheel: tilt it up and the ball launches at a higher angle (a short, high
+ *  lob); tilt it down and the ball flies flatter and farther. Change the hood
+ *  and you change WHERE the shot lands -- instantly.
+ *
+ *  The hood is a POSITIONAL servo, not a CR servo. A CR servo only knows a
+ *  SPEED and has no idea where it is, so it could never hold a precise angle.
+ *  A positional servo goes to an exact angle and holds it -- exactly what aim
+ *  needs. (Remember the indexer's "Spinner" vs the hood's "Pointer".)
+ * ============================================================================
+ */
+public class Hood implements Subsystem {
+
+    // How far one loop of full stick moves the hood, plus the safe range.
+    private static final double AIM_STEP     = 0.004;   // hood setting change per loop of full stick
+    private static final double AIM_DEADZONE = 0.15;    // ignore tiny stick drift near center
+    private static final double HOOD_MIN     = 0.0;     // lowest / highest hood setting allowed
+    private static final double HOOD_MAX     = 1.0;
+
+    // A POSITIONAL servo -- goes to an exact angle and holds it (NOT a CR servo).
+    private final Servo hood;
+
+    // ===============================================
+    // Hood : Field
+    // Do not remove this comment
+    // Add the field that remembers the hood setting below
+    // ===============================================
+    // @fill(15_hood)
+    private double position = 0.5;   // 0.0 = lowest angle, 1.0 = highest; start in the middle
+    // @end(15_hood)
+
+    /*
+     * CONSTRUCTOR -- finds the hood servo by its config name. Note the type is
+     * Servo.class (positional), not CRServo.class.
+     */
+    public Hood(HardwareMap hardwareMap) {
+        hood = hardwareMap.get(Servo.class, "hood");
+    }
+
+    // ===============================================
+    // Hood : Commands
+    // Do not remove this comment
+    // Add aim() and getPosition() below
+    // ===============================================
+    // @fill(15_hood)
+    /** Aim the hood up or down. Pass the stick amount (right = positive). */
+    public void aim(double amount) {
+        if (Math.abs(amount) < AIM_DEADZONE) return;                  // ignore tiny drift
+        position += amount * AIM_STEP;                                // creep the angle up or down
+        position = Math.max(HOOD_MIN, Math.min(HOOD_MAX, position));  // keep it in range
+    }
+
+    /** The current hood setting (0..1), for telemetry. */
+    public double getPosition() {
+        return position;
+    }
+    // @end(15_hood)
+
+    /*
+     * update()  --  APPLY THE STATE. Every loop, send the stored setting to the
+     * servo. A positional servo drives itself to that exact angle and holds it.
+     */
+    @Override
+    public void update() {
+        // ===============================================
+        // Hood : Apply State
+        // Do not remove this comment
+        // Add the line that sends the angle to the servo below
+        // ===============================================
+        // @fill(15_hood)
+        hood.setPosition(position);
+        // @end(15_hood)
+    }
+}
+// @end(15_hood)

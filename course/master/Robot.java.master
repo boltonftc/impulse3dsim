@@ -11,7 +11,7 @@ import java.util.List;
  *  Robot  --  the container that owns every subsystem
  * ============================================================================
  *
- *  Instead of every OpMode building the drive, intake, and dumper separately,
+ *  Instead of every OpMode building the drive, intake, and shooter separately,
  *  we build them ONCE here. An OpMode just writes:
  *
  *        Robot robot = new Robot(hardwareMap);
@@ -41,13 +41,31 @@ public class Robot {
     // @end(11_intake)
 
     // ===============================================
-    // Dumper : Field
+    // Indexer : Field
     // Do not remove this comment
-    // A later lesson builds the Dumper subsystem here
+    // A later lesson builds the Indexer subsystem here
     // ===============================================
-    // @fill(12_dumper)
-    public final Dumper dumper;
-    // @end(12_dumper)
+    // @fill(12_indexer)
+    public final Indexer indexer;
+    // @end(12_indexer)
+
+    // ===============================================
+    // Flywheel : Field
+    // Do not remove this comment
+    // A later lesson builds the Flywheel subsystem here
+    // ===============================================
+    // @fill(13_flywheel)
+    public final Flywheel flywheel;
+    // @end(13_flywheel)
+
+    // ===============================================
+    // Hood : Field
+    // Do not remove this comment
+    // A later lesson builds the Hood subsystem here
+    // ===============================================
+    // @fill(15_hood)
+    public final Hood hood;
+    // @end(15_hood)
 
     // ===============================================
     // Localization : Field
@@ -83,14 +101,34 @@ public class Robot {
         // @end(11_intake)
 
         // ===============================================
-        // Dumper : Setup
+        // Indexer : Setup
         // Do not remove this comment
-        // Add your Dumper construction below
+        // Add your Indexer construction below
         // ===============================================
-        // @fill(12_dumper)
-        dumper = new Dumper(hardwareMap);
-        subsystems.add(dumper);
-        // @end(12_dumper)
+        // @fill(12_indexer)
+        indexer = new Indexer(hardwareMap);
+        subsystems.add(indexer);
+        // @end(12_indexer)
+
+        // ===============================================
+        // Flywheel : Setup
+        // Do not remove this comment
+        // Add your Flywheel construction below
+        // ===============================================
+        // @fill(13_flywheel)
+        flywheel = new Flywheel(hardwareMap);
+        subsystems.add(flywheel);
+        // @end(13_flywheel)
+
+        // ===============================================
+        // Hood : Setup
+        // Do not remove this comment
+        // Add your Hood construction below
+        // ===============================================
+        // @fill(15_hood)
+        hood = new Hood(hardwareMap);
+        subsystems.add(hood);
+        // @end(15_hood)
 
         // ===============================================
         // Localization : Setup

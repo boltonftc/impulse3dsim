@@ -1,0 +1,156 @@
+{
+  "title": "Mecanum Drive Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "What makes mecanum wheels special?",
+      "correct": "Angled rollers let the wheel slide sideways while pushing",
+      "wrong": [
+        "Extra-large treads that grip the floor much harder",
+        "A tiny built-in motor inside each individual wheel",
+        "Sharp spikes that dig into the field tiles"
+      ],
+      "explain": "Mecanum wheels have rollers set at 45\u00b0. Spinning the wheel still pushes forward, but the rollers let it slide sideways too \u2014 that's what enables strafing."
+    },
+    {
+      "q": "What does \"holonomic\" mean for a drivetrain?",
+      "correct": "It can move any direction without turning first",
+      "wrong": [
+        "It can only move forward and backward",
+        "It must spin before it can move at all",
+        "It drives about twice as fast as tank drive"
+      ],
+      "explain": "Holonomic means the robot can go forward, backward, sideways, or diagonally without rotating first. Mecanum wheels make that possible."
+    },
+    {
+      "q": "How must the four mecanum wheels be mounted?",
+      "correct": "In an X pattern, rollers pointing toward the center",
+      "wrong": [
+        "In an O pattern, rollers pointing straight outward",
+        "All four wheels facing the exact same direction",
+        "Two facing forward and two turned sideways"
+      ],
+      "explain": "The rollers must form an X (pointing toward center). An O pattern makes the robot fight itself and pull sideways instead of driving clean."
+    },
+    {
+      "q": "What is strafing?",
+      "correct": "Moving straight sideways without rotating at all",
+      "wrong": [
+        "Spinning quickly in place on one single spot",
+        "Driving forward while slowly turning to a side",
+        "Braking hard to stop the robot very fast"
+      ],
+      "explain": "Strafing is pure sideways motion \u2014 the forward/back forces cancel and the sideways forces add up, so the robot slides left or right without turning."
+    },
+    {
+      "q": "What are the three driver inputs for mecanum?",
+      "correct": "drive (forward/back), strafe (sideways), and turn",
+      "wrong": [
+        "left power, right power, and a brake pedal",
+        "speed, gear, and a steering-wheel angle",
+        "intake, shooter, and hood angle settings"
+      ],
+      "explain": "Mecanum mixes three inputs \u2014 drive (forward/back), strafe (sideways), and turn (spin) \u2014 into four separate wheel powers."
+    },
+    {
+      "q": "In the mecanum mix, the drive term is...",
+      "correct": "Added to every wheel the exact same way",
+      "wrong": [
+        "Subtracted from every one of the wheels",
+        "Only added to the two front wheels",
+        "Only used on the two left wheels"
+      ],
+      "explain": "drive is + on all four wheels (so they all roll forward together). strafe alternates signs and turn is + on the left, - on the right."
+    },
+    {
+      "q": "How does the strafe term's sign go across the wheels?",
+      "correct": "It alternates: plus, minus, minus, plus",
+      "wrong": [
+        "It is plus on all four of the wheels",
+        "It is minus on all four of the wheels",
+        "It is only ever used on the back wheels"
+      ],
+      "explain": "strafe is +\u2212\u2212+ across front-left, back-left, front-right, back-right. That alternating pattern is what slides the robot sideways."
+    },
+    {
+      "q": "What is normalization for?",
+      "correct": "Scaling all four powers down if any goes above 1.0",
+      "wrong": [
+        "Rounding each of the four powers to the nearest whole number",
+        "Reversing the two left motors automatically",
+        "Turning off any wheel that spins too slowly"
+      ],
+      "explain": "If any wheel power passes 1.0, you divide ALL four by the biggest one. That keeps their ratios (and the direction) intact instead of clipping one wheel."
+    },
+    {
+      "q": "Why divide all wheels by the max instead of clamping each one?",
+      "correct": "To keep the direction ratios between the wheels correct",
+      "wrong": [
+        "To make the robot drive noticeably faster overall",
+        "To save some battery by lowering every power",
+        "To reverse the robot's turning direction cleanly"
+      ],
+      "explain": "Clamping wheels one at a time changes their ratios and bends the robot's direction. Dividing all four by the max shrinks them together, preserving the heading."
+    },
+    {
+      "q": "A common way to set turn is...",
+      "correct": "right_trigger minus left_trigger",
+      "wrong": [
+        "left_stick_y minus right_stick_y",
+        "the A button minus the B button",
+        "left_bumper plus the right_bumper"
+      ],
+      "explain": "turn = gamepad1.right_trigger - gamepad1.left_trigger. RT spins one way, LT the other, and the triggers are analog for gentle turns."
+    },
+    {
+      "q": "Triggers report values in what range?",
+      "correct": "0.0 to 1.0",
+      "wrong": [
+        "-1.0 to 1.0",
+        "0 to 100",
+        "true or false"
+      ],
+      "explain": "Triggers are analog from 0.0 (released) to 1.0 (fully squeezed). A light squeeze gives a gentle turn; a full squeeze turns hard."
+    },
+    {
+      "q": "If strafing spins the robot instead of sliding, check...",
+      "correct": "The strafe signs \u2014 they should be plus, minus, minus, plus",
+      "wrong": [
+        "The current battery voltage reading on the Control Hub before a match",
+        "The telemetry labels printed on each line",
+        "The name you gave your current code package"
+      ],
+      "explain": "A spin on strafe usually means the +\u2212\u2212+ strafe signs are wrong for one or more wheels, so the sideways forces don't cancel the way they should."
+    },
+    {
+      "q": "If the robot pulls to one side driving straight, the wheels may be...",
+      "correct": "In an O pattern instead of an X pattern",
+      "wrong": [
+        "Spinning far too slowly to matter",
+        "Missing their encoder cables entirely",
+        "Set to the wrong telemetry label name"
+      ],
+      "explain": "Rollers in an O pattern (pointing outward) make the robot fight itself and drift. Flip to the X pattern so the roller forces cooperate."
+    },
+    {
+      "q": "The turn term is positive on the left wheels and...",
+      "correct": "Negative on the right wheels",
+      "wrong": [
+        "Positive on the right wheels",
+        "Zero on the right wheels",
+        "Doubled on the right wheels"
+      ],
+      "explain": "turn is + on the left, - on the right (like tank steering). That opposite pattern spins the robot in place."
+    },
+    {
+      "q": "What lets a mecanum robot move diagonally?",
+      "correct": "Blending drive and strafe at the same time",
+      "wrong": [
+        "Spinning only the two front wheels",
+        "Turning the wheels physically sideways",
+        "Reversing the battery's polarity briefly"
+      ],
+      "explain": "Command drive and strafe together and the wheel mix blends them, so the robot glides diagonally \u2014 no turning required. That's the power of holonomic drive."
+    }
+  ]
+}
