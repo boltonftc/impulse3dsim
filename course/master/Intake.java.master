@@ -20,7 +20,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
  *      * update() runs every loop and makes the motor MATCH the state
  *
  *  This is the same shape every subsystem in this course follows. Learn it on
- *  the intake and you will recognize it on the dumper, the arm -- everything.
+ *  the intake and you will recognize it on the shooter, the arm -- everything.
  * ============================================================================
  */
 public class Intake implements Subsystem {

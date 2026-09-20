@@ -1,0 +1,156 @@
+{
+  "title": "Hello, Telemetry Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "What is telemetry used for?",
+      "correct": "Showing what your code is doing on the Driver Hub",
+      "wrong": [
+        "Reversing a motor that spins the wrong way",
+        "Charging the robot's battery between two matches",
+        "Storing your code package as a zip file"
+      ],
+      "explain": "telemetry prints labels and values to the Driver Hub screen. It's the most useful tool for seeing what your code is really doing while it runs."
+    },
+    {
+      "q": "What does telemetry.addData(\"Status\", \"Hi\") do?",
+      "correct": "Queues one line with a label and a value",
+      "wrong": [
+        "Immediately shows the line on the screen",
+        "Deletes the last line that was printed",
+        "Reverses the spin direction of a motor"
+      ],
+      "explain": "addData queues one line (label on the left, value on the right). It doesn't actually appear until telemetry.update() is called."
+    },
+    {
+      "q": "What does telemetry.update() do?",
+      "correct": "Actually shows the queued lines on the screen",
+      "wrong": [
+        "Adds one more blank line to the telemetry",
+        "Clears all of the code out of the editor",
+        "Restarts the robot's main run loop"
+      ],
+      "explain": "addData writes lines to a notepad; update() holds the notepad up to the driver. Without update(), the queued lines never appear."
+    },
+    {
+      "q": "What is a variable?",
+      "correct": "A labeled box that holds one value",
+      "wrong": [
+        "A recipe of steps you run by name",
+        "A wire from the hub to a motor",
+        "A button press from the controller"
+      ],
+      "explain": "A variable is a labeled box holding a value. The name stays the same while the contents can change \u2014 like loops holding a count that climbs."
+    },
+    {
+      "q": "What kind of number does an int hold?",
+      "correct": "Whole numbers only, with no decimal point",
+      "wrong": [
+        "Numbers with a decimal point, like 1.5",
+        "Only the two values true and false",
+        "Text, such as words and letters"
+      ],
+      "explain": "An int holds whole numbers (integers) only \u2014 no decimals. For values like 1.5 you'd use a double instead."
+    },
+    {
+      "q": "What does loops += 1; mean?",
+      "correct": "Add one to the loops variable",
+      "wrong": [
+        "Reset the loops variable to one",
+        "Print the loops value to the screen",
+        "Delete the loops variable entirely"
+      ],
+      "explain": "loops += 1; is shorthand for \"add one to loops.\" Put it in the loop and the counter climbs by one every pass."
+    },
+    {
+      "q": "In telemetry.addData, what does the dot mean?",
+      "correct": "Ask this thing to do that action",
+      "wrong": [
+        "Multiply the two sides together",
+        "End the current line of code",
+        "Start a brand-new code package"
+      ],
+      "explain": "The dot means \"ask this thing to do that.\" telemetry.addData reads as \"telemetry, add this data.\" It's how you call a method on something."
+    },
+    {
+      "q": "Where must a counting variable be declared to keep its value?",
+      "correct": "Outside the loop, so it isn't reset each pass",
+      "wrong": [
+        "Inside the loop, so it starts fresh each pass",
+        "After the class's final closing brace",
+        "Inside the import lines at the very top"
+      ],
+      "explain": "A variable declared inside the loop is wiped and reset every pass. Declare it outside (above) the loop so its value survives between loops and can climb."
+    },
+    {
+      "q": "How often does loop code run?",
+      "correct": "About 50 times every second",
+      "wrong": [
+        "About once every 50 seconds",
+        "Exactly one time per whole match",
+        "Only when a button is pressed"
+      ],
+      "explain": "The run loop repeats roughly 50 times a second. A counter incremented in the loop climbs fast \u2014 proof your code is really running."
+    },
+    {
+      "q": "Init code (above the loop) runs...",
+      "correct": "Once, right when the program starts",
+      "wrong": [
+        "About 50 times every single second",
+        "Only when the battery is fully charged",
+        "Backward, after the loop has finished"
+      ],
+      "explain": "Init code runs once at the start. Loop code, inside the while braces, repeats ~50 times a second. Knowing which is which is key."
+    },
+    {
+      "q": "Why watch a loop counter climb on telemetry?",
+      "correct": "It proves the loop is running, like a heartbeat",
+      "wrong": [
+        "It makes the drive motors spin much faster",
+        "It charges the battery a little each loop",
+        "It permanently saves the code to a disk"
+      ],
+      "explain": "A counter that climbs every loop is the loop's heartbeat \u2014 it visually proves your code is alive and looping, which is great for debugging."
+    },
+    {
+      "q": "What appears on the left of a telemetry line?",
+      "correct": "The label you gave to addData",
+      "wrong": [
+        "The number of loops so far",
+        "The robot's battery percentage",
+        "The name of your code package"
+      ],
+      "explain": "addData(\"label\", value) shows the label on the left and the value on the right \u2014 for example \"Loops\" on the left and the count on the right."
+    },
+    {
+      "q": "What happens if you forget telemetry.update()?",
+      "correct": "Your queued lines never show on the screen",
+      "wrong": [
+        "The robot immediately stops all its motors",
+        "The code fails to build at all",
+        "The counter resets itself back to zero"
+      ],
+      "explain": "Without update(), the lines you added stay on the notepad and are never shown. update() is what pushes them to the Driver Hub."
+    },
+    {
+      "q": "What ends most lines of Java code?",
+      "correct": "A semicolon",
+      "wrong": [
+        "A period",
+        "A comma",
+        "A colon"
+      ],
+      "explain": "Most Java statements end with a semicolon (;). A missing one is a common reason a build fails."
+    },
+    {
+      "q": "A value that must survive between loops should be...",
+      "correct": "Declared once, above the loop",
+      "wrong": [
+        "Declared new inside the loop",
+        "Printed and then thrown away",
+        "Stored in a separate zip file"
+      ],
+      "explain": "Declare it above the loop so it's created once and keeps its value each pass. Declaring it inside the loop resets it every single time."
+    }
+  ]
+}

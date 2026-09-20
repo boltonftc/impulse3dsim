@@ -5,7 +5,7 @@ special though: it was already written, you just <em>reorganized</em> it. This l
 mechanism from an empty file: the <strong>intake</strong>, the roller that pulls game pieces into the robot.</p>
 
 <p>And when you write it, you'll follow the <strong>exact same shape</strong> every real FTC subsystem uses. Learn
-it here on one motor, and the dumper, the arm, the climber &mdash; everything after this &mdash; will feel familiar.</p>
+it here on one motor, and the shooter, the arm, the climber &mdash; everything after this &mdash; will feel familiar.</p>
 
 <div class="blk blk-key">
   <div class="blk-head">What does an intake even do?</div>
@@ -164,8 +164,8 @@ switch (state) {
 <p>The two speeds come from the named constants at the top of the file &mdash; full power (<code>1.0</code>) to pull in,
 a gentler <code>-0.5</code> to un-jam. Want a different feel later? Change those two lines; nothing else.</p>
 
-<p>Try it below &mdash; same idea you'll reuse for the dumper in a later lesson, except every transition here
-is <strong>instant</strong> instead of timed: no stopwatch, just <code>Off &harr; Forward</code> and
+<p>Try it below &mdash; the same subsystem shape you'll reuse on every mechanism, with <strong>instant</strong>
+transitions: no stopwatch, just <code>Off &harr; Forward</code> and
 <code>Off &harr; Reverse</code> the moment you press. Press <strong>A</strong> to spin the roller forward and
 watch game pieces get pulled in; press <strong>A</strong> again (or <strong>B</strong>) to stop; from a stop,
 press <strong>B</strong> to spin backward and clear a piece stuck at the mouth.</p>
@@ -326,8 +326,8 @@ the intake decides the <em>power</em>. Each side stays simple because it minds i
 </div>
 
 <p>You just built a real subsystem from an empty file &mdash; a state machine with clean commands, driven by
-two buttons. Every mechanism from here follows this same four-part shape. Next up: the dumper, which
-does the same thing to <em>score</em> what your intake collects.</p>
+two buttons. Every mechanism from here follows this same four-part shape. Next up: the indexer, the servo that
+feeds what your intake collects into the shooter.</p>
 
 <hr>
 

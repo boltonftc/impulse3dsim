@@ -1,0 +1,156 @@
+{
+  "title": "Autonomous with Pedro Pathing Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "How is Autonomous different from TeleOp?",
+      "correct": "It runs a fixed plan once, with no driver",
+      "wrong": [
+        "It reads the gamepad the entire match",
+        "It only prints telemetry and never moves",
+        "It drives about twice as fast as TeleOp"
+      ],
+      "explain": "TeleOp reads the gamepad forever; Autonomous runs a pre-written list of steps once, with no human input, then stops."
+    },
+    {
+      "q": "What does @Autonomous do?",
+      "correct": "Marks the program to show in the autonomous slot",
+      "wrong": [
+        "Makes the whole robot drive much faster",
+        "Reverses the two left drive motors for it",
+        "Charges the robot's battery before a match"
+      ],
+      "explain": "@Autonomous is a label (annotation) marking the program as autonomous, so it appears in the autonomous list on the Driver Hub \u2014 like @TeleOp does for TeleOp."
+    },
+    {
+      "q": "What is Pedro Pathing?",
+      "correct": "A library that steers the robot to exact spots",
+      "wrong": [
+        "A sensor that measures the robot's ground speed",
+        "A motor that spins the odometry tracking wheels",
+        "A battery pack made for long autonomous runs"
+      ],
+      "explain": "Pedro Pathing is a borrowed library of path-following math. You hand it a plan and it smoothly steers the robot to exact field positions."
+    },
+    {
+      "q": "What is a .jar file?",
+      "correct": "A zip of code that someone else already wrote",
+      "wrong": [
+        "A single line of code copied from a lesson",
+        "A sensor plugged into the Control Hub port",
+        "A battery used only during autonomous mode"
+      ],
+      "explain": "A .jar is a bundle (zip) of someone's compiled code \u2014 a library. You import from it to use its classes, like Pedro's Follower."
+    },
+    {
+      "q": "What does the Follower need to work?",
+      "correct": "A Localizer and a Drivetrain",
+      "wrong": [
+        "A camera and a microphone",
+        "Two extra batteries and a fan",
+        "A gamepad held by the driver"
+      ],
+      "explain": "The Follower needs a Localizer (where am I?) and a Drivetrain (how do I push the wheels?). It combines them to drive to a target pose."
+    },
+    {
+      "q": "What does PinpointLocalizer answer?",
+      "correct": "Where am I on the field?",
+      "wrong": [
+        "How do I push the wheels?",
+        "How fast should I shoot?",
+        "Which button was just pressed?"
+      ],
+      "explain": "PinpointLocalizer wraps the Pinpoint sensor and answers \"where am I?\" The MecanumDrivetrainSubsystem answers \"how do I push the wheels?\""
+    },
+    {
+      "q": "A Pose stores its heading in...",
+      "correct": "Radians",
+      "wrong": [
+        "Degrees",
+        "Inches",
+        "Ticks"
+      ],
+      "explain": "Pose heading is in radians, the unit the driving math prefers. You think in degrees, so wrap them with Math.toRadians(...)."
+    },
+    {
+      "q": "Why write Math.toRadians(90) in a Pose?",
+      "correct": "You think in degrees, but Pose wants radians",
+      "wrong": [
+        "The robot drives faster measured in radians",
+        "Degrees are against the FTC competition rules",
+        "It resets the robot's heading back to zero"
+      ],
+      "explain": "A Pose expects radians, but degrees are easier to reason about. Math.toRadians converts your degree value to the radians the Pose needs."
+    },
+    {
+      "q": "What does follower.setStartingPose(startPose) do?",
+      "correct": "Tells the code exactly where the robot begins",
+      "wrong": [
+        "Drives the robot to the very first waypoint",
+        "Spins the flywheel all the way up to speed",
+        "Prints the starting pose onto the telemetry"
+      ],
+      "explain": "setStartingPose plants the robot's known starting spot. From then on, its tracked position is in field inches \u2014 so paths line up with reality."
+    },
+    {
+      "q": "Why never use sleep() in autonomous?",
+      "correct": "It freezes the robot; use a pump-and-wait loop instead",
+      "wrong": [
+        "It makes the robot drive a great deal faster",
+        "It is against the FTC competition rulebook",
+        "It drains the robot's battery far too quickly"
+      ],
+      "explain": "sleep() freezes everything. Instead you loop, calling follower.update() and robot.update() many tiny times until the action reports it's done \u2014 never one big freeze."
+    },
+    {
+      "q": "In the follow-and-wait loop, you must call...",
+      "correct": "follower.update() and robot.update() every pass",
+      "wrong": [
+        "only follower.update(), never the robot",
+        "only robot.update(), never the follower",
+        "telemetry.update() and nothing else at all"
+      ],
+      "explain": "Each loop you call follower.update() (drive one step) and robot.update() (advance mechanisms). Both run so driving and shooting make progress together."
+    },
+    {
+      "q": "What tells you a path is still running?",
+      "correct": "follower.isBusy() returns true",
+      "wrong": [
+        "gamepad1.a returns true",
+        "The battery voltage stays high",
+        "telemetry keeps printing lines"
+      ],
+      "explain": "while (opModeIsActive() && follower.isBusy()) keeps pumping updates until the Follower reaches the target and isBusy() turns false \u2014 then the segment ends."
+    },
+    {
+      "q": "A BezierLine is...",
+      "correct": "A straight path from one pose to the next",
+      "wrong": [
+        "A spinning motion done in place",
+        "A single telemetry message line",
+        "A drive motor set into reverse"
+      ],
+      "explain": "A BezierLine is a straight path between two poses. A PathChain bundles one (or more) up for the Follower to drive along."
+    },
+    {
+      "q": "The autonomous builds the same Robot as TeleOp so it can...",
+      "correct": "Reuse the same subsystems, like the shooter",
+      "wrong": [
+        "Skip the localization step entirely",
+        "Drive around without any wheels at all",
+        "Charge the robot's battery while driving"
+      ],
+      "explain": "Autonomous makes the same Robot and calls robot.update(), so the flywheel and indexer you built for TeleOp work here unchanged \u2014 it can drive AND shoot."
+    },
+    {
+      "q": "What is a dependency?",
+      "correct": "Code that now needs a library present to compile",
+      "wrong": [
+        "A battery the whole robot depends on",
+        "A button the driver is required to hold",
+        "A tracking wheel that must stay dead"
+      ],
+      "explain": "Once you import from a library, your code depends on that library being present to build. That's a dependency \u2014 remove the library and it won't compile."
+    }
+  ]
+}

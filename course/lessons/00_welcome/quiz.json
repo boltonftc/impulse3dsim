@@ -1,0 +1,156 @@
+{
+  "title": "Welcome to the Pit Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "What are the three panels of the Pit workspace?",
+      "correct": "Lessons, the code editor, and a 3D test stand",
+      "wrong": [
+        "Lessons, the code editor, and a match scoreboard",
+        "A code editor, a chat window, and a scoreboard",
+        "Lessons, a video player, and a spare parts catalog"
+      ],
+      "explain": "The Pit has three panels: the lessons on the left, the code editor top-right, and a 3D test-stand preview bottom-right. You read, code, and see the result all in one place."
+    },
+    {
+      "q": "What is the basic development loop in the Pit?",
+      "correct": "Edit the code, Build & Init, then Run",
+      "wrong": [
+        "Run the code, then edit it, then delete it",
+        "Build first, then write the code, then delete",
+        "Import a file, then print it, then unplug it"
+      ],
+      "explain": "The core cycle is Edit \u2192 Build & Init \u2192 Run. You change the code, press Build & Init to compile and load it, then Start to run it and watch what happens."
+    },
+    {
+      "q": "What does the Build & Init button do?",
+      "correct": "Compiles your code and loads it onto the robot",
+      "wrong": [
+        "Deletes your code and starts a brand-new file",
+        "Runs the program immediately without any compiling",
+        "Exports your whole package as a zip download"
+      ],
+      "explain": "Build & Init compiles your Java and loads it onto the robot (the INIT step). After that, Start actually runs the program and Stop halts it."
+    },
+    {
+      "q": "What is a code package?",
+      "correct": "A personal folder of your Java files in the browser",
+      "wrong": [
+        "A single line of code copied from the lesson",
+        "A zip file the robot mails to the judges",
+        "A physical box holding robot parts and wires"
+      ],
+      "explain": "A code package is your own folder of Java files, saved in the browser. You can make several, switch between them, and export or import them as a .zip."
+    },
+    {
+      "q": "How do you save a code package to share or back up?",
+      "correct": "Export it as a .zip file you can download",
+      "wrong": [
+        "Print it on paper and scan it back later",
+        "Email the robot a screenshot of the code",
+        "Leave it open and hope the tab stays alive"
+      ],
+      "explain": "Packages export as a .zip you can download, and you can import a .zip back in. That's how you back up or share your work between computers."
+    },
+    {
+      "q": "What does \"Reset Lesson Code\" do?",
+      "correct": "Puts your code back to this lesson's starting point",
+      "wrong": [
+        "Deletes every single package you have ever made",
+        "Marks the current lesson as fully complete",
+        "Uploads your code to the competition server"
+      ],
+      "explain": "Reset Lesson Code restores the files to how they should look at the START of the lesson, so you can begin fresh. It does overwrite your current edits."
+    },
+    {
+      "q": "What runs the program after you press Start?",
+      "correct": "Start runs the loaded code, and Stop halts it",
+      "wrong": [
+        "Start compiles the code, and Stop deletes the code",
+        "Start opens the editor, and Stop closes the browser",
+        "Start charges the battery, and Stop drains it"
+      ],
+      "explain": "After Build & Init loads your code, Start runs it and Stop halts it. It's the run/halt half of the Edit \u2192 Build \u2192 Run loop."
+    },
+    {
+      "q": "Why does the starter code begin so minimal?",
+      "correct": "Starting simple keeps things clear as features get added",
+      "wrong": [
+        "The robot cannot store more than a few lines",
+        "Long programs are against the FTC competition rules",
+        "A shorter file makes the battery last much longer"
+      ],
+      "explain": "The starter is intentionally bare so nothing is confusing at first. You add features one lesson at a time, and each addition stays easy to follow."
+    },
+    {
+      "q": "Does the robot already know how to drive when you start?",
+      "correct": "No \u2014 it knows its hardware but has no driving code yet",
+      "wrong": [
+        "Yes \u2014 it drives itself perfectly from the very start",
+        "Yes \u2014 but only during the 30-second autonomous period",
+        "No \u2014 and it can never be taught to drive at all"
+      ],
+      "explain": "The robot knows about its motors and gamepad, but you haven't told it what to DO yet. Writing those instructions is the whole point of the lessons."
+    },
+    {
+      "q": "How do you work on more than one program at once?",
+      "correct": "Make several packages and switch with the dropdown",
+      "wrong": [
+        "Only one package can ever exist at a time",
+        "Open a second browser on another computer",
+        "Rename the same one file over and over again"
+      ],
+      "explain": "The \"+ Package\" button makes new packages, and a dropdown selector switches between them. Each is its own separate folder of files."
+    },
+    {
+      "q": "Where do you see messages from your running program?",
+      "correct": "On the telemetry your code prints to the Driver Hub",
+      "wrong": [
+        "Only in a printout the robot mails you later",
+        "Nowhere at all \u2014 running code is totally silent",
+        "Inside the battery's own tiny status screen"
+      ],
+      "explain": "Programs report what they're doing through telemetry, shown on the Driver Hub screen. It's your main window into what the code is really doing."
+    },
+    {
+      "q": "What is the test stand in the Pit for?",
+      "correct": "Previewing your robot's mechanisms in 3D as they run",
+      "wrong": [
+        "Charging the real robot's battery between matches",
+        "Storing spare motors and servos for a later build",
+        "Scoring the match and showing the final points"
+      ],
+      "explain": "The bottom-right test-stand panel shows a 3D preview of the robot so you can watch mechanisms move as your code runs, without needing the field."
+    },
+    {
+      "q": "After you change code, what must happen before it runs?",
+      "correct": "You Build & Init so the new code compiles and loads",
+      "wrong": [
+        "Nothing at all \u2014 edits run live as you type",
+        "You must fully restart the whole computer first",
+        "You export a zip and email it to yourself"
+      ],
+      "explain": "Edits don't take effect until you Build & Init, which compiles the new code and loads it. Then Start runs the updated version."
+    },
+    {
+      "q": "What happens when you press Stop?",
+      "correct": "It halts the program that is running on the robot",
+      "wrong": [
+        "It permanently erases your whole code package",
+        "It compiles the code into a brand-new file",
+        "It marks the current lesson as complete for you"
+      ],
+      "explain": "Stop halts the program that's currently running. It doesn't touch your code \u2014 you can edit, Build & Init, and Start again."
+    },
+    {
+      "q": "Which panel shows the lessons you work through?",
+      "correct": "The left panel of the Pit workspace",
+      "wrong": [
+        "The bottom-right test-stand preview panel",
+        "The top-right code editor panel area",
+        "A separate pop-up window each single time"
+      ],
+      "explain": "The lessons live in the left panel. The editor is top-right and the 3D test stand is bottom-right, so you can read, code, and watch all at once."
+    }
+  ]
+}

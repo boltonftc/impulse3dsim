@@ -1,0 +1,156 @@
+{
+  "title": "IMU Heading Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "What does the IMU mainly measure?",
+      "correct": "The robot's heading, which way it is pointing",
+      "wrong": [
+        "The robot's speed across the field floor",
+        "The battery's remaining charge level",
+        "The distance to the nearest field wall"
+      ],
+      "explain": "The IMU has a gyroscope; its main output is heading \u2014 the robot's compass direction. You use it to know which way the robot faces."
+    },
+    {
+      "q": "When the robot spins counter-clockwise, heading...",
+      "correct": "Grows toward +\u03c0",
+      "wrong": [
+        "Drops toward \u2212\u03c0",
+        "Stays exactly at 0",
+        "Jumps straight to 360"
+      ],
+      "explain": "Heading starts at 0; spin left (counter-clockwise) and it grows toward +\u03c0, spin right and it drops toward \u2212\u03c0. It's measured in radians."
+    },
+    {
+      "q": "What units does FTC code read the IMU heading in?",
+      "correct": "Radians",
+      "wrong": [
+        "Degrees",
+        "Inches",
+        "Percent"
+      ],
+      "explain": "The code reads heading in radians because Math.cos and Math.sin expect radians. You convert to degrees only for human-readable telemetry."
+    },
+    {
+      "q": "Which call reads the heading?",
+      "correct": "imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS)",
+      "wrong": [
+        "imu.getHeadingInches()",
+        "imu.readCompass(DEGREES)",
+        "imu.getSpeed(RADIANS)"
+      ],
+      "explain": "getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS) returns the yaw (heading) in radians. Yaw is the spin around the vertical axis."
+    },
+    {
+      "q": "What does imu.resetYaw() do?",
+      "correct": "Sets the current heading to zero without moving the robot",
+      "wrong": [
+        "Physically spins the robot back to face forward",
+        "Turns the IMU sensor completely off for now",
+        "Recharges the Control Hub's battery a little"
+      ],
+      "explain": "resetYaw() re-zeros the heading reference wherever the robot is now \u2014 it does NOT move the robot, it just makes \"here\" count as 0."
+    },
+    {
+      "q": "Why call imu.initialize() in init?",
+      "correct": "It wakes the sensor and sets its mounting orientation",
+      "wrong": [
+        "It spins the robot around to find true north",
+        "It charges the IMU right from the battery",
+        "It deletes any old heading readings first"
+      ],
+      "explain": "initialize() wakes the IMU and tells it how the Control Hub is mounted (which way is up and forward), so its readings come out correct."
+    },
+    {
+      "q": "What does the mounting orientation tell the IMU?",
+      "correct": "Which way the hub's logo and USB port face",
+      "wrong": [
+        "How fast the robot is allowed to drive",
+        "Which motor ports the four wheels use",
+        "How many game pieces the robot can hold"
+      ],
+      "explain": "You describe the hub's mounting with LogoFacingDirection and UsbFacingDirection (e.g., UP and FORWARD). Wrong values give scrambled heading readings on a real robot."
+    },
+    {
+      "q": "What does Math.toDegrees(heading) do?",
+      "correct": "Converts radians into degrees for readable telemetry",
+      "wrong": [
+        "Converts degrees into radians for the math",
+        "Rounds the heading down to a whole number",
+        "Resets the heading value back to zero"
+      ],
+      "explain": "The code works in radians, but degrees are easier for humans to read. Math.toDegrees(heading) converts for display on the Driver Hub."
+    },
+    {
+      "q": "The heading value ranges roughly from...",
+      "correct": "\u2212\u03c0 to +\u03c0 radians",
+      "wrong": [
+        "0 to 100 percent",
+        "\u22121.0 to 1.0",
+        "0 to 28 ticks"
+      ],
+      "explain": "Heading runs about \u2212\u03c0 to +\u03c0 (roughly \u22123.14 to +3.14 radians). Zero is straight ahead; the sign shows which way it turned."
+    },
+    {
+      "q": "Why bind heading reset to a button like the right bumper?",
+      "correct": "So the driver can set \"forward\" to the current facing",
+      "wrong": [
+        "So the robot drives noticeably faster after it",
+        "So the intake motor spins in reverse for a bit",
+        "So the telemetry shows a few more decimals"
+      ],
+      "explain": "Pressing the bumper calls resetYaw(), making wherever the robot faces now count as forward (0). Handy for field-centric driving at match start."
+    },
+    {
+      "q": "What kind of sensor is the IMU?",
+      "correct": "A gyroscope and accelerometer inside the Control Hub",
+      "wrong": [
+        "A camera mounted on the front of the robot",
+        "A distance sensor aimed at the field wall",
+        "An encoder built into each drive motor"
+      ],
+      "explain": "The IMU (inertial measurement unit) lives inside the Control Hub and combines a gyroscope and accelerometer. Its heading output is what you use most."
+    },
+    {
+      "q": "If the IMU readings look inverted or scrambled, check...",
+      "correct": "The mounting orientation you gave in initialize()",
+      "wrong": [
+        "The battery's remaining charge percentage",
+        "The name you gave your code package",
+        "The number of telemetry lines you print"
+      ],
+      "explain": "Wrong LogoFacing/UsbFacing values mean the IMU misreads which way is up or forward, so headings come out flipped or scrambled. Fix the mounting description."
+    },
+    {
+      "q": "A heading of 0 means the robot is...",
+      "correct": "Facing its starting direction",
+      "wrong": [
+        "Turned all the way around",
+        "Sitting with a dead battery",
+        "Moving at full speed forward"
+      ],
+      "explain": "Heading starts at 0 in the direction the robot began (or wherever you last reset). Turning changes it up or down from there."
+    },
+    {
+      "q": "Does resetYaw() move the robot?",
+      "correct": "No, it only re-zeros the heading value",
+      "wrong": [
+        "Yes, it spins the robot to face north",
+        "Yes, it drives the robot forward a bit",
+        "No, but it stops all the motors first"
+      ],
+      "explain": "resetYaw() changes only the heading reference \u2014 the robot doesn't move. It just decides that the current facing now counts as 0."
+    },
+    {
+      "q": "Why does the IMU report heading in radians, not degrees?",
+      "correct": "Because Math.cos and Math.sin both expect radians",
+      "wrong": [
+        "Because degrees are against the FTC rules",
+        "Because radians make the robot drive faster",
+        "Because the battery only supports radians"
+      ],
+      "explain": "The rotation math (cos and sin) works in radians, so the raw heading is in radians. You convert to degrees only when showing it to a human."
+    }
+  ]
+}

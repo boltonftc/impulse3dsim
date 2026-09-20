@@ -1,0 +1,156 @@
+{
+  "title": "Reading the Gamepad Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "Where do the driver's button and stick inputs show up?",
+      "correct": "In gamepad1",
+      "wrong": [
+        "In telemetry",
+        "In the battery",
+        "In runOpMode"
+      ],
+      "explain": "gamepad1 is where all of driver one's stick and button inputs appear. You read fields like gamepad1.left_stick_y and gamepad1.a from it."
+    },
+    {
+      "q": "What type holds a joystick axis value?",
+      "correct": "A double, because axes have decimals",
+      "wrong": [
+        "An int, because axes are always whole",
+        "A boolean, because axes are on or off",
+        "A String, because axes are made of text"
+      ],
+      "explain": "Stick axes are smooth values from -1.0 to 1.0, so they use double (which holds decimals). Buttons, being on/off, use boolean instead."
+    },
+    {
+      "q": "What is the range of a joystick axis?",
+      "correct": "From -1.0 to 1.0",
+      "wrong": [
+        "From 0 to 100",
+        "From -10 to 10",
+        "From 0.0 to 1.0"
+      ],
+      "explain": "Each stick axis runs from -1.0 to 1.0. A gentle push might read 0.2; letting go returns it to 0.0."
+    },
+    {
+      "q": "What type holds a button's value?",
+      "correct": "A boolean, either true or false",
+      "wrong": [
+        "A double, with many decimal places",
+        "An int, a plain whole-number count",
+        "A String, made out of letters"
+      ],
+      "explain": "A button is either pressed or not, so it uses boolean \u2014 true when held, false when released. gamepad1.a is a boolean."
+    },
+    {
+      "q": "When you push a stick UP, the Y value reads...",
+      "correct": "Negative, which is how the hardware reports it",
+      "wrong": [
+        "Positive, the same as pushing it down",
+        "Zero, until you push it much harder",
+        "Exactly 1.0, no matter how far you push"
+      ],
+      "explain": "Pushing up gives a NEGATIVE y value \u2014 that's just how the hardware reports it. You flip the sign with -gamepad1.left_stick_y so that up means forward."
+    },
+    {
+      "q": "Which reads the left stick's up-and-down position?",
+      "correct": "gamepad1.left_stick_y",
+      "wrong": [
+        "gamepad1.left_stick_x",
+        "gamepad1.right_stick_y",
+        "gamepad1.left_bumper"
+      ],
+      "explain": "left_stick_y is the left stick's up/down axis; left_stick_x is its left/right axis. Y is vertical, X is horizontal."
+    },
+    {
+      "q": "Which reads the A face button?",
+      "correct": "gamepad1.a",
+      "wrong": [
+        "gamepad1.left_stick_a",
+        "gamepad1.button_1",
+        "gamepad1.a_stick"
+      ],
+      "explain": "The face buttons are gamepad1.a, gamepad1.b, gamepad1.x, and gamepad1.y \u2014 each a boolean that's true while held."
+    },
+    {
+      "q": "Why must you flip the sign of left_stick_y for forward driving?",
+      "correct": "Because pushing up reads as a negative value",
+      "wrong": [
+        "Because pushing up reads as a huge value",
+        "Because the stick only reports whole numbers",
+        "Because the battery reverses the raw signal"
+      ],
+      "explain": "Up on the stick is negative, but you want up to mean \"drive forward\" (positive). So you write -gamepad1.left_stick_y to flip it."
+    },
+    {
+      "q": "A gentle push on a stick gives a value like...",
+      "correct": "0.2, a small partial amount",
+      "wrong": [
+        "1.0, always the full maximum",
+        "100, on a much bigger scale",
+        "true, an on-or-off signal"
+      ],
+      "explain": "Stick axes are proportional \u2014 a light push might read 0.2, a hard push nears 1.0. That lets you drive gently or quickly."
+    },
+    {
+      "q": "What does \"proportional\" control mean here?",
+      "correct": "The farther you push, the faster it goes",
+      "wrong": [
+        "The stick has only fully on or off",
+        "The value is always exactly one",
+        "Every button does the same thing"
+      ],
+      "explain": "Proportional means the output scales with the push. Push the stick a little and the wheels turn slowly; push it all the way and they go full speed."
+    },
+    {
+      "q": "Which axis is left-and-right on a stick?",
+      "correct": "The X axis",
+      "wrong": [
+        "The Y axis",
+        "The A axis",
+        "The Z axis"
+      ],
+      "explain": "X is the left/right (horizontal) axis; Y is the up/down (vertical) axis. So left_stick_x is left/right and left_stick_y is up/down."
+    },
+    {
+      "q": "What does gamepad1.b hold?",
+      "correct": "true while B is held, false otherwise",
+      "wrong": [
+        "A decimal running from -1.0 to 1.0",
+        "The number of times B was pressed",
+        "The letter B stored as plain text"
+      ],
+      "explain": "gamepad1.b is a boolean \u2014 true while the B button is held down and false when it's released."
+    },
+    {
+      "q": "Releasing a stick returns its axis to...",
+      "correct": "0.0",
+      "wrong": [
+        "1.0",
+        "-1.0",
+        "0.5"
+      ],
+      "explain": "When you let go, the stick recenters and its axis reads 0.0 \u2014 no push, no output."
+    },
+    {
+      "q": "To store a stick value, the variable type should be...",
+      "correct": "double",
+      "wrong": [
+        "boolean",
+        "int",
+        "String"
+      ],
+      "explain": "A stick axis is a decimal, so store it in a double. A button, being true/false, would use a boolean."
+    },
+    {
+      "q": "Why does the same stick feel different in two programs?",
+      "correct": "The code decides what each input actually does",
+      "wrong": [
+        "The stick quietly rewires its own hardware",
+        "The battery picks the behavior each time",
+        "The referee sets it before every match"
+      ],
+      "explain": "The gamepad just reports numbers; your code decides what they do. So the same stick can drive, aim, or lift depending on the program."
+    }
+  ]
+}

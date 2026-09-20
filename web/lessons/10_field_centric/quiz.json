@@ -1,0 +1,156 @@
+{
+  "title": "Field-Centric Driving Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "In robot-centric driving, \"forward\" on the stick means...",
+      "correct": "Whichever way the robot is currently pointing",
+      "wrong": [
+        "Always straight away from the driver's station",
+        "Always toward whichever wall is nearest",
+        "The direction the robot first started in"
+      ],
+      "explain": "Robot-centric ties forward to the robot's own facing. When the robot spins, \"forward\" spins too \u2014 which gets confusing for the driver."
+    },
+    {
+      "q": "In field-centric driving, \"forward\" on the stick means...",
+      "correct": "Always away from the driver, no matter the facing",
+      "wrong": [
+        "Whatever way the robot happens to be pointing",
+        "Toward whichever field wall is the closest",
+        "The direction the robot's intake is facing"
+      ],
+      "explain": "Field-centric keeps forward fixed to the field (away from the driver) no matter which way the robot faces. Push up and it goes away from you, always."
+    },
+    {
+      "q": "Why do you need to translate the driver's request?",
+      "correct": "The wheels only understand the robot's own frame",
+      "wrong": [
+        "The battery only supplies power in one frame",
+        "The gamepad reports numbers that are too large",
+        "The rules require a translation step first"
+      ],
+      "explain": "Wheels think in robot-forward, but the driver commands field-forward. You rotate the request into robot-language before the mecanum mix uses it."
+    },
+    {
+      "q": "The translation from field to robot frame is a...",
+      "correct": "Rotation by the robot's heading",
+      "wrong": [
+        "Multiplication by the battery voltage",
+        "Reversal of the two left motors",
+        "Reset of the wheel encoder counts"
+      ],
+      "explain": "If the robot is turned by some heading, its forward differs from the driver's by that same angle. Rotating the request by the heading lines them up."
+    },
+    {
+      "q": "Which functions perform the rotation?",
+      "correct": "Math.cos and Math.sin",
+      "wrong": [
+        "Math.max and Math.min",
+        "Math.abs and Math.round",
+        "Math.hypot and Math.pow"
+      ],
+      "explain": "cos and sin rotate the request. Think of them as the shadows of a direction arrow \u2014 how far it reaches across (cos) and up (sin)."
+    },
+    {
+      "q": "You rotate the request by which angle?",
+      "correct": "Negative heading, to un-turn the request",
+      "wrong": [
+        "Positive heading, to add the turn again",
+        "Double the heading, to over-rotate it",
+        "Zero, so nothing actually rotates at all"
+      ],
+      "explain": "You rotate by \u2212heading to \"un-turn\" the driver's request back into robot-frame. Using +heading rotates the wrong way and steering breaks."
+    },
+    {
+      "q": "What does Math.cos(angle) represent here?",
+      "correct": "How far the arrow reaches across (horizontal)",
+      "wrong": [
+        "How far the arrow reaches up (vertical)",
+        "The total length of the arrow itself",
+        "The battery voltage at that exact moment"
+      ],
+      "explain": "cos is the horizontal shadow of a direction arrow (its reach across), and sin is the vertical shadow (its reach up). Together they rotate a vector."
+    },
+    {
+      "q": "Before field-centric works well, you should...",
+      "correct": "Reset the heading to 0 at the match start",
+      "wrong": [
+        "Reverse both of the left drive motors",
+        "Disable the IMU sensor entirely first",
+        "Set every wheel power to a full 1.0"
+      ],
+      "explain": "Reset heading (often with the right bumper) so the robot's current facing counts as forward. Otherwise \"forward\" points wherever it started, which may be wrong."
+    },
+    {
+      "q": "After rotating the request, the new values...",
+      "correct": "Flow into the same mecanum mix as before",
+      "wrong": [
+        "Go straight to the tank drive formula",
+        "Get printed to telemetry and thrown away",
+        "Reverse the robot's turning direction"
+      ],
+      "explain": "The rotated forward/strafe feed the exact same mecanum mixing math. The wheels never know a rotation happened \u2014 they just get robot-frame numbers."
+    },
+    {
+      "q": "The two \"forwards\" in this lesson are...",
+      "correct": "The robot's forward and the driver's forward",
+      "wrong": [
+        "The left motor's and the right motor's forward",
+        "The intake's forward and the shooter's forward",
+        "The battery's forward and the hub's forward"
+      ],
+      "explain": "There's robot-forward (spins with the robot) and field/driver-forward (never changes). Field-centric keeps the stick tied to the driver's forward."
+    },
+    {
+      "q": "Where does the heading come from?",
+      "correct": "The IMU, read in radians",
+      "wrong": [
+        "The battery's charge level",
+        "The gamepad's A button",
+        "The telemetry update call"
+      ],
+      "explain": "You read heading from the IMU in radians (getYaw), then rotate the drive request by \u2212heading. Radians because cos and sin expect them."
+    },
+    {
+      "q": "A wrong sign on the heading causes...",
+      "correct": "The rotation to go the wrong way",
+      "wrong": [
+        "The battery to drain much faster",
+        "The telemetry to stop updating",
+        "The intake to run in reverse"
+      ],
+      "explain": "Using +heading instead of \u2212heading rotates the request the wrong direction, so field-centric steers backward. The minus \"un-turns\" it correctly."
+    },
+    {
+      "q": "Why does the driver prefer field-centric when the robot spins?",
+      "correct": "Forward stays put, so driving stays intuitive",
+      "wrong": [
+        "The robot drives twice as fast when spinning",
+        "The motors use far less of the battery power",
+        "The robot can never tip over while spinning"
+      ],
+      "explain": "With field-centric, \"up\" on the stick always means away from the driver even as the robot rotates \u2014 so a spinning robot is still easy to control."
+    },
+    {
+      "q": "What does Math.sin(angle) represent here?",
+      "correct": "How far the arrow reaches up (vertical)",
+      "wrong": [
+        "How far the arrow reaches across (horizontal)",
+        "The battery's current voltage reading",
+        "The number of encoder ticks counted"
+      ],
+      "explain": "sin is the vertical shadow of a direction arrow (its reach up); cos is the horizontal shadow. The pair rotates the driver's request vector."
+    },
+    {
+      "q": "After the rotation math, the wheels...",
+      "correct": "Never know the rotation happened",
+      "wrong": [
+        "Must be rewired for each heading",
+        "Reverse their direction every loop",
+        "Ignore the driver's request entirely"
+      ],
+      "explain": "The rotation happens before the mix, so the wheels just receive normal robot-frame drive/strafe numbers. They behave exactly as in plain mecanum."
+    }
+  ]
+}

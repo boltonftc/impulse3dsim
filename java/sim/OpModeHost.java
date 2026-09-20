@@ -39,6 +39,9 @@ public class OpModeHost {
     static native double simVelX(int slot);
     static native double simVelZ(int slot);
     static native double simYawRate(int slot);
+    // JS -> Java flywheel encoder readback (ticks/sec, 28 CPR) so the student's getVelocity() reads the
+    // real modeled RPM -- spin-up inertia + per-shot sag -- for the encoder and PID lessons.
+    static native double simFlywheelTicks(int slot);
 
     // Java -> JS chassis velocity, robot frame (m/s, m/s, rad/s CCW+).
     static native void publish(int slot, double vx, double vy, double omega);
@@ -186,6 +189,7 @@ public class OpModeHost {
             final SimCRServo feeder = new SimCRServo("feeder");
             final SimMotor shooter  = new SimMotor("shooter");
             final SimServo hood     = new SimServo("hood");
+            hood.setPosition(0.571);   // calibrated ~58deg launch elevation until the hood lesson drives it
             hw.put("intake", intake); hw.put("feeder", feeder);
             hw.put("shooter", shooter); hw.put("hood", hood);
 
@@ -261,10 +265,12 @@ public class OpModeHost {
                     publish(s, cv.vx(), cv.vy(), cv.omega());
                     pinpoint.simUpdate();   // refresh ground-truth pose so a Pedro Follower reading pinpoint.update() sees fresh data
 
-                    double shv = shooter.getVelocity();
-                    double shooterSpin = Math.abs(shv) > 1e-6 ? shv / SHOOTER_MAXV : shooter.getEffectivePower();
-                    shooterSpin = Math.max(-1.0, Math.min(1.0, shooterSpin));
-                    mech(s, intake.getEffectivePower(), feeder.getEffectivePower(), shooterSpin, hood.getPosition(), dumpServo.getPosition());
+                    // Flywheel closed loop: inject the modeled encoder speed BACK into the shooter motor so
+                    // getVelocity() reads real ticks/sec, and send the student's COMMANDED power to JS (JS
+                    // models the RPM from it). This closes the loop the encoder + PID lessons depend on.
+                    shooter.setVelocity(simFlywheelTicks(s));
+                    double shooterPow = Math.max(-1.0, Math.min(1.0, shooter.getEffectivePower()));
+                    mech(s, intake.getEffectivePower(), feeder.getEffectivePower(), shooterPow, hood.getPosition(), dumpServo.getPosition());
 
                     samples++;
                     // ~60 Hz control rate; under CheerpJ this loop shares the browser main thread, so a tighter sleep starves rendering.

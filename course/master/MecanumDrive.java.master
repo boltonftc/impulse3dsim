@@ -48,16 +48,16 @@ public class MecanumDrive extends LinearOpMode {
     // @end(11_intake)
     // @end(11_intake)
 
-    // @begin(12_dumper)
+    // @begin(13_flywheel)
     // ===============================================
-    // Dumper : Variables
+    // Flywheel : Variables
     // Do not remove this comment
-    // Add your dumper button-edge variable below
+    // Add your flywheel button-edge variable below
     // ===============================================
-    // @fill(12_dumper)
+    // @fill(13_flywheel)
     private boolean previousY = false;
-    // @end(12_dumper)
-    // @end(12_dumper)
+    // @end(13_flywheel)
+    // @end(13_flywheel)
     // @end(09_drivebase)
 
     @Override
@@ -175,20 +175,51 @@ public class MecanumDrive extends LinearOpMode {
             // @end(11_intake)
             // @end(11_intake)
 
-            // @begin(12_dumper)
+            // @begin(12_indexer)
             // ===============================================
-            // Dumper : Loop
+            // Indexer : Loop
             // Do not remove this comment
-            // Add your dumper button code below
+            // Add your indexer button code below
             // ===============================================
-            // @fill(12_dumper)
-            boolean pressedY = gamepad1.y && !previousY;
-            if (pressedY) {
-                robot.dumper.dump();
-            }
+            // @fill(12_indexer)
+            // Hold X to feed pieces out. No edge detection needed -- feeding is simply ON while held.
+            if (gamepad1.x) robot.indexer.feed();
+            else robot.indexer.stop();
+            // @end(12_indexer)
+            // @end(12_indexer)
+
+            // @begin(13_flywheel)
+            // ===============================================
+            // Flywheel : Loop
+            // Do not remove this comment
+            // Add your flywheel button code below
+            // ===============================================
+            // @fill(14_flywheel_pid, supersedes=13_flywheel)
+            // Y toggles the flywheel. The controller holds the target; the right stick now trims the TARGET.
+            if (gamepad1.y && !previousY) robot.flywheel.toggle();
             previousY = gamepad1.y;
-            // @end(12_dumper)
-            // @end(12_dumper)
+            robot.flywheel.trim(-gamepad1.right_stick_y);
+            // @end(14_flywheel_pid)
+            // @fill(13_flywheel)
+            // Y toggles the flywheel on/off (edge detection -- one flip per press).
+            if (gamepad1.y && !previousY) robot.flywheel.toggle();
+            previousY = gamepad1.y;
+            // Right stick trims the shot strength: push up = stronger, down = softer.
+            robot.flywheel.nudge(-gamepad1.right_stick_y);
+            // @end(13_flywheel)
+            // @end(13_flywheel)
+
+            // @begin(15_hood)
+            // ===============================================
+            // Hood : Loop
+            // Do not remove this comment
+            // Add your hood aim code below
+            // ===============================================
+            // @fill(15_hood)
+            // Right stick LEFT/RIGHT aims the hood (up/down trims the flywheel target).
+            robot.hood.aim(gamepad1.right_stick_x);
+            // @end(15_hood)
+            // @end(15_hood)
             // @end(09_drivebase)
 
             // @fill(06_mecanum_drive, supersedes=05_tank_drive)
@@ -266,11 +297,39 @@ public class MecanumDrive extends LinearOpMode {
             telemetry.addData("Intake", robot.intake.getState());
             // @end(11_intake)
             // @end(11_intake)
-            // @begin(12_dumper)
-            // @fill(12_dumper)
-            telemetry.addData("Dumper", robot.dumper.getState());
-            // @end(12_dumper)
-            // @end(12_dumper)
+            // @begin(12_indexer)
+            // @fill(12_indexer)
+            telemetry.addData("Indexer", robot.indexer.isFeeding() ? "FEEDING" : "idle");
+            // @end(12_indexer)
+            // @end(12_indexer)
+            // @begin(13_flywheel)
+            // ===============================================
+            // Flywheel : Telemetry
+            // Do not remove this comment
+            // Show the flywheel status and measured RPM below
+            // ===============================================
+            // @fill(13_flywheel)
+            telemetry.addData("Flywheel", robot.flywheel.isSpinning()
+                ? String.format("ON  %.0f%% power", robot.flywheel.getPower() * 100)
+                : "off");
+            telemetry.addData("Flywheel RPM", "%.0f", robot.flywheel.getRpm());
+            // @end(13_flywheel)
+            // @begin(14_flywheel_pid)
+            // @fill(14_flywheel_pid)
+            telemetry.addData("Flywheel", robot.flywheel.isSpinning()
+                ? String.format("ON  %.0f%% power", robot.flywheel.getPower() * 100)
+                : "off");
+            telemetry.addData("Flywheel RPM", "%.0f", robot.flywheel.getRpm());
+            telemetry.addData("Target RPM", "%.0f", robot.flywheel.getTarget());
+            telemetry.addData("RPM error", "%.0f", robot.flywheel.getTarget() - robot.flywheel.getRpm());
+            // @end(14_flywheel_pid)
+            // @end(14_flywheel_pid)
+            // @end(13_flywheel)
+            // @begin(15_hood)
+            // @fill(15_hood)
+            telemetry.addData("Hood", "%.2f", robot.hood.getPosition());
+            // @end(15_hood)
+            // @end(15_hood)
             // @begin(13_localization)
             // ===============================================
             // Localization : Telemetry

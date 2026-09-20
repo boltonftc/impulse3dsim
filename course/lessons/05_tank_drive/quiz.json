@@ -1,0 +1,156 @@
+{
+  "title": "Tank Drive Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "How does tank drive steer?",
+      "correct": "By running the left and right sides at different speeds",
+      "wrong": [
+        "By turning a front wheel left or right like a car",
+        "By tilting the whole robot over toward one side",
+        "By spinning a single steering wheel in the center"
+      ],
+      "explain": "Tank drive steers by speed difference: same speed both sides = straight, different = a turn, opposite = spin in place \u2014 like a bulldozer's two tracks."
+    },
+    {
+      "q": "Why must the left motors be reversed?",
+      "correct": "The two sides are mirror images and would otherwise fight",
+      "wrong": [
+        "The left motors are always weaker than the right ones",
+        "Reversing them makes the battery last much longer",
+        "The rules require the left side to run backward"
+      ],
+      "explain": "Left and right motors face opposite ways (mirror images). Without reversing the left side, \"forward\" power would spin the two sides in opposite directions."
+    },
+    {
+      "q": "How do you reverse a motor in code?",
+      "correct": "motor.setDirection(DcMotor.Direction.REVERSE)",
+      "wrong": [
+        "motor.setPower(-1.0) forever",
+        "motor.reverseWires(true)",
+        "motor.flip()"
+      ],
+      "explain": "setDirection(DcMotor.Direction.REVERSE) flips which way a motor treats as forward \u2014 no rewiring needed. It's the clean way to mirror the left side."
+    },
+    {
+      "q": "How do you look up a motor from the config?",
+      "correct": "hardwareMap.get(DcMotor.class, \"front_left_motor\")",
+      "wrong": [
+        "hardwareMap.find(\"front_left_motor\")",
+        "new DcMotor(\"front_left_motor\")",
+        "motorList.get(frontLeft)"
+      ],
+      "explain": "hardwareMap.get(DcMotor.class, \"name\") finds a motor by its config name and hands it back. The name must match the robot configuration exactly."
+    },
+    {
+      "q": "In tank drive, the LEFT power is...",
+      "correct": "drive + spin",
+      "wrong": [
+        "drive - spin",
+        "drive * spin",
+        "spin - drive"
+      ],
+      "explain": "Left power = drive + spin and right power = drive - spin. Adding spin on the left and subtracting on the right makes the sides differ, which turns the robot."
+    },
+    {
+      "q": "In tank drive, the RIGHT power is...",
+      "correct": "drive - spin",
+      "wrong": [
+        "drive + spin",
+        "spin + drive",
+        "drive * spin"
+      ],
+      "explain": "Right power = drive - spin (left is drive + spin). The opposite spin terms on each side create the turn."
+    },
+    {
+      "q": "Why write drive = -gamepad1.left_stick_y?",
+      "correct": "Stick up reads negative, so the sign is flipped",
+      "wrong": [
+        "The stick reports numbers that are far too large",
+        "Negative power makes the motor much stronger",
+        "The minus sign turns off the stick deadzone"
+      ],
+      "explain": "Up on the stick reads negative, but you want up to mean forward. The minus flips it so pushing up drives the robot forward."
+    },
+    {
+      "q": "Why multiply the powers by 0.5 while learning?",
+      "correct": "To cap the robot at half speed for safety",
+      "wrong": [
+        "To make the drive motors twice as strong",
+        "To reverse the left side of the robot",
+        "To convert the sticks into whole numbers"
+      ],
+      "explain": "Multiplying by 0.5 keeps the robot at half speed while you learn, so it's easy to control. Bump it toward 1.0 once you're comfortable."
+    },
+    {
+      "q": "What does motor.setPower(value) accept?",
+      "correct": "A value from -1.0 (full reverse) to 1.0 (full forward)",
+      "wrong": [
+        "A value from 0 to 100, treated as a percent",
+        "Only whole numbers, like 1, 2, or 3",
+        "Only true or false, meaning on or off"
+      ],
+      "explain": "setPower takes -1.0 to 1.0. Negative is reverse, positive is forward, and 0 stops the motor."
+    },
+    {
+      "q": "In tank drive, both left motors get...",
+      "correct": "The same left power",
+      "wrong": [
+        "Two opposite powers",
+        "No power at all",
+        "The right power"
+      ],
+      "explain": "Both left motors share one power and both right motors share another. That's what makes it tank drive \u2014 two sides, like two tracks."
+    },
+    {
+      "q": "Where should the motor setup happen?",
+      "correct": "In init, once, before the run loop",
+      "wrong": [
+        "Inside the loop, on every single pass",
+        "After the class's final closing brace",
+        "Inside an import line up at the top"
+      ],
+      "explain": "Finding motors and setting directions is one-time setup, so it goes in init before waitForStart() \u2014 not inside the fast run loop."
+    },
+    {
+      "q": "If the robot spins when you push straight forward...",
+      "correct": "The left motors probably weren't reversed",
+      "wrong": [
+        "The battery is probably almost fully dead",
+        "The sticks are stuck inside the deadzone",
+        "The telemetry line is missing its label"
+      ],
+      "explain": "A spin on \"forward\" is the classic sign the left side wasn't reversed \u2014 so the two sides push against each other. Check your setDirection calls."
+    },
+    {
+      "q": "What does the spin value come from?",
+      "correct": "gamepad1.left_stick_x, the left-right axis",
+      "wrong": [
+        "gamepad1.left_stick_y, the up-down axis",
+        "gamepad1.a, one of the face buttons",
+        "gamepad1.right_trigger, an analog trigger"
+      ],
+      "explain": "spin = gamepad1.left_stick_x (left/right), while drive = -gamepad1.left_stick_y (up/down). One controls turning, the other forward/back."
+    },
+    {
+      "q": "Equal speed on both sides makes the robot...",
+      "correct": "Drive in a straight line",
+      "wrong": [
+        "Spin in place",
+        "Stop completely",
+        "Strafe sideways"
+      ],
+      "explain": "Same speed both sides = straight. Different speeds = a gentle turn; opposite speeds = spin in place. That's how tank steering works."
+    },
+    {
+      "q": "What does setPower(0) do?",
+      "correct": "Stops the motor",
+      "wrong": [
+        "Runs it at full forward",
+        "Reverses the motor",
+        "Doubles the motor speed"
+      ],
+      "explain": "setPower(0) sends zero power, so the motor stops. Positive spins forward, negative spins reverse."
+    }
+  ]
+}

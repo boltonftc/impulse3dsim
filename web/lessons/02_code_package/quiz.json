@@ -1,0 +1,156 @@
+{
+  "title": "Your Code Package Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "What must the first line of every teamcode file be?",
+      "correct": "A package line naming where the file lives",
+      "wrong": [
+        "An @TeleOp label giving the program a name",
+        "A runOpMode method that runs the match",
+        "A telemetry line that prints a message"
+      ],
+      "explain": "Every teamcode file starts with package org.firstinspires.ftc.teamcode; \u2014 it tells Java which folder the file belongs to. Imports, the class, and methods come after."
+    },
+    {
+      "q": "What do import lines do?",
+      "correct": "Pull in ready-made code your program needs",
+      "wrong": [
+        "Delete code you no longer want to keep",
+        "Print messages onto the Driver Hub screen",
+        "Reverse the direction of a drive motor"
+      ],
+      "explain": "import lines bring in classes someone already wrote (like LinearOpMode) so you can use them. The FTC library ships with lots of imports available."
+    },
+    {
+      "q": "What does @TeleOp mark a program as?",
+      "correct": "A driver-controlled program, not an autonomous one",
+      "wrong": [
+        "A program that only prints telemetry values",
+        "A file that cannot be run on the robot",
+        "The single fastest program on the whole robot"
+      ],
+      "explain": "@TeleOp is a label (annotation) marking the program as tele-operated \u2014 driven by a human. It makes the program show up in the TeleOp list on the Driver Hub."
+    },
+    {
+      "q": "What does \"extends LinearOpMode\" mean?",
+      "correct": "Start from FTC's blueprint and add your own parts",
+      "wrong": [
+        "Make the program run twice as long as normal",
+        "Copy another team's already-finished robot program",
+        "Delete the parts of LinearOpMode you dislike"
+      ],
+      "explain": "extends LinearOpMode means you inherit FTC's pre-built blueprint \u2014 which knows how to talk to the Driver Hub and wait for START \u2014 and build your own code on top of it."
+    },
+    {
+      "q": "What is a method?",
+      "correct": "A named set of steps you run by its name",
+      "wrong": [
+        "A single number stored inside the robot",
+        "A wire that connects the hub to a motor",
+        "A label that names the whole program file"
+      ],
+      "explain": "A method is a named recipe: a set of steps you can run by calling its name, like following a recipe in a cookbook. runOpMode is the main one."
+    },
+    {
+      "q": "What is runOpMode()?",
+      "correct": "The robot's main recipe that runs during a match",
+      "wrong": [
+        "A helper method that only reverses one motor",
+        "A variable that counts the loops so far",
+        "The import that pulls in the FTC library"
+      ],
+      "explain": "runOpMode() is the main method for a match. When you press START, the controller calls it, and everything your program does happens inside it."
+    },
+    {
+      "q": "Which three parts does every runOpMode have?",
+      "correct": "Init once, waitForStart, then the run loop",
+      "wrong": [
+        "Import, delete, then export the whole file",
+        "Build, charge, then unplug the battery",
+        "Score, reset, then charge the battery again"
+      ],
+      "explain": "Every runOpMode has init (runs once at INIT), waitForStart() (pauses until START), and the run loop (while opModeIsActive(), ~50 times a second)."
+    },
+    {
+      "q": "What does waitForStart() do?",
+      "correct": "Pauses the program until START is pressed",
+      "wrong": [
+        "Runs the loop code exactly one single time",
+        "Reverses all four drive motors at once",
+        "Prints the word \"start\" onto the telemetry"
+      ],
+      "explain": "waitForStart() holds the program right after INIT and doesn't move on until the driver presses the START button on the Driver Hub."
+    },
+    {
+      "q": "About how often does the run loop repeat?",
+      "correct": "Around 50 times every second",
+      "wrong": [
+        "Around once every 50 seconds",
+        "Exactly one time per whole match",
+        "Around 5000 times every second"
+      ],
+      "explain": "while (opModeIsActive()) repeats roughly 50 times per second until the match ends \u2014 fast enough to feel instant to the driver."
+    },
+    {
+      "q": "Code inside the run loop braces will...",
+      "correct": "Repeat every loop, about 50 times a second",
+      "wrong": [
+        "Run one single time, then never run again",
+        "Only run during the autonomous phase",
+        "Run backward, from the bottom to the top"
+      ],
+      "explain": "Anything inside the while (opModeIsActive()) braces repeats every loop. Code above the loop (in init) runs only once."
+    },
+    {
+      "q": "What is a class, in plain terms?",
+      "correct": "A blueprint \u2014 the plan the file describes",
+      "wrong": [
+        "A single button on the driver's controller",
+        "A number the robot stores between loops",
+        "A wire running from the hub to a motor"
+      ],
+      "explain": "A class is a blueprint: the file is a plan. MecanumDrive is a class, and it describes how that program is built \u2014 like the plans for a building."
+    },
+    {
+      "q": "What keeps opModeIsActive() returning true?",
+      "correct": "The match still running and not yet stopped",
+      "wrong": [
+        "The battery being completely charged up",
+        "The code having no missing semicolons",
+        "The robot sitting perfectly still and quiet"
+      ],
+      "explain": "opModeIsActive() returns true while the match is live and STOP hasn't been pressed. When it turns false, the loop ends and the program finishes."
+    },
+    {
+      "q": "Where does code that should run only once go?",
+      "correct": "In the init part, before waitForStart()",
+      "wrong": [
+        "Inside the run loop's curly braces",
+        "In a separate exported zip file",
+        "After the class's final closing brace"
+      ],
+      "explain": "One-time setup (like finding motors) goes in init, before waitForStart(). Loop code, which repeats, goes inside the while (opModeIsActive()) braces."
+    },
+    {
+      "q": "What usually causes a build to fail on a single line?",
+      "correct": "A missing semicolon at the end of the line",
+      "wrong": [
+        "Writing the code in all capital letters",
+        "Leaving one blank line between two methods",
+        "Naming a variable with a very long word"
+      ],
+      "explain": "A missing semicolon is a classic build breaker \u2014 Java expects one at the end of most statements. Type mismatches are the other common cause."
+    },
+    {
+      "q": "Why does your program start from LinearOpMode?",
+      "correct": "It already knows how to talk to the Driver Hub",
+      "wrong": [
+        "It makes the drive motors spin much faster",
+        "It is required in order to score any points",
+        "It stores the robot's position on the field"
+      ],
+      "explain": "LinearOpMode is FTC's ready-made blueprint that handles talking to the Driver Hub and waiting for START. You extend it so you don't have to write all that yourself."
+    }
+  ]
+}

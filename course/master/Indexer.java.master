@@ -1,0 +1,107 @@
+// @begin(12_indexer)
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+
+/*
+ * ============================================================================
+ *  Indexer  --  feeds stored game pieces up into the shooter, one flick at a time
+ * ============================================================================
+ *
+ *  The intake pulls pollen INTO the robot. The INDEXER is the next link in the
+ *  chain: a little feed wheel that pushes those stored pieces up and out. Hold
+ *  the fire button and it runs; let go and it stops.
+ *
+ *  Two things make it different from the intake, and both are worth noticing:
+ *
+ *    1. It is a CRServo, not a DcMotor. A CONTINUOUS-ROTATION servo is wired to
+ *       a servo port and commanded like a motor -- setPower(speed) -- but there
+ *       is no encoder and no gearbox to set up. Same setPower() call, simpler
+ *       hardware.
+ *    2. Its state machine is TINY. The intake had three states; the indexer has
+ *       exactly two -- feeding or not -- so a single boolean is all it needs.
+ *       Same four-part shape (field, commands, update), just smaller.
+ *
+ *  For now the pieces just DRIBBLE out the front, because the robot has no
+ *  flywheel yet. The very next lesson adds the flywheel that grabs each fed
+ *  piece and launches it into the hive.
+ * ============================================================================
+ */
+public class Indexer implements Subsystem {
+
+    // TUNING CONSTANT. Full speed while feeding. `static final` = one named value
+    // that never changes -- tune the feed rate here, not by hunting for a bare number.
+    private static final double FEED_POWER = 1.0;
+
+    // The physical feeder is a CONTINUOUS-ROTATION servo. `private` so ONLY the
+    // Indexer can touch it -- the rest of the robot goes through the commands below.
+    // It is assigned once in the constructor (which you write below).
+    private CRServo feeder;
+
+    // ===============================================
+    // Indexer : Feeding Flag
+    // Do not remove this comment
+    // Add the field that remembers whether we are feeding below
+    // ===============================================
+    // @fill(12_indexer)
+    private boolean feeding = false;   // start stopped
+    // @end(12_indexer)
+
+    // ===============================================
+    // Indexer : Constructor
+    // Do not remove this comment
+    // Add the constructor below -- it runs ONCE to find and prepare the feeder
+    // ===============================================
+    // @fill(12_indexer)
+    /*
+     * CONSTRUCTOR -- runs once when Robot builds the indexer. It finds the feeder
+     * in the hardware map by the name shown in the Driver Hub configuration and
+     * leaves it stopped. Notice the type is CRServo.class, not DcMotor.class.
+     */
+    public Indexer(HardwareMap hardwareMap) {
+        feeder = hardwareMap.get(CRServo.class, "feeder");
+        feeder.setPower(0.0);
+    }
+    // @end(12_indexer)
+
+    // ===============================================
+    // Indexer : Commands
+    // Do not remove this comment
+    // Add your feed(), stop(), and isFeeding() methods below
+    // ===============================================
+    // @fill(12_indexer)
+    /** Start feeding pieces out. Only changes the flag -- update() moves the servo. */
+    public void feed() {
+        feeding = true;
+    }
+
+    /** Stop feeding. */
+    public void stop() {
+        feeding = false;
+    }
+
+    /** Lets the OpMode read whether the indexer is running -- to show it, or to gate a shot. */
+    public boolean isFeeding() {
+        return feeding;
+    }
+    // @end(12_indexer)
+
+    /*
+     * update()  --  APPLY THE STATE. The scheduler calls this once every loop. It
+     * turns the feeding flag into servo power: full speed while feeding, zero when
+     * stopped. Nothing in here waits, so every other subsystem keeps running too.
+     */
+    @Override
+    public void update() {
+        // ===============================================
+        // Indexer : Apply State
+        // Do not remove this comment
+        // Add the line that turns the flag into servo power below
+        // ===============================================
+        // @fill(12_indexer)
+        feeder.setPower(feeding ? FEED_POWER : 0.0);
+        // @end(12_indexer)
+    }
+}
+// @end(12_indexer)

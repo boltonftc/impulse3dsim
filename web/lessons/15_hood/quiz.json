@@ -1,0 +1,156 @@
+{
+  "title": "Hood Aiming Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "Why do teams usually aim by tilting the hood instead of by changing the flywheel speed?",
+      "correct": "The light hood re-aims instantly, but the heavy flywheel is slow to change speed",
+      "wrong": [
+        "The flywheel is locked by the rules and its speed can never be changed",
+        "The hood is the only part on the whole robot that is allowed to move",
+        "Changing the flywheel speed would launch the ball in the totally wrong direction"
+      ],
+      "explain": "The flywheel is heavy, so changing its RPM takes time \u2014 that's why it sags after a shot. The hood is light, so a new angle is there instantly. Teams hold one steady flywheel speed and do their aiming with the quick hood."
+    },
+    {
+      "q": "What kind of servo is the hood?",
+      "correct": "A positional servo that drives to an exact angle and holds it",
+      "wrong": [
+        "A continuous-rotation servo that only spins and never holds a set angle",
+        "A DC motor with an encoder that counts its own turning ticks",
+        "A stepper motor that clicks forward just one tooth at a time"
+      ],
+      "explain": "The hood needs a precise, held angle, so it is a positional Servo (a 'Pointer'): setPosition(angle) drives it to that exact spot and holds it. A CRServo only sets a speed and can't hold a known angle."
+    },
+    {
+      "q": "In code, which call moves a positional servo like the hood?",
+      "correct": "hood.setPosition(0.6)",
+      "wrong": [
+        "hood.setPower(0.6)",
+        "hood.spinTo(0.6)",
+        "hood.setVelocity(0.6)"
+      ],
+      "explain": "A positional Servo uses setPosition(value), where value is 0.0 to 1.0 \u2014 an angle it drives to and holds. setPower and setVelocity command a speed, which is for CR servos and motors."
+    },
+    {
+      "q": "In a rack-and-pinion hood, what does the servo turn directly?",
+      "correct": "A small round gear called the pinion",
+      "wrong": [
+        "The curved rack built onto the hood",
+        "The hood hinge pin, spun by hand",
+        "The spinning flywheel mounted behind it"
+      ],
+      "explain": "The servo turns a small round gear (the pinion). Its teeth mesh with the curved row of teeth (the rack) on the hood, so turning the pinion walks along the rack and tilts the hood."
+    },
+    {
+      "q": "Where are the rack teeth in the hood mechanism?",
+      "correct": "On the hood itself, as a curved row of teeth",
+      "wrong": [
+        "On the servo's output shaft, right beside the pinion",
+        "Around the outer rim of the spinning flywheel wheel",
+        "On the drivetrain wheels down at the robot's corners"
+      ],
+      "explain": "The rack is the curved set of teeth attached to the hood. The small pinion on the servo meshes into those teeth; as the pinion turns, the hood tilts up or down."
+    },
+    {
+      "q": "Why gear the hood down (a small pinion moving a bigger rack)?",
+      "correct": "So a small servo turn becomes a precise, steady hood angle",
+      "wrong": [
+        "So the hood snaps to a brand-new angle as fast as possible",
+        "So the servo draws far less electric current from the battery",
+        "So the flywheel spinning behind it can reach a higher speed"
+      ],
+      "explain": "Gearing down means one servo turn makes only a little hood tilt \u2014 giving fine, precise control and holding firm against the ball hammering past. It trades speed for precision and holding strength."
+    },
+    {
+      "q": "A very FLAT hood angle sends the ball...",
+      "correct": "Low and far, so it can overshoot the hive",
+      "wrong": [
+        "High and short, like a steep lobbing arc",
+        "Straight up into the air above the robot",
+        "Backward, away from the hive toward the robot"
+      ],
+      "explain": "A flat hood launches a low, fast line drive that travels far \u2014 too flat and it sails past the hive or slams the front wall instead of arcing in."
+    },
+    {
+      "q": "A very HIGH hood angle sends the ball...",
+      "correct": "High and short, dropping in front of the target",
+      "wrong": [
+        "Low and far, sailing well past the hive",
+        "In a perfectly flat line toward the target",
+        "Nowhere at all, staying stuck inside the robot"
+      ],
+      "explain": "A high hood throws a tall, steep lob. It goes way up but doesn't carry far, so it drops short of the hive. The sweet spot is in the middle."
+    },
+    {
+      "q": "With the flywheel held at one steady speed, the hood angle mainly controls...",
+      "correct": "Where the shot lands \u2014 its aim and reach",
+      "wrong": [
+        "How fast the heavy flywheel wheel actually spins",
+        "The color of the game piece being launched",
+        "The driving speed of the whole robot base"
+      ],
+      "explain": "Speed comes from the flywheel; the hood sets the launch angle, which changes where the ball lands. Steady speed plus an adjustable angle lets you score from different spots."
+    },
+    {
+      "q": "In the OpMode, which stick axis aims the hood?",
+      "correct": "The right stick's left-and-right (X) axis",
+      "wrong": [
+        "The right stick's up-and-down (Y) axis",
+        "The left stick's up-and-down forward axis",
+        "The dpad's up-and-down direction buttons"
+      ],
+      "explain": "Right stick left/right calls robot.hood.aim(gamepad1.right_stick_x). Up/down on that stick trims the flywheel target. One stick: up/down = how hard, left/right = how high."
+    },
+    {
+      "q": "What does aim(amount) do each loop?",
+      "correct": "Nudges the stored position a little, then clamps it",
+      "wrong": [
+        "Jumps the hood straight to one fixed preset angle",
+        "Spins the hood around and around without ever stopping",
+        "Turns the flywheel on and fires off a shot"
+      ],
+      "explain": "aim() ignores tiny stick drift (a deadzone), then creeps position up or down by a small step and clamps it between HOOD_MIN and HOOD_MAX \u2014 the same trim-a-little-each-loop pattern the flywheel target uses."
+    },
+    {
+      "q": "Why does aim() clamp position between HOOD_MIN and HOOD_MAX?",
+      "correct": "To keep the hood inside its safe travel range",
+      "wrong": [
+        "To make the hood swing between angles much faster",
+        "To save battery power while the robot is driving",
+        "To reverse the servo's turning direction every single loop"
+      ],
+      "explain": "Clamping with Math.max/Math.min keeps position within the servo's real range, so holding the stick can't drive the hood past its limits or command a value below 0.0 or above 1.0."
+    },
+    {
+      "q": "What is getPosition() used for?",
+      "correct": "Reporting the current hood setting on the telemetry",
+      "wrong": [
+        "Moving the hood over to a brand-new angle",
+        "Turning off the flywheel motor between quick shots",
+        "Resetting the motor's encoder count back to zero"
+      ],
+      "explain": "getPosition() just returns the stored position (0..1) so the OpMode can show it on the Driver Hub. It reads the state \u2014 it never changes anything."
+    },
+    {
+      "q": "In update(), what does the hood subsystem do every loop?",
+      "correct": "Calls hood.setPosition(position) to apply the stored angle",
+      "wrong": [
+        "Calls hood.setPower(position) to spin the hood servo",
+        "Does nothing, since the servo just moves itself",
+        "Calls flywheel.toggle() to fire off a quick shot"
+      ],
+      "explain": "Every loop, update() applies the state: hood.setPosition(position). The positional servo drives to that exact angle and holds it. That is the 'apply the state' step of the subsystem pattern."
+    },
+    {
+      "q": "Why is a positional servo, not a CR servo, the right pick for the hood?",
+      "correct": "Aiming needs an exact held angle, which it provides",
+      "wrong": [
+        "CR servos simply cost more money than positional ones",
+        "The hood must spin around in complete full circles",
+        "Positional servos are faster than any big drive motor"
+      ],
+      "explain": "Aiming means holding a precise, unchanging angle. A positional Servo goes to an exact position and stays there. A CRServo only sets a speed and can't hold a known angle, so it can't aim."
+    }
+  ]
+}

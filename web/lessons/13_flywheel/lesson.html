@@ -1,0 +1,265 @@
+<h1>The Flywheel: Spin, Measure, Tune</h1>
+
+<p>Last lesson your indexer fed pollen out and it just <em>dribbled</em> onto the floor &mdash; because there was
+nothing to launch it. This lesson you build that launcher: the <strong>flywheel</strong>. It's the cannon your indexer
+was always feeding.</p>
+
+<p>A flywheel shooter works exactly like a <strong>baseball pitching machine</strong>: a heavy wheel spins up to high
+speed, and when a game piece is pushed against it, the spinning wheel grabs the piece and flings it across the
+field &mdash; in our case, up into the hive. You'll build it, then learn to <strong>measure</strong> its speed and
+<strong>tune</strong> it, all in one subsystem.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Three ideas, one subsystem</div>
+  <p>This lesson bundles the three things that make a shooter actually work: getting the wheel <strong>up to
+  speed</strong> (spin-up), <strong>measuring</strong> that speed with the motor's encoder, and <strong>tuning</strong> it live so
+  every shot lands. Same four-part subsystem shape as before &mdash; just a bigger, more interesting mechanism.</p>
+</div>
+
+<hr>
+
+<h2>Why the wheel is heavy: inertia</h2>
+
+<p>Here's the surprising part: when you set the motor to full power, the flywheel does <strong>not</strong> jump to top
+speed instantly. It takes about a second to get there. That delay is <strong>inertia</strong> &mdash; a heavy spinning
+thing resists changing how fast it's going.</p>
+
+<figure>
+  <img src="images/flywheel_inertia.png" alt="A comparison illustration. On the left, a small light merry-go-round that spins up fast but is easily slowed by a pushing child. On the right, a big heavy merry-go-round that is hard to start but barely slows when the same child pushes against it, labeled high inertia. An arrow maps the heavy one to a robot flywheel.">
+  <figcaption>Think of a merry-go-round. A light one spins up fast but slows the moment something pushes back. A
+  heavy one is slow to start but barely flinches &mdash; that steadiness is exactly what a good flywheel wants.</figcaption>
+</figure>
+
+<p>Why choose heavy, if it's slower to spin up? Because when the indexer shoves a game piece into the wheel, the
+piece <em>steals</em> some of the wheel's speed. A light wheel would drop a lot on every shot, so your second and
+third shots would come out weaker. A heavy wheel barely slows down &mdash; so every shot flies about the same. That
+consistency is worth the wait. (The wait is also why real drivers spin the flywheel up <em>early</em>, before they
+reach the goal.)</p>
+
+<hr>
+
+<h2>A closer look at <code>Flywheel.java</code></h2>
+
+<p>A new file appeared: <code>Flywheel.java</code>. Open it and read the top. The imports, the tuning constants,
+the <code>shooter</code> motor field, and the constructor are written for you &mdash; the constructor finds the
+<code>"shooter"</code> motor, just like your other subsystems found theirs. One detail to notice: the motor's type is
+<code>DcMotorEx</code>, not plain <code>DcMotor</code>. The "Ex" (extended) version can do one extra thing we need &mdash;
+report its own speed &mdash; and you'll use that in a moment.</p>
+
+<hr>
+
+<h2>Part A &mdash; Remember on/off and the power level</h2>
+
+<p>The flywheel needs to remember two things between loops: whether it's <strong>running</strong>, and <strong>how much
+power</strong> we're giving it (so the trim can nudge that value and have it stick).</p>
+
+<span class="act" data-action="open_file" data-arg="Flywheel.java|Flywheel : Fields">&#9656; Flywheel.java : Flywheel : Fields</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Flywheel.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>private boolean spinning = false;    // is the flywheel running right now?
+private double power = BASE_POWER;    // the nudgeable power level, remembered between loops</code></pre>
+</div>
+
+<p><code>power</code> starts at <code>BASE_POWER</code> (a constant near a good shot), and the trim will move it up or down
+from there.</p>
+
+<hr>
+
+<h2>Part B &mdash; The commands (including reading the encoder)</h2>
+
+<p>Now the methods &mdash; the public doors into the flywheel, just like the indexer had. This subsystem has a few
+more, because it does more: turn on/off, nudge the power, and <em>report</em> both whether it's spinning and its
+real speed.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">The new one: reading speed with an encoder</div>
+  <p>An <strong>encoder</strong> is a sensor built into the motor that counts tiny electrical <em>ticks</em> as the shaft
+  turns. Your goBILDA motor produces <strong>28 ticks per full revolution</strong>. The method
+  <code>shooter.getVelocity()</code> hands you the encoder's speed in <strong>ticks per second</strong> &mdash; and from that
+  you can compute real <strong>RPM</strong> (revolutions per minute):</p>
+</div>
+
+<figure>
+  <img src="images/ticks_to_rpm.png" alt="A diagram of a motor shaft with 28 tick marks around it labeled 28 ticks = 1 revolution. Below, a formula shown as a friendly flow: ticks per second, divide by 28 to get revolutions per second, times 60 to get revolutions per minute (RPM).">
+  <figcaption>The encoder counts ticks. Divide ticks-per-second by <strong>28</strong> (ticks per revolution) to get
+  revolutions per second, then multiply by <strong>60</strong> to get revolutions per <em>minute</em> &mdash; RPM.</figcaption>
+</figure>
+
+<p>That's exactly what <code>getRpm()</code> does below. <code>getVelocity()</code> only exists on <code>DcMotorEx</code> &mdash;
+now you see why the motor field is that type.</p>
+
+<span class="act" data-action="open_file" data-arg="Flywheel.java|Flywheel : Commands">&#9656; Flywheel.java : Flywheel : Commands</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Flywheel.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>/** Flip the flywheel on or off. Call this once per button press. */
+public void toggle() {
+    spinning = !spinning;
+}
+
+/** Nudge the power up or down. Pass the stick amount (up = positive). */
+public void nudge(double amount) {
+    if (Math.abs(amount) &lt; STICK_DEADZONE) return;            // ignore tiny drift
+    power += amount * NUDGE_STEP;                             // creep up or down a little
+    power = Math.max(MIN_POWER, Math.min(MAX_POWER, power));  // keep it in range
+}
+
+/** True while the flywheel is running -- lets the OpMode show it or gate a shot. */
+public boolean isSpinning() {
+    return spinning;
+}
+
+/** The flywheel's REAL speed in RPM, measured by the encoder. */
+public double getRpm() {
+    double ticksPerSecond = shooter.getVelocity();   // the encoder's speed, in ticks per second
+    return ticksPerSecond / TICKS_PER_REV * 60.0;    // ticks/sec -> revs/sec -> revs/min (RPM)
+}
+
+/** The power level we're currently commanding (0..1), for telemetry. */
+public double getPower() {
+    return power;
+}</code></pre>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Look again at <code>nudge()</code> &mdash; the trim</div>
+  <p>This is how the driver tunes the shot live. Each loop, the OpMode hands <code>nudge()</code> the right-stick
+  value. If the stick is basically centered, we ignore it (that's the <strong>deadzone</strong> &mdash; sticks are never
+  perfectly still). Otherwise we creep <code>power</code> up or down by a tiny <code>NUDGE_STEP</code> and <strong>clamp</strong>
+  it between <code>MIN_POWER</code> and <code>MAX_POWER</code> so it can never run away. Because <code>power</code> is a field, it
+  <em>stays</em> where you leave it &mdash; let go of the stick and the setting holds. Like a volume knob for your shot.</p>
+</div>
+
+<hr>
+
+<h2>Part C &mdash; <code>update()</code>: drive the motor from the state</h2>
+
+<p>Same idea as every subsystem: <code>update()</code> runs every loop and makes the hardware match the state. When
+the flywheel is on, run it at the current (nudged) power; when off, stop it.</p>
+
+<span class="act" data-action="open_file" data-arg="Flywheel.java|Flywheel : Apply State">&#9656; Flywheel.java : Flywheel : Apply State</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Flywheel.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>shooter.setPower(spinning ? power : 0.0);</code></pre>
+</div>
+
+<hr>
+
+<h2>Part D &mdash; Add the flywheel to the robot</h2>
+
+<p>Give the new subsystem a home in <code>Robot.java</code> &mdash; the same two edits as always: declare it, then build
+it and add it to the scheduler.</p>
+
+<h3>1. Declare the field</h3>
+
+<span class="act" data-action="open_file" data-arg="Robot.java|Flywheel : Field">&#9656; Robot.java : Flywheel : Field</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>public final Flywheel flywheel;   // the shooter's spinning wheel</code></pre>
+</div>
+
+<h3>2. Build it (and add it to the scheduler)</h3>
+
+<span class="act" data-action="open_file" data-arg="Robot.java|Flywheel : Setup">&#9656; Robot.java : Flywheel : Setup</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>flywheel = new Flywheel(hardwareMap);   // build it -- the constructor finds "shooter" in the config
+subsystems.add(flywheel);               // register it so robot.update() calls flywheel.update() every loop</code></pre>
+</div>
+
+<hr>
+
+<h2>Part E &mdash; Wire the controls and show the RPM</h2>
+
+<p>Three small pieces in <code>MecanumDrive.java</code>: toggle with <strong>Y</strong>, trim with the right stick, and put
+the RPM on the Driver Hub so you can watch it.</p>
+
+<h3>1. Toggle and trim</h3>
+
+<p><strong>Y</strong> is a toggle, so it needs <strong>edge detection</strong> (the same trick from the intake &mdash; act only on
+the press, not every loop it's held). The right-stick trim is a hold, so we just feed it in every loop.</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Flywheel : Loop">&#9656; MecanumDrive.java : Flywheel : Loop</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>// Y toggles the flywheel on/off (edge detection -- one flip per press).
+if (gamepad1.y &amp;&amp; !previousY) robot.flywheel.toggle();
+previousY = gamepad1.y;
+// Right stick trims the power live: push up = faster, down = slower.
+robot.flywheel.nudge(-gamepad1.right_stick_y);</code></pre>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Why the minus sign on the stick?</div>
+  <p>On a gamepad, pushing the stick <strong>up</strong> reads as a <em>negative</em> number (it's upside-down by
+  tradition). We flip the sign with <code>-</code> so that pushing up gives a <em>positive</em> nudge &mdash; up means
+  faster, which is what your thumb expects.</p>
+</div>
+
+<h3>2. Show the RPM</h3>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Flywheel : Telemetry">&#9656; MecanumDrive.java : Flywheel : Telemetry</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>telemetry.addData("Flywheel", robot.flywheel.isSpinning()
+    ? String.format("ON  %.0f%% power", robot.flywheel.getPower() * 100)
+    : "off");
+telemetry.addData("Flywheel RPM", "%.0f", robot.flywheel.getRpm());</code></pre>
+</div>
+
+<hr>
+
+<h2>Try it &mdash; spin up, watch the RPM, tune the shot</h2>
+
+<p>Build, Init, and Start. Now watch the <strong>Flywheel RPM</strong> line on the Driver Hub as you play:</p>
+
+<div class="blk blk-todo">
+  <div class="blk-head">Test it</div>
+  <ul>
+    <li>Press <strong>Y</strong> to spin up. Watch the RPM climb from 0 &mdash; <em>not</em> instantly, but along a curve. That's
+    the inertia you read about.</li>
+    <li>Once it's up to speed, <strong>hold X</strong> (your indexer!) to feed a piece into the wheel &mdash; now it
+    <em>launches</em> instead of dribbling. Watch the RPM <strong>dip</strong> on the shot, then recover.</li>
+    <li>Push the <strong>right stick up/down</strong> to trim the power. Watch the RPM (and the shot distance) change, and
+    notice the setting <strong>stays</strong> when you let go.</li>
+    <li>Press <strong>Y</strong> again to spin down.</li>
+  </ul>
+</div>
+
+<figure>
+  <img src="images/spinup_curve.png" alt="A line graph of flywheel RPM over time. The line curves smoothly upward from zero toward a target speed (spin-up), holds steady, then shows a sudden dip downward at the moment labeled fire a shot, and recovers back up. The curved ramp is labeled inertia and the dip is labeled a shot steals speed.">
+  <figcaption>The RPM curve tells the whole story: a smooth <strong>ramp</strong> up (inertia), then a <strong>dip</strong> each
+  time you fire (the shot steals some speed), then a recovery. Fire before the ramp finishes and the shot falls short.</figcaption>
+</figure>
+
+<div class="blk blk-widget">
+  <flywheel-widget mode="trim"></flywheel-widget>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Challenge &mdash; light vs. heavy</div>
+  <p>Set <strong>Wheel Inertia</strong> to <em>light</em>, spin up until the <strong>READY</strong> light is green, then hold
+  <strong>X</strong> and don't let go. Watch the green line crash below the dashed <strong>target</strong> &mdash; your shots
+  drop below the &ldquo;make it&rdquo; line and fall short. Now drag inertia to <em>heavy</em> and rapid-fire again: the line
+  barely dips and the shots keep landing. That's exactly why real teams add mass to their flywheels &mdash; but a
+  heavy wheel is slower to spin up, so there's a trade-off.</p>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">What's next: making it hold speed automatically</div>
+  <p>You can now <em>see</em> the RPM dip after each shot &mdash; but nothing fixes it. If you fire fast, each shot leaves
+  a little slower than the last. The next lesson adds a <strong>controller</strong> that watches the RPM and
+  automatically adds power to snap it back after every shot, so rapid-fire shots all land the same. That's the
+  payoff the encoder was setting up.</p>
+</div>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

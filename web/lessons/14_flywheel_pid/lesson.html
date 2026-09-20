@@ -1,0 +1,242 @@
+<h1>Holding Speed: Feedforward + PID</h1>
+
+<p>In the last lesson you saw the problem with your own eyes: hold <strong>X</strong> to rapid-fire, and the flywheel's
+RPM <strong>sags</strong> with every shot. The first ball flies true, but the second and third leave slower and fall
+short. On a real BioBuzz robot that's a disaster &mdash; you get <strong>four</strong> game pieces, and you want all four
+to score in one quick burst.</p>
+
+<figure>
+  <img src="images/rapid_fire_problem.png" alt="A before scenario: a robot rapid-firing four pollen. The first arcs into the hive, but each following shot's arc is lower and shorter, the last two landing well short of the hive. A small RPM graph below shows the line dropping step by step below a dashed target line with each shot.">
+  <figcaption>The problem: with a plain fixed power, each shot steals speed and the wheel can't recover in time &mdash;
+  so the burst walks its shots shorter and shorter, and you miss.</figcaption>
+</figure>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why a fixed power can't fix itself</div>
+  <p>Setting <code>power = 0.67</code> is <strong>open-loop</strong> control: you pick a number and hope. The motor has no
+  idea a shot just slowed it down &mdash; it keeps applying the same voltage, so recovery is slow. To hold speed you
+  need <strong>feedback</strong>: measure the real RPM (you already can, with the encoder!) and <em>react</em> to it.</p>
+</div>
+
+<hr>
+
+<h2>The smart fix: guess, then correct</h2>
+
+<p>Think about <strong>cruise control</strong> in a car set to 60 mph. It doesn't just freeze the gas pedal. It
+<strong>measures</strong> your speed and <strong>adjusts</strong> the throttle: drifting below 60 going uphill? More gas.
+Speeding up downhill? Less gas. But here's the clever part &mdash; a good cruise control already <em>knows</em> roughly
+how much gas 60 mph needs on flat road, so it <strong>starts there</strong> and only makes small corrections. That's
+much faster than starting from zero and guessing.</p>
+
+<figure>
+  <img src="images/cruise_control.png" alt="A cruise-control analogy split in two. Left: a car with a gauge showing the base throttle it already knows for the set speed, labeled feedforward the smart guess. Right: the same car going uphill and downhill with the throttle adjusting up and down to hold speed, labeled feedback the correction. An arrow combines them into hold the speed.">
+  <figcaption>Cruise control = a <strong>smart starting guess</strong> (feedforward) plus <strong>small corrections</strong>
+  (feedback). Together they hold the speed far better than either alone.</figcaption>
+</figure>
+
+<div class="blk blk-key">
+  <div class="blk-head">Feedforward + feedback</div>
+  <p><strong>Feedforward</strong> is the smart guess: from physics, roughly what power does this target speed need?
+  It gets you almost all the way there instantly. <strong>Feedback</strong> (the <strong>P</strong> term) watches the real
+  RPM and adds a correction for whatever the guess missed &mdash; a shot, a low battery, friction. Together they're
+  faster <em>and</em> steadier than either one alone.</p>
+</div>
+
+<hr>
+
+<h2>The formula</h2>
+
+<p>Every loop, the controller sets the motor power with one line of math:</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">power = kV &times; target + kP &times; error</div>
+  <p>where <strong>error = target RPM &minus; actual RPM</strong> (how far off you are right now). Just <strong>two</strong>
+  tuning numbers &mdash; <strong>gains</strong> &mdash; shape it:</p>
+</div>
+
+<ul>
+  <li><strong><code>kV</code> (the feedforward)</strong> &mdash; the <em>cruise guess</em>: how much power each RPM of
+  target needs. Our motor hits 6000 RPM at full power, so to hold a speed you need about <code>power = RPM &divide;
+  6000</code> &mdash; which makes <code>kV &approx; 1 &divide; 6000</code>. All by itself, <code>kV &times; target</code> lands the
+  wheel right on target with no measuring at all. (This is what most FTC teams use for a flywheel.)</li>
+  <li><strong><code>kP</code> (the correction)</strong> &mdash; the feedback, the <strong>P</strong> in PID. The farther off
+  target you are, the harder it pushes: drift a little, nudge a little; drift a lot, shove a lot. Once <code>kV</code>
+  is set, <code>kP</code> does <em>nothing</em> at rest &mdash; it only wakes up when a shot knocks the RPM down, and
+  snaps it back. It's the one you tune by feel.</li>
+</ul>
+
+<hr>
+
+<h2>Play with it first</h2>
+
+<p>Same shooter as last lesson, but now the controller drives it. The <strong>Power</strong> slider is gone &mdash; the
+controller sets power itself &mdash; and you have a <strong>Target</strong>, <strong>kV</strong>, and <strong>kP</strong>. The
+purple <strong>power</strong> line shows what the controller is commanding; watch it <em>spike</em> right after each
+shot as <code>kP</code> fights back. (The key under the graph names each line.)</p>
+
+<div class="blk blk-widget">
+  <flywheel-widget mode="pid"></flywheel-widget>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">The tuning procedure &mdash; do it in this order</div>
+  <p><strong>Step 1 &mdash; calibrate the feedforward (kV).</strong> Leave <strong>kP at 0</strong>. Press <strong>Y</strong> to
+  spin up, and adjust <strong>kV</strong> until the green RPM line settles right on the dashed <strong>target</strong> line
+  &mdash; no firing yet. That's the feedforward doing all the work by itself.</p>
+  <p><strong>Step 2 &mdash; add the correction (kP).</strong> Now hold <strong>X</strong> to rapid-fire. With kP still 0 the
+  green line dips on each shot and crawls back &mdash; late shots sag. Slowly raise <strong>kP</strong>: after each shot the
+  purple power line <em>spikes</em> and the RPM <strong>snaps</strong> back to target. Tune until all four burst shots hold.</p>
+  <p><strong>Watch out:</strong> push kP <em>too</em> high and it gets jittery and <strong>oscillates</strong> (bouncing above
+  and below the line). The sweet spot is a fast snap-back with no bounce. Try it with a <strong>light</strong> wheel
+  &mdash; that's where the controller really earns its keep.</p>
+</div>
+
+<hr>
+
+<h2>A closer look at <code>Flywheel.java</code></h2>
+
+<p>Time to give your real flywheel the same brain. You'll <strong>upgrade</strong> the subsystem from last lesson's
+manual power trim to an automatic controller &mdash; a few small edits.</p>
+
+<h3>Part A &mdash; Add the gains, target, and trim limits</h3>
+
+<p>Put the numbers at the top of the class. (These are a solid tune for this motor; you can adjust <code>kP</code>
+to taste, just like in the widget.)</p>
+
+<span class="act" data-action="open_file" data-arg="Flywheel.java|Flywheel : PID Constants">&#9656; Flywheel.java : Flywheel : PID Constants</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Flywheel.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>private static final double TARGET_RPM = 4000.0;   // the STARTING target speed the controller holds
+private static final double kV = 0.000167;         // feedforward: power per RPM (about 1 / 6000 free speed)
+private static final double kP = 0.00020;          // correction: how hard to fix an RPM error
+private static final double TRIM_STEP  = 8.0;      // RPM the right stick trims the target per loop
+private static final double TARGET_MIN = 2500.0;   // limits the driver can trim the target between
+private static final double TARGET_MAX = 5500.0;</code></pre>
+</div>
+
+<h3>Part B &mdash; Add the trimmable target field</h3>
+
+<p>The target isn't fixed &mdash; the driver will trim it. So it needs to be a <em>field</em> (a value that can
+change), starting at <code>TARGET_RPM</code>.</p>
+
+<span class="act" data-action="open_file" data-arg="Flywheel.java|Flywheel : Target Field">&#9656; Flywheel.java : Flywheel : Target Field</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Flywheel.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>private double targetRpm = TARGET_RPM;   // the speed the controller holds; the right stick trims it</code></pre>
+</div>
+
+<h3>Part C &mdash; Trim the target (not raw power)</h3>
+
+<div class="blk blk-key">
+  <div class="blk-head">Your trim gets an upgrade</div>
+  <p>Last lesson the right stick trimmed the raw <em>power</em>. Now the controller sets the power itself &mdash; so
+  trimming power would just get overwritten. Instead, your trim now nudges the <strong>target</strong>, and the
+  controller holds whatever target you dial in. Same stick, better meaning: up = higher target = stronger shot.</p>
+</div>
+
+<span class="act" data-action="open_file" data-arg="Flywheel.java|Flywheel : Trim">&#9656; Flywheel.java : Flywheel : Trim</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Flywheel.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>/** Trim the target RPM up or down (right stick). The controller then holds the new target. */
+public void trim(double amount) {
+    if (Math.abs(amount) &lt; STICK_DEADZONE) return;                     // ignore tiny drift
+    targetRpm += amount * TRIM_STEP;                                   // creep the target up or down
+    targetRpm = Math.max(TARGET_MIN, Math.min(TARGET_MAX, targetRpm)); // keep it in range
+}
+
+/** The RPM the controller is trying to hold -- for telemetry. */
+public double getTarget() {
+    return targetRpm;
+}</code></pre>
+</div>
+
+<h3>Part D &mdash; Replace <code>update()</code> with the controller</h3>
+
+<p>This is the heart of the lesson. Open <code>update()</code> and <strong>replace</strong> the old one-line
+<code>shooter.setPower(spinning ? power : 0.0);</code> with the feedforward + P controller. Read it against the
+formula: <code>error</code> is how far off you are, and <code>power</code> is the smart guess plus the correction.</p>
+
+<span class="act" data-action="open_file" data-arg="Flywheel.java|Flywheel : Apply State">&#9656; Flywheel.java : Flywheel : Apply State</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Replace the line in <code>Flywheel.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>if (spinning) {
+    double error = targetRpm - getRpm();                // how far off the target speed we are
+    power = kV * targetRpm + kP * error;                // feedforward (kV*target) + correction (kP*error)
+    power = Math.max(0.0, Math.min(1.0, power));         // keep it a legal motor power
+    shooter.setPower(power);
+} else {
+    shooter.setPower(0.0);
+}</code></pre>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why <code>kP</code> can be small</div>
+  <p>Because the feedforward (<code>kV * targetRpm</code>) already provides the baseline power, <code>kP</code> only
+  has to clean up small disturbances &mdash; so it can be tiny, which keeps it from overshooting and oscillating.
+  Pure "P-only" control (no feedforward) has to do <em>all</em> the work with a big <code>kP</code>, and then it wobbles.
+  Feedforward is what lets you keep <code>kP</code> gentle.</p>
+</div>
+
+<h3>Part E &mdash; Point the right stick at the target</h3>
+
+<p>One last edit in the OpMode: the right stick should call your new <code>trim()</code> instead of the old
+<code>nudge()</code>. Open the flywheel loop and change the trim line:</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Flywheel : Loop">&#9656; MecanumDrive.java : Flywheel : Loop</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Your flywheel loop should be</span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>// Y toggles the flywheel. The controller holds the target; the right stick now trims the TARGET.
+if (gamepad1.y &amp;&amp; !previousY) robot.flywheel.toggle();
+previousY = gamepad1.y;
+robot.flywheel.trim(-gamepad1.right_stick_y);</code></pre>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Wait &mdash; what about the "I" and "D" in PID?</div>
+  <p><strong>PID</strong> stands for <strong>P</strong>roportional, <strong>I</strong>ntegral, <strong>D</strong>erivative
+  &mdash; three kinds of correction. You built the <strong>P</strong> part (plus feedforward). So why skip the other two?</p>
+  <ul>
+    <li><strong>I (integral)</strong> slowly stacks up power to erase a <em>lingering</em> error. But your feedforward
+    already lands the wheel right on target, so there's no lingering error to erase &mdash; and left alone, I tends to
+    &ldquo;wind up&rdquo; and overshoot. Flywheels almost always leave it out.</li>
+    <li><strong>D (derivative)</strong> reacts to how <em>fast</em> the error is changing, which can smooth out
+    <code>kP</code>'s overshoot. It genuinely helps some shooters &mdash; but the encoder's speed reading is a little
+    noisy and D amplifies noise, so many teams skip it or keep it tiny.</li>
+  </ul>
+  <p>For a flywheel, <strong>feedforward + P</strong> is the sweet spot the pros actually use. Now you know what the
+  whole alphabet means.</p>
+</div>
+
+<hr>
+
+<h2>Test it &mdash; the four-shot burst</h2>
+
+<div class="blk blk-todo">
+  <div class="blk-head">Test it</div>
+  <ul>
+    <li>Build, Init, Start. Press <strong>Y</strong> to spin up &mdash; watch <strong>Flywheel RPM</strong> climb and settle right
+    at <strong>~4000</strong>, and <strong>RPM error</strong> shrink to near <strong>0</strong>.</li>
+    <li>Now <strong>hold X</strong> to fire your four-shot burst. Watch the RPM <strong>dip and snap back</strong> after each
+    shot instead of walking down &mdash; the shots stay strong.</li>
+    <li>Nudge the <strong>right stick up/down</strong>: the <strong>Target RPM</strong> changes and the controller chases the
+    new target &mdash; up for a stronger shot, down for a softer one. The setting stays where you leave it.</li>
+    <li>Compare to last lesson: without the controller, that burst would have sagged and missed.</li>
+  </ul>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">What's next: aiming</div>
+  <p>Your shooter now spins at a rock-steady speed &mdash; the shots are <em>consistent</em>. The last piece is
+  <em>aiming</em>: the next lesson adds an adjustable <strong>hood</strong> so you can change the launch angle and reach
+  the hive from different spots on the field.</p>
+</div>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

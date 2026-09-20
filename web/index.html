@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.5.63';
+    window.APP_VERSION = '2.7.0';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -1187,7 +1187,126 @@
 
   <div id="log"><div id="log-head"><span>console</span><span id="log-min">–</span></div><div id="log-body"></div></div>
 
+  <style>
+    /* ---- Quiz modal (friendly mastery quiz) ---- */
+    #quiz-modal{ position:fixed; inset:0; z-index:4000; display:flex; align-items:center; justify-content:center; padding:18px; }
+    #quiz-modal.quiz-hidden{ display:none; }
+    .quiz-backdrop{ position:absolute; inset:0; background:rgba(4,8,16,.72); backdrop-filter:blur(4px); animation:quizFade .18s ease; }
+    .quiz-card{ position:relative; width:min(560px,96vw); max-height:92vh; overflow:hidden auto; border-radius:20px;
+      background:linear-gradient(180deg,#141d2e,#0d1420); border:1px solid #2b3a52;
+      box-shadow:0 24px 70px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05);
+      padding:26px 24px 24px; animation:quizPop .32s cubic-bezier(.2,1.3,.4,1); }
+    .quiz-card::before{ content:""; position:absolute; inset:0 0 auto 0; height:4px;
+      background:linear-gradient(90deg,#38bdf8,#34d399,#c084fc,#f0a75e); opacity:.9; }
+    #quiz-confetti{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:5; }
+    .quiz-x{ position:absolute; top:12px; right:14px; z-index:6; width:30px; height:30px; border-radius:50%; cursor:pointer;
+      background:#1c2636; color:#8aa0ba; border:1px solid #33415a; font-size:1.1rem; line-height:1; }
+    .quiz-x:hover{ background:#26344a; color:#dbe7f5; }
+    .quiz-screen{ position:relative; z-index:4; text-align:center; }
+    .quiz-emoji{ font-size:3rem; line-height:1; margin:4px 0 6px; animation:quizBob 2.2s ease-in-out infinite; }
+    .quiz-card h2{ margin:.1em 0 .3em; font-size:1.5rem; color:#eaf2fb; font-weight:900; letter-spacing:.01em; }
+    .quiz-sub{ color:#9fb0c6; font-size:.92rem; line-height:1.5; margin:0 auto 18px; max-width:42ch; }
+    .quiz-sub b{ color:#cfe0f2; }
+    .quiz-btn{ font:inherit; font-weight:800; cursor:pointer; border:none; border-radius:12px; padding:12px 22px; font-size:1rem;
+      color:#06202b; background:linear-gradient(180deg,#7be0a0,#34c374); box-shadow:0 4px 0 #0c3122, 0 8px 18px rgba(52,211,153,.28);
+      transition:transform .06s, box-shadow .12s, filter .12s; }
+    .quiz-btn:hover{ filter:brightness(1.06); }
+    .quiz-btn:active{ transform:translateY(3px); box-shadow:0 1px 0 #0c3122, 0 4px 10px rgba(52,211,153,.25); }
+    .quiz-go{ background:linear-gradient(180deg,#67c8ff,#2f9fe6); box-shadow:0 4px 0 #0b3350, 0 8px 18px rgba(56,189,248,.3); color:#04212f; }
+    .quiz-done{ background:linear-gradient(180deg,#7be0a0,#34c374); box-shadow:0 4px 0 #0c3122, 0 8px 18px rgba(52,211,153,.3); }
+    .quiz-best{ margin-top:14px; font-size:.8rem; color:#7f8fa6; font-weight:700; min-height:1em; }
+    /* play screen */
+    .quiz-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+    .quiz-dots{ display:flex; gap:6px; flex-wrap:wrap; }
+    .quiz-dot{ width:10px; height:10px; border-radius:50%; background:#2b3a52; transition:transform .2s, background .2s; }
+    .quiz-dot.cur{ background:#38bdf8; transform:scale(1.35); animation:quizPulse 1s ease-in-out infinite; }
+    .quiz-dot.ok{ background:#34d399; } .quiz-dot.no{ background:#f87171; }
+    .quiz-count{ font-size:.78rem; font-weight:800; color:#8aa0ba; letter-spacing:.04em; }
+    .quiz-q{ text-align:left; font-size:1.12rem; font-weight:800; color:#eaf2fb; line-height:1.4; margin:2px 0 16px; }
+    .quiz-opts{ display:flex; flex-direction:column; gap:10px; }
+    .quiz-opt{ display:flex; align-items:center; gap:12px; text-align:left; cursor:pointer; font:inherit; font-size:.98rem;
+      color:#dbe7f5; background:#182335; border:1.5px solid #2f405c; border-radius:12px; padding:13px 15px;
+      transition:transform .08s, border-color .12s, background .12s, box-shadow .12s; }
+    .quiz-opt:hover:not(.locked){ transform:translateY(-2px); border-color:#4a6a92; background:#1d2b40; box-shadow:0 5px 14px rgba(0,0,0,.35); }
+    .quiz-opt .badge{ flex:0 0 auto; width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+      font-weight:900; font-size:.85rem; background:#26344c; color:#9fb6d4; }
+    .quiz-opt.locked{ cursor:default; }
+    .quiz-opt.correct{ border-color:#34d399; background:linear-gradient(180deg,#173a2e,#122c24); color:#d6ffe9; animation:quizPopIn .3s ease; }
+    .quiz-opt.correct .badge{ background:#34d399; color:#05271a; }
+    .quiz-opt.wrong{ border-color:#f87171; background:linear-gradient(180deg,#3a1a1d,#2a1416); color:#ffdede; animation:quizShake .4s ease; }
+    .quiz-opt.wrong .badge{ background:#f87171; color:#3a0d0d; }
+    .quiz-opt.dim{ opacity:.5; }
+    .quiz-explain{ display:none; text-align:left; margin-top:16px; padding:14px 15px; border-radius:12px;
+      background:linear-gradient(180deg,#2a2233,#1c1826); border:1px solid #4b3a5e; color:#e7dcf3; font-size:.9rem; line-height:1.5;
+      animation:quizSlide .28s ease; }
+    .quiz-explain.show{ display:block; }
+    .quiz-explain .lbl{ display:block; font-weight:900; color:#c9a7f5; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; margin-bottom:5px; }
+    .quiz-explain.good{ background:linear-gradient(180deg,#173a2e,#132a22); border-color:#2f6b52; color:#d8f6e7; }
+    .quiz-explain.good .lbl{ color:#67e6a8; }
+    .quiz-next{ margin-top:18px; }
+    /* result screen */
+    .quiz-review{ text-align:left; display:flex; flex-direction:column; gap:10px; margin:6px 0 18px; max-height:38vh; overflow:auto; }
+    .quiz-rev{ padding:12px 14px; border-radius:12px; background:#182335; border:1px solid #2f405c; }
+    .quiz-rev .rq{ font-weight:800; color:#eaf2fb; font-size:.9rem; margin-bottom:5px; }
+    .quiz-rev .ra{ font-size:.84rem; color:#67e6a8; margin-bottom:5px; }
+    .quiz-rev .re{ font-size:.83rem; color:#b9c6d8; line-height:1.45; }
+    .quiz-result-btns{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+    /* the "Take Quiz" call-to-action injected at the bottom of a quiz lesson */
+    .quiz-cta{ margin:28px 0 8px; padding:18px; border-radius:14px; text-align:center;
+      background:linear-gradient(180deg,#16263a,#101a28); border:1px solid #2b3a52; }
+    .quiz-cta-tag{ color:#9fb0c6; font-size:.92rem; margin-bottom:12px; }
+    .quiz-cta-done{ color:#67e6a8; font-weight:800; font-size:1rem; margin-bottom:12px; }
+    .quiz-cta-btn{ font:inherit; font-weight:800; font-size:1.05rem; cursor:pointer; border:none; border-radius:12px;
+      padding:13px 26px; color:#04212f; background:linear-gradient(180deg,#67c8ff,#2f9fe6);
+      box-shadow:0 4px 0 #0b3350, 0 8px 18px rgba(56,189,248,.3); transition:transform .06s, filter .12s; }
+    .quiz-cta-btn:hover{ filter:brightness(1.06); }
+    .quiz-cta-btn:active{ transform:translateY(3px); box-shadow:0 1px 0 #0b3350; }
+    .quiz-cta-btn.retake{ background:linear-gradient(180deg,#3a4a63,#2a3852); box-shadow:0 4px 0 #17202e; color:#dbe7f5; font-size:.9rem; padding:10px 20px; }
+    @keyframes quizFade{ from{ opacity:0; } to{ opacity:1; } }
+    @keyframes quizPop{ from{ opacity:0; transform:translateY(18px) scale(.94); } to{ opacity:1; transform:none; } }
+    @keyframes quizPopIn{ 0%{ transform:scale(.96); } 60%{ transform:scale(1.03); } 100%{ transform:scale(1); } }
+    @keyframes quizBob{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-7px); } }
+    @keyframes quizPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(56,189,248,.5); } 50%{ box-shadow:0 0 0 6px rgba(56,189,248,0); } }
+    @keyframes quizShake{ 0%,100%{ transform:translateX(0); } 20%{ transform:translateX(-7px); } 40%{ transform:translateX(6px); } 60%{ transform:translateX(-4px); } 80%{ transform:translateX(3px); } }
+    @keyframes quizSlide{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:none; } }
+  </style>
+  <div id="quiz-modal" class="quiz-hidden" aria-hidden="true">
+    <div class="quiz-backdrop" id="quiz-backdrop"></div>
+    <div class="quiz-card" role="dialog" aria-modal="true">
+      <canvas id="quiz-confetti"></canvas>
+      <button class="quiz-x" id="quiz-close" title="Close">&times;</button>
+      <div class="quiz-screen" id="quiz-intro">
+        <div class="quiz-emoji">🎯</div>
+        <h2 id="quiz-intro-title">Quiz</h2>
+        <p class="quiz-sub">Answer <b>10 questions</b> and get them <b>all right</b> to earn your checkmark. Miss one? No stress &mdash; you'll see exactly why, then you can try again.</p>
+        <button class="quiz-btn quiz-go" id="quiz-start">Let's go &#9656;</button>
+        <div class="quiz-best" id="quiz-best"></div>
+      </div>
+      <div class="quiz-screen" id="quiz-play" style="display:none">
+        <div class="quiz-top">
+          <div class="quiz-dots" id="quiz-dots"></div>
+          <div class="quiz-count" id="quiz-count"></div>
+        </div>
+        <div class="quiz-q" id="quiz-q"></div>
+        <div class="quiz-opts" id="quiz-opts"></div>
+        <div class="quiz-explain" id="quiz-explain"></div>
+        <button class="quiz-btn quiz-go quiz-next" id="quiz-next" style="display:none">Next &#9656;</button>
+      </div>
+      <div class="quiz-screen" id="quiz-result" style="display:none">
+        <div class="quiz-emoji" id="quiz-result-emoji">🎉</div>
+        <h2 id="quiz-result-title"></h2>
+        <p class="quiz-sub" id="quiz-result-sub"></p>
+        <div class="quiz-review" id="quiz-review"></div>
+        <div class="quiz-result-btns">
+          <button class="quiz-btn quiz-go" id="quiz-again">Try Again &#8635;</button>
+          <button class="quiz-btn quiz-done" id="quiz-finish" style="display:none">Done &#10003;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
+
     import * as THREE from './vendor/three.module.js';
     import RAPIER from './vendor/rapier3d.mjs';
     import { zipStore, unzip } from './vendor/ziplite.js';
@@ -1213,7 +1332,7 @@
       return {
         pad:  { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, rb: false, btns: 0 }, // JS -> Java gamepad (ly inverted: up = -1)
         cmd:  { vx: 0, vy: 0, omega: 0 }, // Java -> JS chassis velocity, robot frame
-        mech: { intake: 0, feeder: 0, shooter: 0, hood: 0, dump: 0 }, // Java -> JS mechanism state (spin/pos; dump = bed servo 0.1 carry .. 0.8 dump)
+        mech: { intake: 0, feeder: 0, shooter: 0, hood: 0.571, dump: 0 }, // Java -> JS mechanism state (spin/pos; hood 0.571 -> calibrated 58deg; dump = bed servo 0.1 carry .. 0.8 dump)
         dumpTimer: 0,      // meters held balls off the bed over several frames while the bed is tilted up
         active: true,
         pending: 0,        // one-shot lifecycle command for the runner: 1 init, 2 start, 3 stop
@@ -1902,6 +2021,9 @@
       const flywheelSpin = new THREE.Group();                      // spins about X (the flywheel axle)
       flywheelSpin.position.set(0, 93 + YOFF, -78);               // reoriented flywheel centre (0,93,-78) + YOFF
       turretYaw.add(flywheelSpin);
+      const hoodTilt = new THREE.Group();                          // hood ELEVATION pivot: tilts about the flywheel axle (X)
+      hoodTilt.position.set(0, 93 + YOFF, -78);                   // same pivot as the flywheel centre
+      turretYaw.add(hoodTilt);
       const muzzle = new THREE.Object3D();                         // ball exit / spawn marker (on the hood side of the flywheel)
       muzzle.position.set(0, 185, 55); turretYaw.add(muzzle);
       const storageAnchor = new THREE.Object3D();                  // keep stored balls inside the turret volume between the rear wheels
@@ -1912,7 +2034,7 @@
         const hoodMat = new THREE.MeshStandardMaterial({ color: 0xcfd6e0, metalness: 0.1, roughness: 0.4, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
         const base = new THREE.Mesh(parts.base.clone().translate(0, YOFF, 0), baseMat); base.castShadow = base.receiveShadow = true; shooter.add(base);          // FIXED to robot
         const hous = new THREE.Mesh(parts.housing.clone().translate(0, YOFF, 0), alu);    hous.castShadow = true; turretYaw.add(hous);
-        const hood = new THREE.Mesh(parts.hood.clone().translate(0, YOFF, 0), hoodMat);   hood.castShadow = true; turretYaw.add(hood);
+        const hood = new THREE.Mesh(parts.hood.clone().translate(0, -93, 78), hoodMat);   hood.castShadow = true; hoodTilt.add(hood);
         // flywheel: centre on the spin axis (X), add cylindrical UVs about X so the striped texture reveals rotation
         const flyGeo = parts.flywheel.clone().translate(0, -93, 78);
         { const p = flyGeo.attributes.position, uv = new Float32Array(p.count * 2); for (let i = 0; i < p.count; i++) { uv[i*2] = Math.atan2(p.getZ(i), p.getY(i)) / (2*Math.PI) + 0.5; uv[i*2+1] = p.getX(i) / 100; } flyGeo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); }
@@ -1921,7 +2043,7 @@
       });
       bed.visible = false;                                        // hide the dumper bed -- this robot is the shooter (dumper stays for its track)
 
-      return { group, intakeRoller, bed, wheels, store, wheelR: wr, track: wheelTrack, shooter, turretYaw, flywheelSpin, muzzle, storageAnchor };
+      return { group, intakeRoller, bed, wheels, store, wheelR: wr, track: wheelTrack, shooter, turretYaw, flywheelSpin, hoodTilt, muzzle, storageAnchor };
     }
 
     // mecanum inverse kinematics: contact speed per wheel from ACTUAL chassis velocity (m/s, rad/s), so
@@ -2798,7 +2920,14 @@
     // ---- P1/P2 shooter: flywheel RPM model + intake/storage/indexer. Real gravity + quadratic drag on the free
     // ball; exit speed faked from RPM (tuned later). Debug keys: I = intake on/off, O = flywheel on/off, P = index
     // (feed one stored piece into the flywheel). Wired to student code (motors/servos) in the lessons.
-    const SH = { rpm: 0, MAX_RPM: 3400, TAU: 0.8, MAX_EXIT: 5.625, VIS: 30, ELEV: 58 * Math.PI/180 };   // MAX_EXIT m/s at full RPM; VIS rad/s visual spin; ELEV launch angle
+    // Flywheel = goBILDA Yellow Jacket 1:1 (6000 RPM free speed, 28 CPR). Student shooter power drives the
+    // target RPM; the shot is calibrated to drop into the raised hive cell at NOMINAL_RPM (~4000) -> running
+    // near full overshoots (motivates 'don't run full blast' + the trim/PID lessons).
+    const SH = { rpm: 0, MAX_RPM: 6000, NOMINAL_RPM: 4000, TAU: 0.8, NOMINAL_EXIT: 5.625, CPR: 28, VIS: 30,
+                 ELEV: 58 * Math.PI/180, ELEV_MIN: 42 * Math.PI/180, ELEV_MAX: 70 * Math.PI/180,
+                 ELEV_DEF: 58 * Math.PI/180, HOOD_VIS: 1.0, feedCd: 0 };   // HOOD_VIS: sign/gain of the visual hood tilt (flip sign if it tilts the wrong way)
+    // visual hood-pivot rotation (rad about the flywheel axle) for a hood fraction 0..1, centred on the modelled default pose
+    const hoodElevRot = frac => SH.HOOD_VIS * ((SH.ELEV_MIN + Math.max(0, Math.min(1, frac)) * (SH.ELEV_MAX - SH.ELEV_MIN)) - SH.ELEV_DEF);
     const POLLEN = { r: 0.0356, density: 230, color: 0xf5d020 };   // ~0.045 kg
     const NECTAR = { r: 0.0457, density: 225, color: 0xd11e28 };   // ~0.09 kg; bigger -> more drag + lower launch efficiency
     const specOf = t => (t === 'nectar' ? NECTAR : POLLEN);
@@ -3040,8 +3169,10 @@
       const item = dequeueStored();
       if (item === null) { console.log('no game pieces stored'); return; }
       const type = item.type;
-      const exit = (SH.rpm / SH.MAX_RPM) * SH.MAX_EXIT;
-      if (exit < 0.5) { console.log('flywheel not spun up'); enqueueStored(item); return; }
+      const exit = (SH.rpm / SH.NOMINAL_RPM) * SH.NOMINAL_EXIT;
+      // Flywheel not spun up (the indexer lesson, before the flywheel exists): the piece just dribbles
+      // out the front instead of launching -- the intended pre-flywheel behavior.
+      if (exit < 0.5) { expelPiece(item, 1); sim.captured = stored.length; return; }
       mainRobot.muzzle.updateWorldMatrix(true, false); mainRobot.group.updateWorldMatrix(true, false);
       const q = mainRobot.group.getWorldQuaternion(new THREE.Quaternion());
       const ce = Math.cos(SH.ELEV), se = Math.sin(SH.ELEV);
@@ -3052,9 +3183,15 @@
       SH.rpm *= (type === 'nectar' ? 0.72 : 0.84);                 // RPM sag from energy transfer (bigger for nectar)
     }
     function stepShooter(dt) {
-      // flywheel: 1st-order spin toward the setpoint (heavy inertia); spin the striped wheel to match
-      const tgt = (debugFlywheel ? 1 : 0) * SH.MAX_RPM;
+      // flywheel: 1st-order spin toward the setpoint (heavy inertia); spin the striped wheel to match.
+      // Setpoint follows the student's shooter motor power (mech.shooter, fraction of the 6000-RPM free
+      // speed); the O key / debugFlywheel forces the nominal firing RPM for un-coded testing.
+      const pow = (sim && sim.mech) ? Math.max(0, Math.min(1, sim.mech.shooter)) : 0;
+      const tgt = debugFlywheel ? SH.NOMINAL_RPM : pow * SH.MAX_RPM;
       SH.rpm += (tgt - SH.rpm) * Math.min(1, dt / SH.TAU);
+      // hood servo (mech.hood 0..1) sets launch elevation; the default 0.571 maps to the calibrated 58deg
+      if (sim && sim.mech) SH.ELEV = SH.ELEV_MIN + Math.max(0, Math.min(1, sim.mech.hood)) * (SH.ELEV_MAX - SH.ELEV_MIN);
+      if (mainRobot.hoodTilt) mainRobot.hoodTilt.rotation.x = SH.HOOD_VIS * (SH.ELEV - SH.ELEV_DEF);   // tilt the rendered hood to the aim angle
       if (mainRobot.flywheelSpin) mainRobot.flywheelSpin.rotation.x += (SH.rpm / SH.MAX_RPM) * SH.VIS * dt;
       // in-flight balls: quadratic drag impulse + sync mesh; cull when landed/out of bounds
       const KD = 0.5 * 1.2 * 0.47;
@@ -3174,15 +3311,10 @@
         if (gp.buttons[6]) lt = gp.buttons[6].value;   // left trigger
         if (gp.buttons[7]) rt = gp.buttons[7].value;   // right trigger
         if (gp.buttons[5]) rb = gp.buttons[5].pressed; // right bumper
-        // sim-only shooter controls (no Java behind these): tap Y = flywheel on/off, tap X = shoot
-        const yNow = !!(gp.buttons[3] && gp.buttons[3].pressed), xNow = !!(gp.buttons[2] && gp.buttons[2].pressed);
-        if (yNow && !padEdge.y) { debugFlywheel = !debugFlywheel; console.log('DEBUG flywheel ' + (debugFlywheel ? 'ON' : 'OFF')); }
-        if (xNow && !padEdge.x) fireShot();
-        padEdge.y = yNow; padEdge.x = xNow;
         btns = padButtons(gp);
       }
-      if (keys['x']) btns |= (1 << 2);   // keyboard X == gamepad X (TeleOp field/robot-centric toggle)
-      btns &= ~(1 << 3);                 // TEMP: Y is a sim-only flywheel toggle for now — keep it off the Java bitmask so it can't drive the dumper (revisit with the Java lessons)
+      if (keys['x']) btns |= (1 << 2);   // keyboard X == gamepad X (shoot / field-centric toggle)
+      if (keys['y']) btns |= (1 << 3);   // keyboard Y == gamepad Y (flywheel on/off in the shooter lessons)
       sim.pad.ly = ly; sim.pad.lx = lx; sim.pad.rx = rx;
       sim.pad.ry = ry; sim.pad.lt = lt; sim.pad.rt = rt; sim.pad.rb = rb; sim.pad.btns = btns;
     }
@@ -3237,6 +3369,10 @@
     function Java_sim_OpModeHost_mech(lib, slot, intake, feeder, shooter, hood, dump){
       const a = sel(slot); a.calls++; a.mech.intake = intake; a.mech.feeder = feeder; a.mech.shooter = shooter; a.mech.hood = hood; a.mech.dump = dump;
     }
+    // JS -> Java flywheel encoder readback: modeled RPM as encoder ticks/sec (28 CPR). slot 0 = red robot
+    // (the only modeled flywheel today); blue returns 0. The sampler injects this into the shooter motor so
+    // the student's getVelocity() reads the real (sagging) speed -> the encoder + PID lessons work.
+    function Java_sim_OpModeHost_simFlywheelTicks(lib, slot){ return (slot|0) === 0 ? (SH.rpm / 60) * SH.CPR : 0; }
     const teleEl = document.getElementById('tele');
     // each alliance's telemetry -> its own Driver Hub panel (+ the Pit test-stand drawer for the sim)
     function Java_sim_OpModeHost_telemetry(lib, slot, text){ const a = sel(slot); a.calls++; const el2 = document.getElementById(a.hub.tele); if (el2) el2.textContent = text; if (a === sim){ const pt = document.getElementById('pit-tele'); if (pt) pt.textContent = text; } }
@@ -3397,6 +3533,12 @@
         debugStorageState('dump');
       }
       if (debugIntake) mainRobot.intakeRoller.rotation.y -= 10 * dt; // spin the roller so the test reads (forward dir)
+      // FEEDER (indexer): while the feeder CRServo runs (student holds X), advance stored pieces at a fixed
+      // cadence -- one per ~0.3s. Flywheel spun up -> launch; cold -> dribble out the front (indexer lesson).
+      const feeding = Math.abs(M.feeder) > 0.15;
+      SH.feedCd -= dt;
+      if (feeding && stored.length > 0 && SH.feedCd <= 0) { fireShot(); SH.feedCd = 0.30; }
+      else if (!feeding) SH.feedCd = 0;
       renderStore(mainRobot, sim.captured);
       if (upMode === 2) {
         alliances.blue.captured = Math.min(CAP, alliances.blue.captured + game.serviceIntake(robotBlue, alliances.blue.mech.intake < -0.15, alliances.blue.captured, CAP));
@@ -3422,6 +3564,7 @@
       if (document.getElementById('tab-pit').classList.contains('active')) {
         resizeBench();
         benchRobot.intakeRoller.rotation.y += M.intake  * 10  * dt;
+        if (benchRobot.hoodTilt) benchRobot.hoodTilt.rotation.x = hoodElevRot(M.hood);   // hood tilts with the aim angle on the test stand
         animateBed(benchRobot, M, dt);
         const bv = localVel(robot);
         spinWheels(benchRobot, bv.fwd, bv.strafe, bv.turn, dt);
@@ -4905,6 +5048,7 @@
         } else {
           readerEl.innerHTML = renderLesson(src, meta.folder);
         }
+        injectQuizCTA(meta);
       } catch (e){ readerEl.textContent = 'Could not load lesson: ' + e; }
       readerEl.scrollTop = 0;
       renderLessonList();
@@ -4945,13 +5089,14 @@
           const row = document.createElement('div');
           row.className = 'lesson-row' + (l.id === curLessonId ? ' active' : '') + (done ? ' done' : '');
           row.innerHTML =
-            '<input type="checkbox" class="lchk"' + (done ? ' checked' : '') + '>'
+            '<input type="checkbox" class="lchk"' + (done ? ' checked' : '') + (l.quiz ? ' disabled title="Pass the quiz to complete this lesson"' : '') + '>'
             + '<div class="ltext"><div class="ltitle"></div><div class="ldesc"></div></div>'
             + '<button class="lopen" style="background:' + info.color + '">Open</button>';
           row.querySelector('.ltitle').textContent = l.title;
           row.querySelector('.ldesc').textContent = l.description || '';
           row.querySelector('.lchk').addEventListener('click', e => {
-            e.stopPropagation(); markComplete(l.id, e.target.checked);
+            e.stopPropagation(); if (l.quiz) return;   // quiz lessons: only passing the quiz marks them off
+            markComplete(l.id, e.target.checked);
           });
           row.addEventListener('click', () => openLesson(l.id));
           body.appendChild(row);
@@ -4971,6 +5116,173 @@
       try { localStorage.setItem(LESSON_KEY, JSON.stringify(lessonProgress)); } catch(e){}
       if (id === curLessonId) openLesson(id); else renderLessonList();
     }
+
+    // ---------------- Quiz engine (mastery: all-correct earns the checkmark) ----------------
+    const QUIZ_KEY = 'impulse.quiz.v1';
+    let quizStats = {};
+    try { quizStats = JSON.parse(localStorage.getItem(QUIZ_KEY) || '{}'); } catch(e){ quizStats = {}; }
+    let quizState = null;
+    const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+    const drawQuestions = (pool, n) => shuffle(pool).slice(0, n).map(q => ({
+      q: q.q, correct: q.correct, explain: q.explain, options: shuffle([q.correct].concat(q.wrong)), picked: null }));
+
+    // Bottom-of-lesson call to action. Quiz lessons: the quiz is the ONLY way to earn the checkmark,
+    // so strip any authored "Mark Complete" and show a Take Quiz button instead.
+    function injectQuizCTA(meta){
+      if (!meta.quiz) return;
+      readerEl.querySelectorAll('[data-action="complete"]').forEach(el => el.remove());
+      const passed = !!lessonProgress[meta.id];
+      const wrap = document.createElement('div');
+      wrap.className = 'quiz-cta';
+      wrap.innerHTML = passed
+        ? '<div class="quiz-cta-done">\u2713 Quiz passed \u2014 lesson complete!</div><button class="quiz-cta-btn retake">Retake quiz \u21ba</button>'
+        : '<div class="quiz-cta-tag">Ready? Ace the quiz to finish this lesson.</div><button class="quiz-cta-btn">\ud83c\udfaf Take Quiz</button>';
+      wrap.querySelector('.quiz-cta-btn').addEventListener('click', () => openQuiz(meta.id));
+      readerEl.appendChild(wrap);
+    }
+
+    async function openQuiz(lessonId){
+      const meta = lessons.find(l => l.id === lessonId);
+      if (!meta) return;
+      let data;
+      try { data = await (await fetch('lessons/' + meta.folder + '/quiz.json')).json(); }
+      catch(e){ console.log('quiz load failed: ' + e); return; }
+      const pool = data.questions || [];
+      const n = Math.min(data.draw || 10, pool.length);
+      quizState = { lessonId, title: data.title || (meta.title + ' Quiz'), n, pool, idx: 0, wrong: 0, questions: drawQuestions(pool, n) };
+      el('quiz-intro-title').textContent = quizState.title;
+      const st = quizStats[lessonId];
+      el('quiz-best').textContent = st && st.passed ? '\u2605 You already aced this one \u2014 go again anytime.'
+        : (st && st.attempts ? 'Best so far: ' + (st.best || 0) + '/' + n : '');
+      quizShow('intro');
+      el('quiz-modal').classList.remove('quiz-hidden');
+    }
+    function closeQuiz(){
+      const wasFor = quizState ? quizState.lessonId : null;
+      el('quiz-modal').classList.add('quiz-hidden'); quizState = null;
+      if (wasFor && wasFor === curLessonId && document.getElementById('lesson-reader-view').style.display !== 'none') openLesson(curLessonId);
+    }
+    function quizShow(which){ for (const s of ['intro','play','result']) el('quiz-' + s).style.display = s === which ? '' : 'none'; }
+
+    function quizStart(){
+      quizState.questions = drawQuestions(quizState.pool, quizState.n);
+      quizState.idx = 0; quizState.wrong = 0;
+      quizShow('play');
+      quizRenderQuestion();
+    }
+    function quizRenderQuestion(){
+      const S = quizState, q = S.questions[S.idx];
+      el('quiz-count').textContent = (S.idx + 1) + ' / ' + S.n;
+      const dots = el('quiz-dots'); dots.innerHTML = '';
+      for (let i = 0; i < S.n; i++){
+        const d = document.createElement('div'); d.className = 'quiz-dot';
+        const p = S.questions[i].picked;
+        if (i === S.idx && p == null) d.classList.add('cur');
+        else if (p != null) d.classList.add(p === S.questions[i].correct ? 'ok' : 'no');
+        dots.appendChild(d);
+      }
+      el('quiz-q').textContent = q.q;
+      el('quiz-explain').className = 'quiz-explain'; el('quiz-explain').innerHTML = '';
+      el('quiz-next').style.display = 'none';
+      const opts = el('quiz-opts'); opts.innerHTML = '';
+      q.options.forEach((opt, i) => {
+        const b = document.createElement('button'); b.className = 'quiz-opt';
+        b.innerHTML = '<span class="badge">' + (i + 1) + '</span><span>' + escHtml(opt) + '</span>';
+        b.addEventListener('click', () => quizAnswer(i));
+        opts.appendChild(b);
+      });
+    }
+    const QUIZ_PRAISE = ['You\u2019ve got it.', 'Exactly right.', 'Spot on.', 'That\u2019s the one.', 'Nailed it.', 'Perfect.'];
+    function quizAnswer(i){
+      const S = quizState, q = S.questions[S.idx];
+      if (q.picked != null) return;
+      const chosen = q.options[i], isRight = chosen === q.correct;
+      q.picked = chosen; if (!isRight) S.wrong++;
+      [...el('quiz-opts').children].forEach((b, k) => {
+        b.classList.add('locked');
+        if (q.options[k] === q.correct) b.classList.add('correct');
+        else if (k === i) b.classList.add('wrong');
+        else b.classList.add('dim');
+      });
+      const ex = el('quiz-explain');
+      if (isRight){ ex.className = 'quiz-explain good show'; ex.innerHTML = '<span class="lbl">\u2713 Nice!</span>' + escHtml(QUIZ_PRAISE[Math.floor(Math.random() * QUIZ_PRAISE.length)]); }
+      else { ex.className = 'quiz-explain show'; ex.innerHTML = '<span class="lbl">Here\u2019s the idea</span>' + escHtml(q.explain); }
+      const dots = el('quiz-dots').children;
+      if (dots[S.idx]){ dots[S.idx].classList.remove('cur'); dots[S.idx].classList.add(isRight ? 'ok' : 'no'); }
+      const next = el('quiz-next');
+      next.textContent = (S.idx + 1 >= S.n) ? 'See results \u25b8' : 'Next \u25b8';
+      next.style.display = '';
+    }
+    function quizNext(){ const S = quizState; if (S.idx + 1 >= S.n){ quizFinish(); return; } S.idx++; quizRenderQuestion(); }
+    function quizFinish(){
+      const S = quizState, correct = S.n - S.wrong, passed = S.wrong === 0;
+      const prev = quizStats[S.lessonId] || { attempts: 0, best: 0, passed: false };
+      quizStats[S.lessonId] = { attempts: prev.attempts + 1, best: Math.max(prev.best || 0, correct), passed: prev.passed || passed };
+      try { localStorage.setItem(QUIZ_KEY, JSON.stringify(quizStats)); } catch(e){}
+      quizShow('result');
+      el('quiz-result-emoji').textContent = passed ? '\ud83c\udf89' : '\ud83d\udcaa';
+      el('quiz-result-title').textContent = passed ? ('Perfect! ' + correct + ' / ' + S.n) : (correct + ' / ' + S.n + ' \u2014 so close!');
+      el('quiz-result-sub').textContent = passed
+        ? 'You\u2019ve got this lesson down. Checkmark earned!'
+        : 'Give the ones below a read, then try again \u2014 you\u2019ll nail it.';
+      el('quiz-finish').style.display = passed ? '' : 'none';
+      el('quiz-again').textContent = passed ? 'Retake \u21ba' : 'Try Again \u21ba';
+      const rev = el('quiz-review'); rev.innerHTML = '';
+      if (!passed){
+        S.questions.filter(q => q.picked !== q.correct).forEach(q => {
+          const d = document.createElement('div'); d.className = 'quiz-rev';
+          d.innerHTML = '<div class="rq">' + escHtml(q.q) + '</div><div class="ra">\u2713 ' + escHtml(q.correct) + '</div><div class="re">' + escHtml(q.explain) + '</div>';
+          rev.appendChild(d);
+        });
+      }
+      if (passed){ markCompleteQuiet(S.lessonId); quizConfetti(); }
+    }
+    // mark done + persist without re-rendering the reader (keeps the result screen up under the modal)
+    function markCompleteQuiet(id){
+      lessonProgress[id] = true;
+      try { localStorage.setItem(LESSON_KEY, JSON.stringify(lessonProgress)); } catch(e){}
+      renderLessonList();
+    }
+    function quizConfetti(){
+      const cv = el('quiz-confetti'); if (!cv) return;
+      const card = cv.parentElement, W = cv.width = card.clientWidth, H = cv.height = card.clientHeight, ctx = cv.getContext('2d');
+      const cols = ['#38bdf8','#34d399','#c084fc','#f0a75e','#f87171','#facc15'], bits = [];
+      for (let i = 0; i < 130; i++) bits.push({ x: W / 2, y: H * 0.26, vx: (Math.random() - .5) * 10, vy: -Math.random() * 11 - 3,
+        s: 4 + Math.random() * 5, c: cols[i % cols.length], r: Math.random() * 6, vr: (Math.random() - .5) * .4, life: 0 });
+      const draw = () => {
+        ctx.clearRect(0, 0, W, H); let alive = false;
+        for (const b of bits){
+          b.vy += 0.28; b.x += b.vx; b.y += b.vy; b.r += b.vr; b.life++;
+          if (b.y < H + 20) alive = true;
+          ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.r); ctx.fillStyle = b.c;
+          ctx.globalAlpha = Math.max(0, 1 - b.life / 130); ctx.fillRect(-b.s / 2, -b.s / 2, b.s, b.s * 1.6); ctx.restore();
+        }
+        if (alive) requestAnimationFrame(draw); else ctx.clearRect(0, 0, W, H);
+      };
+      draw();
+    }
+    el('quiz-start').addEventListener('click', quizStart);
+    el('quiz-next').addEventListener('click', quizNext);
+    el('quiz-again').addEventListener('click', quizStart);
+    el('quiz-finish').addEventListener('click', closeQuiz);
+    el('quiz-close').addEventListener('click', () => {
+      if (quizState && el('quiz-play').style.display !== 'none' && quizState.questions.some(q => q.picked != null)
+          && !quizState.questions.every(q => q.picked != null)){
+        if (!confirm('Leave the quiz? This attempt won\u2019t be saved.')) return;
+      }
+      closeQuiz();
+    });
+    el('quiz-backdrop').addEventListener('click', () => el('quiz-close').click());
+    // the quiz owns the keyboard while open (capture phase, before the driving handler)
+    window.addEventListener('keydown', e => {
+      if (el('quiz-modal').classList.contains('quiz-hidden')) return;
+      if (e.key === 'Escape'){ e.stopImmediatePropagation(); el('quiz-close').click(); return; }
+      if (el('quiz-play').style.display === 'none') return;
+      const S = quizState; if (!S) return;
+      const q = S.questions[S.idx];
+      if (q.picked == null && /^[1-4]$/.test(e.key)){ const idx = +e.key - 1; if (idx < q.options.length){ e.stopImmediatePropagation(); e.preventDefault(); quizAnswer(idx); } }
+      else if (q.picked != null && (e.key === 'Enter' || e.key === ' ')){ e.stopImmediatePropagation(); e.preventDefault(); quizNext(); }
+    }, true);
 
     // editor service — works on the #src textarea (CM6 swap in M6b)
     function openFileByName(name){
@@ -5821,7 +6133,8 @@
           Java_sim_OpModeHost_publish, Java_sim_OpModeHost_mech,
           Java_sim_OpModeHost_telemetry, Java_sim_OpModeHost_status,
           Java_sim_OpModeHost_simX, Java_sim_OpModeHost_simZ, Java_sim_OpModeHost_simYaw,
-          Java_sim_OpModeHost_simVelX, Java_sim_OpModeHost_simVelZ, Java_sim_OpModeHost_simYawRate } });
+          Java_sim_OpModeHost_simVelX, Java_sim_OpModeHost_simVelZ, Java_sim_OpModeHost_simYawRate,
+          Java_sim_OpModeHost_simFlywheelTicks } });
         try { cheerpjCreateDisplay(1,1); } catch(e){}
         booted = true;
         // long-lived: keeps ECJ warm; never resolves
@@ -7589,6 +7902,327 @@
         }
       }
       customElements.define('edge-detect-widget', EdgeDetectWidget);
+    })();
+
+    // <flywheel-widget mode="trim"> — interactive shooter + live RPM graph. Sliders set target power and
+    // wheel inertia; hold X on the rendered pad to rapid-fire. Each shot saps RPM (graph dips below the
+    // dashed target line), so sagged shots fall short of the hive. Fun: Made/Missed counters, a READY light,
+    // color-coded balls, fading trajectory arcs, coast-down. DESIGNED FOR REUSE as mode="pid" (lesson 14):
+    // the physics/scene/graph are shared; PID only swaps the control panel (kS/kV/kP knobs) and the power
+    // source. All PID hooks are marked "PID:".
+    (function(){
+      const MAXRPM = 6000, MAKE_RPM = 3600, FIRE_CD = 0.22, RELOAD_TIME = 2.0, GYMAX = 5600, W = 680, H = 460;
+      const TEMPLATE = `
+      <style>
+        :host{ display:block; font-family:inherit; color:#e2e8f0; }
+        .topbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+        button.mini{ font:inherit; font-weight:800; font-size:.64rem; color:#eef4fb; background:linear-gradient(180deg,#28323f,#171e28);
+               border:1px solid #3a4453; border-radius:8px; padding:6px 12px; cursor:pointer; transition:filter .12s, border-color .15s; }
+        button.mini:hover{ border-color:#66748a; filter:brightness(1.14); }
+        .scores{ display:flex; gap:16px; font-size:.82rem; font-weight:800; font-family:ui-monospace,monospace; }
+        .scores .made{ color:#34d399; } .scores .missed{ color:#f87171; }
+        canvas{ width:100%; height:auto; display:block; border:1px solid #223; border-radius:10px; background:#0a0e14; }
+        .ctrls{ display:flex; align-items:flex-end; gap:22px; margin-top:12px; }
+        .knobs{ display:flex; gap:22px; }
+        .knob{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+        .knob input[type=range]{ writing-mode:vertical-lr; direction:rtl; width:22px; height:76px; accent-color:#38bdf8; cursor:pointer; }
+        .knob .klbl{ font-size:.64rem; font-weight:800; letter-spacing:.02em; color:#a9b6c7; }
+        .knob.pid{ display:none; }
+        :host([mode="pid"]) .knob.trim{ display:none; }
+        :host([mode="pid"]) .knob.pid{ display:flex; }
+        .knob.hood{ display:none; }
+        :host([mode="hood"]) .knob.hood{ display:flex; }
+        :host([mode="hood"]) .knob.trim{ display:none; }
+        :host([mode="hood"]) .knob.pid{ display:flex; }
+        .spacer{ flex:1 1 auto; }
+        .padwrap{ display:flex; flex-direction:column; align-items:center; gap:7px; }
+        .pad{ padding:12px 18px 10px; border-radius:16px; background:linear-gradient(180deg,#20293a,#141b28);
+               border:1px solid #33405480; box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 6px 14px rgba(0,0,0,.45); }
+        .xbtn{ width:76px; height:76px; border-radius:50%; cursor:pointer; user-select:none; touch-action:none;
+               font-weight:900; font-size:1.7rem; color:#08351b; border:2px solid #0a0e14;
+               display:flex; align-items:center; justify-content:center;
+               background:radial-gradient(circle at 36% 30%, #7be0a0, #34c374);
+               box-shadow:0 5px 0 #0a0e14, inset 0 2px 4px rgba(255,255,255,.4); transition:transform .05s, box-shadow .1s, filter .1s; }
+        .xbtn.held{ transform:translateY(5px); box-shadow:0 0 0 #0a0e14, 0 0 20px #34d399, inset 0 2px 6px rgba(0,0,0,.4); filter:brightness(1.12); }
+        .padcap{ font-size:.56rem; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:#8291a3; }
+        .legend{ display:flex; gap:14px; flex-wrap:wrap; justify-content:center; margin-top:8px; font-size:.6rem; color:#8291a3; font-weight:700; }
+        .legend span{ display:inline-flex; align-items:center; gap:5px; }
+        .legend .sw{ width:16px; height:3px; border-radius:2px; display:inline-block; }
+        .sw.rpm{ background:#34d399; } .sw.tgt{ background:#38bdf8; } .sw.make{ background:#f0883e; } .sw.pow{ background:#c084fc; }
+        .legend .pidleg{ display:none; }
+        :host([mode="pid"]) .legend .pidleg{ display:inline-flex; }
+        :host([mode="hood"]) .legend .pidleg{ display:inline-flex; }
+      </style>
+      <div class="topbar">
+        <button class="mini" id="resetBtn">&#8635; Reset</button>
+        <div class="scores"><span class="made">Made&nbsp;<span id="madeN">0</span></span><span class="missed">Missed&nbsp;<span id="missedN">0</span></span></div>
+      </div>
+      <canvas id="cvs" width="${W}" height="${H}"></canvas>
+      <div class="legend">
+        <span><i class="sw rpm"></i>actual RPM</span>
+        <span><i class="sw tgt"></i>target</span>
+        <span><i class="sw make"></i>make it</span>
+        <span class="pidleg"><i class="sw pow"></i>power</span>
+      </div>
+      <div class="ctrls">
+        <div class="knobs">
+          <div class="knob trim"><input type="range" id="power" min="30" max="100" value="67"><div class="klbl">Power</div></div>
+          <div class="knob"><input type="range" id="inertia" min="0" max="100" value="38"><div class="klbl">Inertia</div></div>
+          <div class="knob pid"><input type="range" id="target" min="1800" max="5400" value="4000"><div class="klbl">Target</div></div>
+          <div class="knob pid"><input type="range" id="kV" min="100" max="240" value="160"><div class="klbl">kV</div></div>
+          <div class="knob pid"><input type="range" id="kP" min="0" max="40" value="0"><div class="klbl">kP</div></div>
+          <div class="knob hood"><input type="range" id="hood" min="30" max="75" value="55"><div class="klbl">Angle</div></div>
+        </div>
+        <div class="spacer"></div>
+        <div class="padwrap"><div class="pad"><div class="xbtn" id="xbtn">X</div></div><div class="padcap">hold to shoot</div></div>
+      </div>`;
+
+      class FlywheelWidget extends HTMLElement {
+        constructor(){
+          super();
+          const root = this.attachShadow({ mode:'open' });
+          root.innerHTML = TEMPLATE;
+          this._el = id => root.getElementById(id);
+          this._mode = (this.getAttribute('mode') || 'trim').toLowerCase();
+          if (this._mode === 'hood') this._el('kP').value = 20;   // hood: flywheel already tuned in lesson 14
+          this._cvs = this._el('cvs'); this._ctx = this._cvs.getContext('2d');
+          this._reset();
+          this._bind();
+        }
+        connectedCallback(){
+          this._last = performance.now();
+          const loop = ts => { this._step(ts); this._raf = requestAnimationFrame(loop); };
+          this._raf = requestAnimationFrame(loop);
+        }
+        disconnectedCallback(){ if (this._raf) cancelAnimationFrame(this._raf); }
+
+        _reset(){
+          this._rpm = 0; this._spin = 0; this._t = 0; this._fireCd = 0;
+          this._balls = []; this._hist = []; this._window = 6.0;
+          this._made = 0; this._missed = 0; this._xDown = false;
+          this._flash = 0; this._jig = 0;
+          this._ammo = 4; this._reloadT = 0;               // 4-pollen magazine, then a timed reload
+        }
+        _bind(){
+          const b = this._el('xbtn');
+          const down = e => { e.preventDefault(); this._xDown = true; b.classList.add('held'); if (b.setPointerCapture && e.pointerId!=null) b.setPointerCapture(e.pointerId); };
+          const up = () => { this._xDown = false; b.classList.remove('held'); };
+          b.addEventListener('pointerdown', down);
+          b.addEventListener('pointerup', up);
+          b.addEventListener('pointerleave', up);
+          b.addEventListener('pointercancel', up);
+          this._el('resetBtn').addEventListener('click', () => this._reset());
+        }
+
+        // trim mode: target = power slider; pid/hood mode: target from the Target knob.
+        _targetRpm(){ return this._mode !== 'trim' ? +this._el('target').value : (+this._el('power').value / 100) * MAXRPM; }
+        // trim mode: power = the slider. pid/hood mode: feedforward (kV*target) + P (kP*error), clamped.
+        _computePower(){
+          if (this._mode !== 'trim'){
+            const tgt = +this._el('target').value;
+            const kV = +this._el('kV').value * 0.000001;      // feedforward: power per RPM (~1/6000)
+            const kP = +this._el('kP').value * 0.00001;       // correction per RPM of error
+            return Math.max(0, Math.min(1, kV * tgt + kP * (tgt - this._rpm)));
+          }
+          return +this._el('power').value / 100;
+        }
+
+        _step(ts){
+          let dt = (ts - this._last) / 1000; this._last = ts;
+          if (dt > 0.05) dt = 0.05;                          // clamp after tab-switch stalls
+          this._update(dt); this._draw();
+        }
+        _update(dt){
+          const m = +this._el('inertia').value / 100;         // 0 light .. 1 heavy
+          // Light wheel: quick-ish spin-up but a BIG bite per shot. Heavy: slower spin-up, tiny bite.
+          // The per-shot bite (sag) — not the recovery — is what makes rapid fire tank a light wheel.
+          this._tau = 0.35 + m * 0.60;
+          this._sag = 0.03 + (1 - m) * 0.55;
+          const cmd = this._computePower();                   // controller output (trim: slider; pid: FF+P)
+          this._rpm += (cmd * MAXRPM - this._rpm) * Math.min(1, dt / this._tau);
+          if (this._rpm < 0) this._rpm = 0;
+          this._spin += (this._rpm / MAXRPM) * 26 * dt;
+          this._flash = Math.max(0, this._flash - dt);
+          this._jig = Math.max(0, this._jig - dt * 4);
+          this._fireCd -= dt;
+          // 4-shot magazine: hold X to burst up to 4, then a 2s reload refills the tube. Tuning for
+          // four quick makes (BioBuzz's possession limit) is the whole point.
+          if (this._reloadT > 0){
+            this._reloadT += dt;
+            if (this._reloadT >= RELOAD_TIME){ this._reloadT = 0; this._ammo = 4; }
+          } else if (this._xDown && this._fireCd <= 0 && this._ammo > 0){
+            this._fire(); this._ammo--; this._fireCd = FIRE_CD;
+            if (this._ammo === 0) this._reloadT = 0.0001;   // magazine empty -> begin reload
+          }
+          for (let i = this._balls.length - 1; i >= 0; i--){
+            const ball = this._balls[i];
+            if (!ball.done){
+              ball.p += dt / ball.flight;
+              if (ball.p >= 1){ ball.p = 1; ball.done = true; ball.landT = 0; ball.made ? this._made++ : this._missed++; }
+            } else {
+              ball.landT += dt;
+              if (ball.landT > 0.6) this._balls.splice(i, 1);
+            }
+          }
+          this._t += dt;
+          this._hist.push({ t: this._t, rpm: this._rpm, pow: cmd });
+          while (this._hist.length && this._hist[0].t < this._t - this._window) this._hist.shift();
+        }
+        _fire(){
+          const hoodDeg = this._mode === 'hood' ? +this._el('hood').value : 55;   // fixed 55deg unless the hood lesson
+          let frac, made;
+          if (this._mode === 'hood'){
+            // projectile: reach scales with sin(2*angle) (peaks at 45deg); too flat clanks the front wall
+            const scale = Math.sin(2 * hoodDeg * Math.PI/180) / Math.sin(2 * 55 * Math.PI/180);
+            frac = Math.min(1.4, (this._rpm / MAKE_RPM) * scale);
+            made = hoodDeg >= 44 && frac >= 1;
+          } else {
+            frac = Math.min(1.3, this._rpm / MAKE_RPM);   // 1.0 = just reaches the hive
+            made = frac >= 1;
+          }
+          let color;
+          if (made) color = '#34d399';
+          else if (this._mode === 'hood' && hoodDeg < 44) color = '#f87171';   // clanked the front wall
+          else color = frac > 0.82 ? '#fbbf24' : '#f87171';
+          this._balls.push({ p: 0, flight: 0.60 + 0.30 * Math.min(1, frac), frac, made, color, hoodDeg, done: false, landT: 0 });
+          this._rpm *= (1 - this._sag);                       // the shot steals speed
+          this._flash = 0.13; this._jig = 1;
+        }
+        _hex(g, cx, cy, s){ g.beginPath(); for (let k = 0; k < 6; k++){ const a = Math.PI/180 * (60*k + 30); const x = cx + s*Math.cos(a), y = cy + s*Math.sin(a); k ? g.lineTo(x, y) : g.moveTo(x, y); } g.closePath(); }
+
+        _draw(){
+          const g = this._ctx;
+          g.clearRect(0, 0, W, H);
+          this._el('madeN').textContent = this._made;
+          this._el('missedN').textContent = this._missed;
+          // ---------- scene ----------
+          const floorY = 250, fx = 118, fy = 202, fr = 26;
+          const lx = fx + 30, ly = fy - 12;                   // muzzle (hood exit)
+          const bx = 566, bw = 84, bTop = 150, bBot = 244;    // hive bin (scaled down)
+          const wallT = 8;
+          const hiveCx = bx + bw / 2, reach = (bx + bw * 0.35) - lx;   // frac 1.0 clears the front wall, lands just inside
+          // floor
+          g.strokeStyle = '#1c2634'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, floorY); g.lineTo(W, floorY); g.stroke();
+          // ---- hive: OPEN-TOP bin with a clear FRONT wall (facing the shooter) ----
+          g.fillStyle = '#1c1408'; g.fillRect(bx, bTop, bw, bBot - bTop);                       // interior back
+          g.save(); g.beginPath(); g.rect(bx + wallT, bTop, bw - 2*wallT, bBot - bTop - 5); g.clip();
+          for (let r = 0; r < 4; r++) for (let c = 0; c < 2; c++){
+            const cx = bx + 24 + c * 30 + (r % 2 ? 15 : 0), cy = bTop + 15 + r * 20;
+            g.strokeStyle = '#7a5a1a'; g.lineWidth = 1.3; this._hex(g, cx, cy, 10); g.stroke();
+            g.fillStyle = 'rgba(240,180,41,.12)'; g.fill();
+          }
+          g.restore();
+          g.fillStyle = '#8a6417'; g.fillRect(bx, bBot - 5, bw, 5);                             // floor of the bin
+          g.fillStyle = '#8a6417'; g.fillRect(bx + bw - wallT, bTop, wallT, bBot - bTop);        // back wall
+          g.fillStyle = '#d29a24'; g.fillRect(bx, bTop, wallT, bBot - bTop);                     // FRONT wall (must clear this)
+          g.fillStyle = '#ffe08a'; g.fillRect(bx - 1, bTop - 3, wallT + 2, 3);                   // bright lip to clear
+          g.fillStyle = '#f0b429'; g.font = '800 11px system-ui'; g.textAlign = 'center'; g.fillText('HIVE', hiveCx, bTop - 9);
+          g.strokeStyle = '#5a6472'; g.lineWidth = 1.6;                                          // open-top cue: down chevrons
+          for (const ox of [-7, 7]){ g.beginPath(); g.moveTo(hiveCx + ox - 4, bTop - 20); g.lineTo(hiveCx + ox, bTop - 16); g.lineTo(hiveCx + ox + 4, bTop - 20); g.stroke(); }
+          // ---- feed tube + 4-pollen magazine ----
+          const c0x = fx - 72, c0y = fy - 60, c1x = fx - 12, c1y = fy + 4;
+          g.strokeStyle = '#2b3546'; g.lineWidth = 13; g.lineCap = 'round'; g.beginPath(); g.moveTo(c0x, c0y); g.lineTo(c1x, c1y); g.stroke();
+          g.strokeStyle = '#3a465a'; g.lineWidth = 9; g.beginPath(); g.moveTo(c0x, c0y); g.lineTo(c1x, c1y); g.stroke();
+          g.lineCap = 'butt';
+          for (let j = 0; j < this._ammo; j++){                 // pollen queued in the tube, front-most nearest the wheel
+            const u = 0.90 - j * 0.17 + this._jig * 0.04;
+            const x = c0x + (c1x - c0x) * u, y = c0y + (c1y - c0y) * u;
+            g.fillStyle = '#ffd400'; g.beginPath(); g.arc(x, y, 7, 0, 7); g.fill();
+            g.strokeStyle = '#00000035'; g.lineWidth = 1; g.stroke();
+          }
+          if (this._reloadT > 0){                               // reload clock filling to done
+            const p = Math.min(1, this._reloadT / RELOAD_TIME), rx = c0x, ry = c0y - 13, rr = 11;
+            g.strokeStyle = '#2a3444'; g.lineWidth = 4; g.beginPath(); g.arc(rx, ry, rr, 0, 7); g.stroke();
+            g.strokeStyle = '#38bdf8'; g.lineWidth = 4; g.beginPath(); g.arc(rx, ry, rr, -Math.PI/2, -Math.PI/2 + p * Math.PI * 2); g.stroke();
+            g.fillStyle = '#7dd3fc'; g.font = '700 9px system-ui'; g.textAlign = 'center'; g.fillText('RELOAD', rx, ry - rr - 5);
+          }
+          // ---- flywheel + hood ----
+          g.fillStyle = '#161d28'; g.beginPath(); g.arc(fx, fy, fr + 9, 0, 7); g.fill();
+          g.save(); g.translate(fx, fy); g.rotate(this._spin);
+          g.fillStyle = '#2b3546'; g.beginPath(); g.arc(0, 0, fr, 0, 7); g.fill();
+          g.strokeStyle = '#5a6b84'; g.lineWidth = 3; g.stroke();
+          for (let k = 0; k < 4; k++){ g.rotate(Math.PI/2); g.strokeStyle = k % 2 ? '#ffd400' : '#f0883e'; g.lineWidth = 4; g.beginPath(); g.moveTo(0, 0); g.lineTo(fr - 4, 0); g.stroke(); }
+          g.restore();
+          g.fillStyle = '#46536a'; g.beginPath(); g.arc(fx, fy, 6, 0, 7); g.fill();
+          g.strokeStyle = '#586780'; g.lineWidth = 8; g.lineCap = 'round'; g.beginPath(); g.arc(fx, fy, fr + 7, Math.PI * 0.62, Math.PI * 1.92); g.stroke(); g.lineCap = 'butt';
+          if (this._flash > 0){ const a = this._flash / 0.13; g.fillStyle = 'rgba(255,240,150,' + (a * 0.9).toFixed(2) + ')'; g.beginPath(); g.arc(lx + 6, ly - 4, 4 + (1 - a) * 14, 0, 7); g.fill(); }
+          // READY light
+          const tgt = this._targetRpm();
+          const ready = tgt > 0 && this._rpm >= 0.9 * tgt;
+          g.fillStyle = ready ? '#22c55e' : '#ef4444'; g.shadowColor = ready ? '#22c55e' : 'transparent'; g.shadowBlur = ready ? 12 : 0;
+          g.beginPath(); g.arc(fx - 30, fy + 40, 6, 0, 7); g.fill(); g.shadowBlur = 0;
+          g.fillStyle = ready ? '#86efac' : '#fca5a5'; g.font = '700 10px system-ui'; g.textAlign = 'left'; g.fillText(ready ? 'READY' : 'spinning up', fx - 20, fy + 44);
+          // ---- shots: makes arc OVER the front wall into the open top; misses stop in front of the wall ----
+          for (const ball of this._balls){
+            const rawX = lx + reach * ball.frac;
+            const landX = ball.made ? Math.min(rawX, bx + bw - 14) : Math.min(rawX, bx - 5);
+            const landY = ball.made ? (bBot - 12) : floorY - 6;
+            const hump = 40 + reach * ball.frac * (0.06 + 0.006 * ((ball.hoodDeg || 55) - 40));   // higher hood angle = taller arc
+            const arcAt = p => [ lx + (landX - lx) * p, (ly + (landY - ly) * p) - hump * 4 * p * (1 - p) ];
+            if (!ball.done){
+              g.strokeStyle = ball.color + '55'; g.lineWidth = 2; g.beginPath();
+              for (let s = 0; s <= ball.p; s += 0.04){ const q = arcAt(s); s === 0 ? g.moveTo(q[0], q[1]) : g.lineTo(q[0], q[1]); }
+              g.stroke();
+              const b = arcAt(ball.p);
+              g.fillStyle = ball.color; g.beginPath(); g.arc(b[0], b[1], 7, 0, 7); g.fill();
+              g.strokeStyle = '#00000040'; g.lineWidth = 1; g.stroke();
+            } else if (ball.made){
+              const r = 6 + ball.landT * 26, a = Math.max(0, 1 - ball.landT / 0.6);
+              g.strokeStyle = 'rgba(52,211,153,' + a.toFixed(2) + ')'; g.lineWidth = 3;
+              g.beginPath(); g.arc(landX, landY, r, 0, 7); g.stroke();
+            } else {
+              const a = Math.max(0, 1 - ball.landT / 0.6);
+              g.fillStyle = 'rgba(248,113,113,' + a.toFixed(2) + ')';
+              g.beginPath(); g.arc(landX, floorY - 6, 7, 0, 7); g.fill();
+              if (landX >= bx - 6){                                     // clanked the front wall -> little impact
+                g.strokeStyle = 'rgba(248,113,113,' + a.toFixed(2) + ')'; g.lineWidth = 2;
+                const rr = 4 + ball.landT * 12; g.beginPath(); g.arc(bx - 3, floorY - 12, rr, -1.3, 1.3); g.stroke();
+              }
+            }
+          }
+          // ---------- RPM graph ----------
+          const gx0 = 44, gx1 = W - 14, gy0 = 288, gy1 = H - 14;
+          const yOf = rpm => gy1 - (Math.min(rpm, GYMAX) / GYMAX) * (gy1 - gy0);
+          g.strokeStyle = '#1c2634'; g.lineWidth = 1; g.strokeRect(gx0, gy0, gx1 - gx0, gy1 - gy0);
+          g.fillStyle = '#6b7686'; g.font = '600 9px ui-monospace,monospace'; g.textAlign = 'right';
+          for (const r of [0, 2000, 4000]){ const y = yOf(r); g.fillText(r + '', gx0 - 4, y + 3); g.strokeStyle = '#141b26'; g.beginPath(); g.moveTo(gx0, y); g.lineTo(gx1, y); g.stroke(); }
+          g.save(); g.translate(11, (gy0 + gy1) / 2); g.rotate(-Math.PI/2); g.textAlign = 'center'; g.fillStyle = '#8291a3'; g.font = '700 10px system-ui'; g.fillText('RPM', 0, 0); g.restore();
+          g.setLineDash([3, 4]); g.strokeStyle = '#f0883e88'; g.lineWidth = 1.5;
+          g.beginPath(); g.moveTo(gx0, yOf(MAKE_RPM)); g.lineTo(gx1, yOf(MAKE_RPM)); g.stroke();
+          g.setLineDash([]); g.fillStyle = '#f0a75e'; g.font = '700 9px system-ui'; g.textAlign = 'left';
+          g.fillText('make it', gx0 + 4, yOf(MAKE_RPM) - 4);
+          g.setLineDash([6, 5]); g.strokeStyle = '#38bdf8'; g.lineWidth = 1.6;   // PID: the line the controller must hold
+          g.beginPath(); g.moveTo(gx0, yOf(tgt)); g.lineTo(gx1, yOf(tgt)); g.stroke();
+          g.setLineDash([]); g.fillStyle = '#7dd3fc'; g.textAlign = 'right';
+          g.fillText('target', gx1 - 4, yOf(tgt) - 4);
+          if (this._hist.length > 1){
+            g.strokeStyle = '#34d399'; g.lineWidth = 2.4; g.beginPath();
+            const t0 = this._t - this._window;
+            this._hist.forEach((h, i) => {
+              const x = gx0 + Math.max(0, Math.min(1, (h.t - t0) / this._window)) * (gx1 - gx0);
+              const y = yOf(h.rpm); i === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
+            });
+            g.stroke();
+            g.fillStyle = '#34d399'; g.beginPath(); g.arc(gx1, yOf(this._rpm), 3.5, 0, 7); g.fill();
+          }
+          this._drawOverlay(g, yOf, gx0, gx1);   // PID: draws the controller's power/response overlay
+        }
+        // pid mode: draw the controller's commanded power on the same graph (0..1 over full height) so the
+        // kP spike after each shot is visible.
+        _drawOverlay(g, yOf, gx0, gx1){
+          if (this._mode === 'trim' || this._hist.length < 2) return;
+          const gy0 = 288, gy1 = H - 14, t0 = this._t - this._window;
+          g.strokeStyle = '#c084fc'; g.lineWidth = 1.5; g.globalAlpha = 0.85; g.beginPath();
+          this._hist.forEach((h, i) => {
+            const x = gx0 + Math.max(0, Math.min(1, (h.t - t0) / this._window)) * (gx1 - gx0);
+            const y = gy1 - (h.pow || 0) * (gy1 - gy0);
+            i === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
+          });
+          g.stroke(); g.globalAlpha = 1;
+          g.fillStyle = '#c4b5fd'; g.font = '700 9px system-ui'; g.textAlign = 'left'; g.fillText('power', gx0 + 42, gy1 - 5);
+        }
+      }
+      customElements.define('flywheel-widget', FlywheelWidget);
     })();
   </script>
 </body>

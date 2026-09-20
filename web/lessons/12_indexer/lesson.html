@@ -1,0 +1,326 @@
+<h1>The Indexer: Feeding the Shooter</h1>
+
+<p>Think of your robot as a little <strong>assembly line</strong> for game pieces. The <strong>intake</strong> at the front
+grabs pollen off the floor and pulls it in. Your <strong>storage</strong> holds up to four pieces waiting inside. And
+soon a spinning <strong>flywheel</strong> up top will launch them across the field into the hive. But there's a gap in
+that line: what pushes a stored piece <em>up into</em> the flywheel, one at a time, exactly when you want to fire?
+That's the missing part you build today &mdash; the <strong>indexer</strong>.</p>
+
+<figure>
+  <img src="images/indexer_ballpath.png" alt="A friendly cutaway of the BioBuzz robot showing the game-piece path: pollen enters the intake roller at the front, drops into the internal storage, and a small feed wheel labeled the indexer lifts one piece up into the spinning flywheel at the top, which launches it toward the hive. The indexer feed wheel is highlighted.">
+  <figcaption>The game-piece assembly line: intake &rarr; storage &rarr; <strong>indexer</strong> &rarr; flywheel. The
+  indexer is the gatekeeper &mdash; it decides <em>when</em> a stored piece moves up to be launched.</figcaption>
+</figure>
+
+<p>The indexer is a small <strong>feed wheel</strong> tucked between your storage and your shooter. Hold the fire
+button and it spins, flicking stored pieces up and out one after another. Let go and it stops. It's the
+<strong>trigger</strong> of your whole scoring mechanism &mdash; nothing gets launched until the indexer feeds it.</p>
+
+<p>You'll build it as a subsystem &mdash; the exact same four-part shape you learned on the intake &mdash; but this
+one introduces a <strong>new kind of actuator</strong> and a <strong>simpler state machine</strong>. Two small new ideas on
+familiar bones.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Where the indexer fits</div>
+  <p>It sits <em>between</em> your storage and your shooter, like the gate at the end of a checkout lane. Hold the
+  fire button and the feed wheel spins, moving one stored piece at a time up toward the flywheel. Let go and it
+  stops. That "one at a time, only on command" job is the whole point &mdash; it keeps you from dumping your entire
+  load at once.</p>
+</div>
+
+
+<hr>
+
+<h2>New actuator: a continuous-rotation servo</h2>
+
+<p>The intake was a <code>DcMotor</code>. The indexer is a <strong>CRServo</strong> &mdash; a <em>continuous-rotation
+servo</em>. Here's the fun twist: a servo can have one of <strong>two totally different personalities</strong>, even
+though the two look almost identical sitting on the table. Meet them.</p>
+
+<figure>
+  <img src="images/servo_two_kinds.png" alt="Two nearly identical servos shown side by side as cartoon characters. On the left, The Pointer: a positional servo turning a robot claw to an exact angle on a protractor, with a speech bubble reading 'Go to 90 degrees and HOLD.' On the right, The Spinner: a continuous-rotation servo spinning a star-shaped feed wheel with motion lines, speech bubble reading 'Just spin at this speed!' A label notes they are the same hardware family with different jobs.">
+  <figcaption><strong>The Pointer</strong> goes to an exact angle and holds it. <strong>The Spinner</strong> forgets about
+  angles and just turns at a speed you pick. Same little box &mdash; two different jobs.</figcaption>
+</figure>
+
+<p><strong>The Pointer (a positional servo)</strong> is a perfectionist about <em>angle</em>. Tell it &ldquo;go to
+90&deg;&rdquo; and it snaps there and holds, fighting to stay put &mdash; perfect for a claw that must open to
+exactly the right width, or a wrist that flips to a set position.</p>
+
+<p><strong>The Spinner (a continuous-rotation servo)</strong> gives all that up. It doesn't know or care what angle
+it's at &mdash; you just tell it a <em>speed and direction</em> and it turns, like a tiny motor. That's exactly what a
+feed wheel wants: <em>spin while I'm feeding, stop when I'm not.</em> So the indexer uses a Spinner.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Same <code>setPower()</code>, simpler hardware</div>
+  <p>The best part: The Spinner is driven with the <em>same</em> <code>setPower(speed)</code> call you already know
+  from the motor &mdash; <code>1.0</code> is full speed one way, <code>0.0</code> is stop. But it plugs into a <strong>servo
+  port</strong> instead of a motor port, with no encoder to wire and no gearbox to configure. The only thing that
+  changes in your code is the <em>type</em>: you ask the hardware map for a <code>CRServo</code> instead of a
+  <code>DcMotor</code>.</p>
+</div>
+
+<hr>
+
+<h2>A smaller state machine</h2>
+
+<p>The intake had <strong>three</strong> states (forward, off, reverse) because it genuinely does three different jobs.
+The indexer only ever does <strong>two</strong> things: it's either <strong>feeding</strong> or it's <strong>not</strong>. When a
+machine has just two states, you don't need a whole <code>enum</code> &mdash; a single <code>true</code>/<code>false</code>
+field says it all.</p>
+
+<p>So this subsystem is the intake's little sibling: same four parts (a field that remembers the state, command
+methods that change it, and an <code>update()</code> that makes the hardware match), just built around one boolean
+instead of a three-name enum.</p>
+
+<hr>
+
+<h2>A closer look at <code>Indexer.java</code></h2>
+
+<p>A new file just appeared: <code>Indexer.java</code>. Open it and read the top. The <code>CRServo</code> import, the
+<code>FEED_POWER</code> constant, and the empty <code>feeder</code> field are there for you. What's missing is the
+<strong>constructor</strong>, the state, and the commands. You'll add them in order &mdash; and along the way we'll finally
+slow down and really unpack that constructor you've now met five times.</p>
+
+<hr>
+
+<h2>Part A &mdash; Remember whether we're feeding</h2>
+
+<p>One boolean is the entire "state" of this machine. It starts <code>false</code> &mdash; a robot should never boot up
+feeding.</p>
+
+<span class="act" data-action="open_file" data-arg="Indexer.java|Indexer : Feeding Flag">&#9656; Indexer.java : Indexer : Feeding Flag</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Indexer.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>private boolean feeding = false;   // start stopped</code></pre>
+</div>
+
+<hr>
+
+<h2>Part B &mdash; Write the constructor (and better understand it)</h2>
+
+<p>Every subsystem you've built so far came with its constructor already written &mdash; you saw it in
+<code>Drivebase</code> and <code>Intake</code> but never wrote one. This time you will, because it's short and it's the
+perfect chance to really get what it does.</p>
+
+<span class="act" data-action="open_file" data-arg="Indexer.java|Indexer : Constructor">&#9656; Indexer.java : Indexer : Constructor</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Indexer.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>public Indexer(HardwareMap hardwareMap) {
+    feeder = hardwareMap.get(CRServo.class, "feeder");
+    feeder.setPower(0.0);
+}</code></pre>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Review: what <em>is</em> a constructor?</div>
+  <p>Back in the <code>Drivebase</code> lesson we said a class is like a <strong>blueprint for a room</strong>, and building
+  the room from that blueprint is like a <strong>construction crew</strong> showing up once to install the fixtures and
+  plug everything in. That crew is the <strong>constructor</strong>. Now let's look at what it actually is, line by
+  line.</p>
+</div>
+
+<figure>
+  <img src="images/constructor_blueprint.png" alt="A blueprint labeled Indexer.java on the left with dashed outlines of a feed wheel and servo. An arrow labeled new Indexer(hardwareMap) points to the right, where a construction crew builds the real indexer from the blueprint: one worker looks up the feeder in a phone book labeled hardwareMap, another switches the servo to OFF. A caption reads: the constructor runs ONCE, at build time.">
+  <figcaption>The class is the blueprint; <code>new Indexer(hardwareMap)</code> sends in the crew. The constructor
+  runs <strong>once</strong>, at build time &mdash; it finds the hardware and sets the starting state, then its job is done.</figcaption>
+</figure>
+
+<p>Line by line:</p>
+
+<ul>
+  <li><strong><code>public Indexer(HardwareMap hardwareMap)</code></strong> &mdash; this is the constructor. You can spot one
+  instantly: it has <strong>the exact same name as the class</strong> (<code>Indexer</code>) and <strong>no return type</strong> (not
+  even <code>void</code>). That's the rule that makes it a constructor instead of a normal method. The
+  <code>HardwareMap hardwareMap</code> in the parentheses is a <strong>parameter</strong> &mdash; the robot's "phone book" of
+  every motor, servo, and sensor, handed in from the outside so the constructor can look devices up.</li>
+  <li><strong><code>feeder = hardwareMap.get(CRServo.class, "feeder");</code></strong> &mdash; ask the phone book for the
+  device named <code>"feeder"</code> (the name from the Driver Hub config), and store it in our field. This is the
+  moment the empty <code>feeder</code> field becomes a real, usable servo.</li>
+  <li><strong><code>feeder.setPower(0.0);</code></strong> &mdash; leave it stopped, so the robot never boots up with the
+  feeder already spinning.</li>
+</ul>
+
+<p>What line actually <strong>calls</strong> this constructor? The line <code>new Indexer(hardwareMap)</code> does &mdash;
+the <code>new</code> keyword is what sends in the crew. You'll write that line yourself in a little bit, over in
+<code>Robot.java</code>. Open it here to see exactly where it goes:</p>
+
+<span class="act" data-action="open_file" data-arg="Robot.java|Indexer : Setup">&#9656; Robot.java : Indexer : Setup</span>
+
+<div class="blk blk-key">
+  <div class="blk-head">The big idea: <em>once</em> vs <em>every loop</em></div>
+  <p>That call happens <strong>exactly once</strong>, during <strong>INIT</strong>, before the match starts. That's the
+  difference worth burning in: the <strong>constructor runs once</strong> (find the hardware, set it up,
+  set the starting state), while <strong><code>update()</code> runs every single loop</strong> (~50 times a second) to
+  <em>act</em>. You look a device up <em>once</em> in the constructor &mdash; not 50 times a second &mdash; and then just
+  <em>use</em> it in <code>update()</code>. Keep &ldquo;set up once&rdquo; and &ldquo;do repeatedly&rdquo; in separate places and your
+  whole robot stays easy to reason about.</p>
+</div>
+
+<hr>
+
+<h2>Part C &mdash; The command methods (change the flag)</h2>
+
+<p>Time to give the outside world a way to <em>ask</em> the indexer to do things. You do that with
+<strong>methods</strong>.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Review: what's a method?</div>
+  <p>A <strong>method</strong> is a named action a class knows how to do &mdash; a little block of steps you can run just
+  by calling its name, as many times as you like. You've been using them all along: <code>telemetry.addData(&hellip;)</code>,
+  <code>motor.setPower(&hellip;)</code>, <code>robot.update()</code> are all methods. Now you're <em>writing your own</em>, so the rest
+  of your program has clean, named ways to work with the indexer.</p>
+</div>
+
+<p>You'll add exactly three, because these are the only things anyone <em>outside</em> the indexer actually needs:</p>
+
+<ul>
+  <li><strong><code>feed()</code></strong> &mdash; "start feeding." A named command, so an OpMode never has to know
+  <em>how</em> feeding works &mdash; it just asks.</li>
+  <li><strong><code>stop()</code></strong> &mdash; "stop feeding." The matching off switch.</li>
+  <li><strong><code>isFeeding()</code></strong> &mdash; "are you feeding right now?" A read-only <em>peek</em> at the state, so
+  the OpMode can show it on telemetry or decide whether it's safe to shoot &mdash; without being able to secretly
+  change anything.</li>
+</ul>
+
+<p>Notice what these do <strong>not</strong> do: none of them touches the <code>feeder</code> servo. They only flip the
+<code>feeding</code> flag (or report it). Deciding and doing stay split apart &mdash; <code>update()</code> (Part D) is the
+only place that actually moves hardware. That's the same clean shape you built on the intake.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">The house with one door &mdash; revisited</div>
+  <p>Back in <em>From Messy Loop to Clean Class</em> we said a subsystem is like a <strong>house</strong>: the hardware is
+  <strong>private</strong> &mdash; wiring sealed inside the walls &mdash; and the only way in is through a <strong>public
+  door</strong> you control. The indexer is that idea again, exactly. The <code>feeder</code> servo is <code>private</code>:
+  nothing outside the <code>Indexer</code> can reach it. The only ways in are the three <code>public</code> methods you're
+  about to write &mdash; <code>feed()</code>, <code>stop()</code>, and the little peek-window <code>isFeeding()</code>.</p>
+  <p>Why bother? Because if <em>any</em> code anywhere could grab the feeder and spin it, a misbehaving indexer
+  could be caused by a bug <em>anywhere</em> in your whole program. By sealing the servo inside and forcing every
+  request through three known doors, there's <strong>one place</strong> feeding can start, one place it can stop, and
+  <strong>one</strong> file to walk into when something's wrong. That's what keeps a big robot program debuggable.</p>
+</div>
+
+<figure>
+  <img src="images/indexer_doors.png" alt="A house labeled Indexer with the CRServo feed wheel drawn as private wiring sealed inside its walls. On the front are two labeled doors, feed() and stop(), and a small labeled window, isFeeding(). An OpMode character stands outside using the doors and peeking through the window, but a no-entry symbol on the wall shows it cannot reach the servo directly.">
+  <figcaption>The <code>feeder</code> stays <strong>private</strong>, sealed in the walls. The OpMode can only come in
+  through the <strong>public</strong> doors <code>feed()</code> and <code>stop()</code>, or peek through the <code>isFeeding()</code>
+  window &mdash; never touching the hardware directly.</figcaption>
+</figure>
+
+<span class="act" data-action="open_file" data-arg="Indexer.java|Indexer : Commands">&#9656; Indexer.java : Indexer : Commands</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Indexer.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>/** Start feeding pieces out. Only changes the flag -- update() moves the servo. */
+public void feed() {
+    feeding = true;
+}
+
+/** Stop feeding. */
+public void stop() {
+    feeding = false;
+}
+
+/** Lets the OpMode read whether the indexer is running -- to show it, or to gate a shot. */
+public boolean isFeeding() {
+    return feeding;
+}</code></pre>
+</div>
+
+<hr>
+
+<h2>Part D &mdash; <code>update()</code>: turn the flag into servo power</h2>
+
+<p>The scheduler calls <code>update()</code> every loop. With only two states, we don't even need a <code>switch</code> &mdash;
+a single line does it: full power while feeding, zero when stopped. That little <code>? :</code> is a shorthand
+called a <strong>ternary</strong> &mdash; a fancy word that just means &ldquo;pick one of two values.&rdquo; Read it left to
+right like a question: <code>feeding ? FEED_POWER : 0.0</code> asks <em>&ldquo;is <code>feeding</code> true?&rdquo;</em> The
+<code>?</code> starts the question; if the answer is <strong>yes</strong> you get the value before the <code>:</code>
+(<code>FEED_POWER</code>), and if <strong>no</strong> you get the value after it (<code>0.0</code>). It's just a compact
+<code>if/else</code> squeezed onto one line.</p>
+
+<span class="act" data-action="open_file" data-arg="Indexer.java|Indexer : Apply State">&#9656; Indexer.java : Indexer : Apply State</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Indexer.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>feeder.setPower(feeding ? FEED_POWER : 0.0);</code></pre>
+</div>
+
+<hr>
+
+<h2>Part E &mdash; Add the indexer to the robot</h2>
+
+<p>The subsystem is built, but the robot doesn't know about it yet. Open <code>Robot.java</code> and give it a home
+&mdash; the same two small edits you made for the intake.</p>
+
+<h3>1. Declare the field</h3>
+
+<span class="act" data-action="open_file" data-arg="Robot.java|Indexer : Field">&#9656; Robot.java : Indexer : Field</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>public final Indexer indexer;   // the feed wheel that pushes stored pieces out</code></pre>
+</div>
+
+<h3>2. Build it (and add it to the scheduler)</h3>
+
+<p>That second line is what makes <code>robot.update()</code> call your indexer's <code>update()</code> every loop &mdash;
+forget it, and the servo never moves.</p>
+
+<span class="act" data-action="open_file" data-arg="Robot.java|Indexer : Setup">&#9656; Robot.java : Indexer : Setup</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>indexer = new Indexer(hardwareMap);   // build it -- the constructor finds "feeder" in the config
+subsystems.add(indexer);              // register it so robot.update() calls indexer.update() every loop</code></pre>
+</div>
+
+<hr>
+
+<h2>Part F &mdash; Fire with the X button (hold to feed)</h2>
+
+<p>Now wire the gamepad. This one is even simpler than the intake: no edge detection, no memory field. Feeding
+is a <strong>hold</strong>, not a toggle &mdash; while <strong>X</strong> is down we feed, the instant it's up we stop. So we can
+read the button directly every loop.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why no edge detection this time?</div>
+  <p>Edge detection was for <em>toggles</em> &mdash; "one tap flips a setting," where reacting on all 15&ndash;20 loops of a
+  held press would be a disaster. Feeding isn't a toggle; it's a <em>hold</em>. We <em>want</em> "on for every loop
+  X is down." So plain <code>if (gamepad1.x)</code> is exactly right &mdash; and simpler is better when it fits.</p>
+</div>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Indexer : Loop">&#9656; MecanumDrive.java : Indexer : Loop</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>// Hold X to feed pieces out. No edge detection needed -- feeding is simply ON while held.
+if (gamepad1.x) robot.indexer.feed();
+else robot.indexer.stop();</code></pre>
+</div>
+
+<hr>
+
+<h2>Try it &mdash; watch them dribble out</h2>
+
+<p>Your robot starts a match pre-loaded with pollen. Build, Init, and Start, then <strong>hold X</strong>. The feeder
+spins and the stored pollen rolls out the front of the robot, one flick at a time. Let go and it stops.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Wait &mdash; why do they just fall out?</div>
+  <p>Right now the pieces only <strong>dribble</strong> out the front, because your robot has no shooter yet. The indexer
+  is doing its whole job &mdash; feeding pieces out on command &mdash; there's just nothing above it to grab them.</p>
+  <p><strong>That changes next lesson.</strong> You'll add the <strong>flywheel</strong>: a heavy wheel spun up to high speed
+  that catches each fed piece and launches it across the field into the hive. The indexer you just built is the
+  trigger; the flywheel is the cannon. Same <code>feed()</code> call &mdash; but now the pieces fly.</p>
+</div>
+
+<p>You built a second subsystem &mdash; a new actuator (the CRServo) and a two-state machine &mdash; and wired it to a
+hold-to-fire button. Next lesson: the flywheel that turns this dribble into a real shot.</p>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

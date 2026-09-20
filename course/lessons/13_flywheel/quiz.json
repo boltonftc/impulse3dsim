@@ -1,0 +1,156 @@
+{
+  "title": "Flywheel Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "A flywheel shooter works most like a...",
+      "correct": "Baseball pitching machine",
+      "wrong": [
+        "Car's steering wheel",
+        "Bicycle's hand brake",
+        "Kitchen microwave oven"
+      ],
+      "explain": "A flywheel is a heavy spinning wheel that flings game pieces, just like a baseball pitching machine spins a wheel to hurl a ball."
+    },
+    {
+      "q": "What is inertia, for the flywheel?",
+      "correct": "The heavy wheel resisting changes to its speed",
+      "wrong": [
+        "The wheel spinning faster all on its own",
+        "The battery slowly losing charge over time",
+        "The motor overheating during a long match"
+      ],
+      "explain": "Inertia is a heavy wheel's resistance to speed change. It's slow to spin up, but once spinning it barely slows when a piece hits it \u2014 giving consistent shots."
+    },
+    {
+      "q": "Why is a heavy flywheel preferred for competition?",
+      "correct": "Its shots stay consistent even during rapid fire",
+      "wrong": [
+        "It spins up a great deal faster than a light one",
+        "It uses far less power from the robot's battery",
+        "It is much lighter to carry around the field"
+      ],
+      "explain": "A heavy wheel barely slows when a piece hits it, so every shot leaves at nearly the same speed. A light wheel drops speed on each shot and misses."
+    },
+    {
+      "q": "A light flywheel's downside is...",
+      "correct": "Each shot slows it a lot, so shots are inconsistent",
+      "wrong": [
+        "It is far too heavy to spin up quickly",
+        "It can never reach a high enough speed",
+        "It drains the robot's battery twice as fast"
+      ],
+      "explain": "A light wheel spins up fast but loses a lot of speed on each shot, so the shots come out at different speeds and land in different places."
+    },
+    {
+      "q": "Which motor type can report its own speed?",
+      "correct": "DcMotorEx, using its encoder",
+      "wrong": [
+        "A plain DcMotor, with no encoder",
+        "A CRServo, using its setPower",
+        "A positional Servo, using an angle"
+      ],
+      "explain": "Only DcMotorEx (the \"extended\" motor) can report speed with getVelocity(). A plain DcMotor can't, which is why the flywheel uses DcMotorEx."
+    },
+    {
+      "q": "How many encoder ticks per revolution does this motor make?",
+      "correct": "28 ticks per revolution",
+      "wrong": [
+        "60 ticks per revolution",
+        "360 ticks per revolution",
+        "1 tick per revolution"
+      ],
+      "explain": "The goBILDA 1:1 motor produces 28 ticks per output revolution. You use that number to turn encoder ticks into RPM."
+    },
+    {
+      "q": "What does getVelocity() return?",
+      "correct": "Encoder speed in ticks per second",
+      "wrong": [
+        "The motor's power from 0 to 1",
+        "The robot's heading in radians",
+        "The distance driven in inches"
+      ],
+      "explain": "getVelocity() returns the encoder's speed in ticks per second. Divide by 28 (ticks/rev) and multiply by 60 to get RPM."
+    },
+    {
+      "q": "What is the RPM formula?",
+      "correct": "ticksPerSecond divided by 28, times 60",
+      "wrong": [
+        "ticksPerSecond times 28, times 60",
+        "ticksPerSecond divided by 60, times 28",
+        "ticksPerSecond plus 28, times 60"
+      ],
+      "explain": "RPM = (ticksPerSecond / 28) * 60. Ticks/sec \u2192 revs/sec (divide by ticks-per-rev) \u2192 revs/min (times 60)."
+    },
+    {
+      "q": "What does the toggle() command do?",
+      "correct": "Flips the flywheel on or off",
+      "wrong": [
+        "Sets the flywheel to full power",
+        "Reads the flywheel's current RPM",
+        "Reverses the two drive motors"
+      ],
+      "explain": "toggle() flips the spinning boolean, turning the flywheel on if it was off and off if it was on \u2014 called once per button press."
+    },
+    {
+      "q": "Why check a deadzone before nudging the power?",
+      "correct": "To ignore tiny stick drift near the center",
+      "wrong": [
+        "To make the flywheel spin much faster",
+        "To save battery while the wheel spins",
+        "To reverse the flywheel motor's spin"
+      ],
+      "explain": "A stick rarely sits at exactly zero. The deadzone ignores tiny drift so the wheel's power isn't nudged constantly when you aren't touching the stick."
+    },
+    {
+      "q": "The nudge(amount) command...",
+      "correct": "Trims the power up or down a little each loop",
+      "wrong": [
+        "Sets the power to one single fixed value",
+        "Reads the encoder's total tick count",
+        "Prints the RPM onto the telemetry"
+      ],
+      "explain": "nudge() creeps the stored power up or down by a small step (and clamps it), so the driver can fine-tune the shot strength with the stick."
+    },
+    {
+      "q": "Why does a heavy wheel take a moment to spin up?",
+      "correct": "Its inertia resists the change to a higher speed",
+      "wrong": [
+        "The motor is too weak to ever spin it up",
+        "The encoder slows the wheel down first",
+        "The battery must warm up before it spins"
+      ],
+      "explain": "A heavy wheel's inertia resists speeding up, so setPower doesn't reach full RPM instantly \u2014 it ramps over about a second. Fire too early and the shot falls short."
+    },
+    {
+      "q": "What two pieces of state does the flywheel remember?",
+      "correct": "Whether it's spinning and its power level",
+      "wrong": [
+        "Its heading and its distance traveled",
+        "The battery voltage and the tick count",
+        "The intake speed and the hood angle"
+      ],
+      "explain": "The flywheel remembers spinning (a boolean) and power (a double). update() applies power when spinning, or zero when off."
+    },
+    {
+      "q": "getRpm() gives you the wheel's...",
+      "correct": "Real measured speed from the encoder",
+      "wrong": [
+        "Commanded power from 0 to 1",
+        "Target angle for the hood",
+        "Distance to the hive in inches"
+      ],
+      "explain": "getRpm() reads the encoder (getVelocity) and converts to RPM, so you see the wheel's REAL speed \u2014 no more guessing whether it's up to speed."
+    },
+    {
+      "q": "Why use DcMotorEx instead of DcMotor for the flywheel?",
+      "correct": "Only DcMotorEx can measure the wheel's speed",
+      "wrong": [
+        "DcMotorEx spins with about twice the power",
+        "A plain DcMotor cannot be reversed in code",
+        "DcMotorEx runs without needing any battery"
+      ],
+      "explain": "You need to know the flywheel's real RPM, and only DcMotorEx offers getVelocity(). A plain DcMotor can set power but can't report speed."
+    }
+  ]
+}

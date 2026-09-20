@@ -1,0 +1,156 @@
+{
+  "title": "Pinpoint Localization Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "What is a pose?",
+      "correct": "Three numbers: x, y, and heading",
+      "wrong": [
+        "A single number: the robot's speed",
+        "Two numbers: motor power and time",
+        "A list of every button ever pressed"
+      ],
+      "explain": "A pose is (x, y, heading) \u2014 where the robot is on the field and which way it faces. It's the robot's full \"where am I\" in three numbers."
+    },
+    {
+      "q": "What is odometry?",
+      "correct": "Figuring out distance by counting wheel turns",
+      "wrong": [
+        "Measuring the battery's charge over time",
+        "Reading the heading from a compass app",
+        "Counting how many pieces are stored inside"
+      ],
+      "explain": "Odometry works out how far you've traveled by counting wheel turns \u2014 just like a car's odometer. Pinpoint uses it to track the robot's pose."
+    },
+    {
+      "q": "What is a dead wheel?",
+      "correct": "An unpowered wheel that rolls freely to measure",
+      "wrong": [
+        "A drive wheel that has completely burned out",
+        "A wheel that has no rubber tread left on it",
+        "A spare wheel kept in the pit for repairs"
+      ],
+      "explain": "A dead wheel has no motor, so it coasts and rolls cleanly without slipping. That makes its turn count an accurate measure of distance."
+    },
+    {
+      "q": "How are the two tracking pods mounted?",
+      "correct": "90 degrees apart, one for X and one for Y",
+      "wrong": [
+        "Right next to each other, both tracking X",
+        "On the same axle, sharing one encoder",
+        "On top of the two front drive motors"
+      ],
+      "explain": "Two pods sit 90\u00b0 apart: one tracks forward/back (X) and one tracks sideways (Y). Together they catch motion in any direction."
+    },
+    {
+      "q": "In the field frame, +X is...",
+      "correct": "Forward",
+      "wrong": [
+        "Backward",
+        "To the right",
+        "Straight down"
+      ],
+      "explain": "The field frame is +X forward, +Y left, +heading counter-clockwise. Drive forward and x goes up."
+    },
+    {
+      "q": "In the field frame, +Y is...",
+      "correct": "To the left",
+      "wrong": [
+        "To the right",
+        "Forward",
+        "Backward"
+      ],
+      "explain": "+Y points left. Strafe left and y grows; strafe right and it shrinks. Forward is +X and turning left grows the heading."
+    },
+    {
+      "q": "Which I2C port must you NOT use for Pinpoint?",
+      "correct": "Port 0, because the built-in IMU lives there",
+      "wrong": [
+        "Port 3, because it is far too slow",
+        "Port 1, because it is always reserved",
+        "Any port at all; they all conflict badly"
+      ],
+      "explain": "The hub's built-in IMU already uses I2C Port 0, so plugging Pinpoint there causes conflicts. Use Port 1, 2, or 3 instead."
+    },
+    {
+      "q": "What does Math.hypot(x, y) compute?",
+      "correct": "The straight-line distance from the start",
+      "wrong": [
+        "The robot's current heading in radians",
+        "The battery's remaining charge percent",
+        "The number of loops run so far"
+      ],
+      "explain": "Math.hypot(x, y) is the Pythagorean distance \u2014 how far the robot is from where it started, straight-line, using \u221a(x\u00b2 + y\u00b2)."
+    },
+    {
+      "q": "What must you call each loop to keep the pose fresh?",
+      "correct": "The Pinpoint's update, to pull the latest pose",
+      "wrong": [
+        "The telemetry update, to redraw the screen",
+        "The battery check, to read the voltage",
+        "The intake command, to keep it spinning"
+      ],
+      "explain": "You have to refresh Pinpoint every loop (its update) or the pose freezes at its last reading. Localization is only useful when it's current."
+    },
+    {
+      "q": "If a pod is mounted crooked, then...",
+      "correct": "Forward and sideways readings get mixed up",
+      "wrong": [
+        "The battery drains about twice as fast",
+        "The flywheel spins at the wrong RPM",
+        "The telemetry stops printing its lines"
+      ],
+      "explain": "A crooked pod blends the X and Y motion together, so the tracked position drifts off. Pods must be square to the frame for clean readings."
+    },
+    {
+      "q": "Turning the robot left (counter-clockwise) makes heading...",
+      "correct": "Go up",
+      "wrong": [
+        "Go down",
+        "Stay the same",
+        "Reset to zero"
+      ],
+      "explain": "+heading is counter-clockwise, so turning left grows the heading and turning right shrinks it. Zero is the starting direction."
+    },
+    {
+      "q": "What is Pinpoint, exactly?",
+      "correct": "A computer that reads dead wheels and a gyro for pose",
+      "wrong": [
+        "A camera that films the entire match",
+        "A motor that drives the tracking wheels",
+        "A battery that powers the odometry pods"
+      ],
+      "explain": "The goBILDA Pinpoint is a small computer that reads two dead wheels plus a gyro and continuously reports the robot's pose over I2C."
+    },
+    {
+      "q": "Why do dead wheels roll without slipping?",
+      "correct": "They have no motor, so they just coast",
+      "wrong": [
+        "They are much heavier than drive wheels",
+        "They spin twice as fast as drive wheels",
+        "They are made of a special grippy metal"
+      ],
+      "explain": "A powered wheel can slip when it spins; a dead wheel has no motor, so it simply follows the floor. That clean rolling makes its count accurate."
+    },
+    {
+      "q": "The config name the code looks up must...",
+      "correct": "Match the name in the configuration exactly",
+      "wrong": [
+        "Always be spelled in all capital letters",
+        "Be different from the code's device name",
+        "Include the robot battery's voltage"
+      ],
+      "explain": "hardwareMap looks up the device by name, so \"pinpoint\" in the config must match \"pinpoint\" in the code exactly \u2014 spelling and case included."
+    },
+    {
+      "q": "Why does field-centric driving depend on good localization?",
+      "correct": "A wrong +Y direction would steer paths sideways",
+      "wrong": [
+        "The flywheel needs the pose to spin up",
+        "The intake can't run without a valid pose",
+        "The battery charges from the odometry pods"
+      ],
+      "explain": "If the frame is wrong (say +Y points the wrong way), every heading-based move steers off. Correct pod directions keep field-centric and autonomous on target."
+    }
+  ]
+}
