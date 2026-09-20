@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.7.0';
+    window.APP_VERSION = '2.7.1';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -1278,7 +1278,7 @@
       <div class="quiz-screen" id="quiz-intro">
         <div class="quiz-emoji">🎯</div>
         <h2 id="quiz-intro-title">Quiz</h2>
-        <p class="quiz-sub">Answer <b>10 questions</b> and get them <b>all right</b> to earn your checkmark. Miss one? No stress &mdash; you'll see exactly why, then you can try again.</p>
+        <p class="quiz-sub" id="quiz-intro-sub">Answer <b>10 questions</b> and get <b>8 or more right</b> to earn your checkmark. Miss a few? No stress &mdash; you'll see exactly why, then you can try again.</p>
         <button class="quiz-btn quiz-go" id="quiz-start">Let's go &#9656;</button>
         <div class="quiz-best" id="quiz-best"></div>
       </div>
@@ -5119,6 +5119,7 @@
 
     // ---------------- Quiz engine (mastery: all-correct earns the checkmark) ----------------
     const QUIZ_KEY = 'impulse.quiz.v1';
+    const QUIZ_PASS = 0.8;          // fraction correct needed to pass (80% -> 8 of 10)
     let quizStats = {};
     try { quizStats = JSON.parse(localStorage.getItem(QUIZ_KEY) || '{}'); } catch(e){ quizStats = {}; }
     let quizState = null;
@@ -5136,7 +5137,7 @@
       wrap.className = 'quiz-cta';
       wrap.innerHTML = passed
         ? '<div class="quiz-cta-done">\u2713 Quiz passed \u2014 lesson complete!</div><button class="quiz-cta-btn retake">Retake quiz \u21ba</button>'
-        : '<div class="quiz-cta-tag">Ready? Ace the quiz to finish this lesson.</div><button class="quiz-cta-btn">\ud83c\udfaf Take Quiz</button>';
+        : '<div class="quiz-cta-tag">Ready? Pass the quiz to finish this lesson.</div><button class="quiz-cta-btn">\ud83c\udfaf Take Quiz</button>';
       wrap.querySelector('.quiz-cta-btn').addEventListener('click', () => openQuiz(meta.id));
       readerEl.appendChild(wrap);
     }
@@ -5151,8 +5152,10 @@
       const n = Math.min(data.draw || 10, pool.length);
       quizState = { lessonId, title: data.title || (meta.title + ' Quiz'), n, pool, idx: 0, wrong: 0, questions: drawQuestions(pool, n) };
       el('quiz-intro-title').textContent = quizState.title;
+      el('quiz-intro-sub').textContent = 'Answer ' + n + ' questions and get ' + Math.ceil(QUIZ_PASS * n)
+        + ' or more right to earn your checkmark. Miss a few? No stress \u2014 you\u2019ll see exactly why, then you can try again.';
       const st = quizStats[lessonId];
-      el('quiz-best').textContent = st && st.passed ? '\u2605 You already aced this one \u2014 go again anytime.'
+      el('quiz-best').textContent = st && st.passed ? '\u2605 You already passed this one \u2014 go again anytime.'
         : (st && st.attempts ? 'Best so far: ' + (st.best || 0) + '/' + n : '');
       quizShow('intro');
       el('quiz-modal').classList.remove('quiz-hidden');
@@ -5215,26 +5218,26 @@
     }
     function quizNext(){ const S = quizState; if (S.idx + 1 >= S.n){ quizFinish(); return; } S.idx++; quizRenderQuestion(); }
     function quizFinish(){
-      const S = quizState, correct = S.n - S.wrong, passed = S.wrong === 0;
+      const S = quizState, correct = S.n - S.wrong;
+      const need = Math.ceil(QUIZ_PASS * S.n);          // e.g. 8 of 10 at 80%
+      const passed = correct >= need, perfect = S.wrong === 0;
       const prev = quizStats[S.lessonId] || { attempts: 0, best: 0, passed: false };
       quizStats[S.lessonId] = { attempts: prev.attempts + 1, best: Math.max(prev.best || 0, correct), passed: prev.passed || passed };
       try { localStorage.setItem(QUIZ_KEY, JSON.stringify(quizStats)); } catch(e){}
       quizShow('result');
-      el('quiz-result-emoji').textContent = passed ? '\ud83c\udf89' : '\ud83d\udcaa';
-      el('quiz-result-title').textContent = passed ? ('Perfect! ' + correct + ' / ' + S.n) : (correct + ' / ' + S.n + ' \u2014 so close!');
+      el('quiz-result-emoji').textContent = passed ? (perfect ? '\ud83c\udfc6' : '\ud83c\udf89') : '\ud83d\udcaa';
+      el('quiz-result-title').textContent = (perfect ? 'Perfect! ' : passed ? 'You passed! ' : '') + correct + ' / ' + S.n + (passed ? '' : ' \u2014 so close!');
       el('quiz-result-sub').textContent = passed
-        ? 'You\u2019ve got this lesson down. Checkmark earned!'
-        : 'Give the ones below a read, then try again \u2014 you\u2019ll nail it.';
+        ? (perfect ? 'A clean sweep \u2014 checkmark earned!' : 'Checkmark earned! Peek at any misses below.')
+        : ('You need ' + need + ' of ' + S.n + '. Read the misses below, then try again \u2014 you\u2019ll nail it.');
       el('quiz-finish').style.display = passed ? '' : 'none';
       el('quiz-again').textContent = passed ? 'Retake \u21ba' : 'Try Again \u21ba';
       const rev = el('quiz-review'); rev.innerHTML = '';
-      if (!passed){
-        S.questions.filter(q => q.picked !== q.correct).forEach(q => {
-          const d = document.createElement('div'); d.className = 'quiz-rev';
-          d.innerHTML = '<div class="rq">' + escHtml(q.q) + '</div><div class="ra">\u2713 ' + escHtml(q.correct) + '</div><div class="re">' + escHtml(q.explain) + '</div>';
-          rev.appendChild(d);
-        });
-      }
+      S.questions.filter(q => q.picked !== q.correct).forEach(q => {
+        const d = document.createElement('div'); d.className = 'quiz-rev';
+        d.innerHTML = '<div class="rq">' + escHtml(q.q) + '</div><div class="ra">\u2713 ' + escHtml(q.correct) + '</div><div class="re">' + escHtml(q.explain) + '</div>';
+        rev.appendChild(d);
+      });
       if (passed){ markCompleteQuiet(S.lessonId); quizConfetti(); }
     }
     // mark done + persist without re-rendering the reader (keeps the result screen up under the modal)
