@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.7.1';
+    window.APP_VERSION = '2.8.3';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -456,6 +456,10 @@
     #sp-origin .so-name{font-size:2.6rem;color:#e8dba3;font-weight:800;margin:.3em 0}
     #sp-origin .so-copy{font-size:.85rem;color:#8891a8}
     #sp-origin .so-lic{font-size:.72rem;color:#616b82;margin-top:.35em}
+    #sp-origin .so-logo{width:min(72vw,560px);max-height:40vh;object-fit:contain;margin:.5em 0}
+    #sp-partner .sp-p-line{font-size:1.15rem;color:#8891a8;letter-spacing:.08em}
+    #sp-partner .sp-p-logo{width:min(56vw,400px);max-height:34vh;object-fit:contain;margin:.7em 0}
+    #sp-partner .sp-p-name{font-size:2.2rem;color:#e8dba3;font-weight:800}
     #sp-main .splash-imgwrap{position:relative;max-width:min(90vw,860px)}
     #sp-main .splash-img{width:100%;display:block;border-radius:10px;box-shadow:0 12px 40px #000a}
     #sp-main .splash-title{font-size:1.9rem;color:#d8e2ff;margin-top:.6em;font-weight:700}
@@ -479,16 +483,20 @@
 </head>
 <body>
   <div id="splash">
-    <div id="sp-origin" class="sp-phase show in">
+    <div id="sp-origin" class="sp-phase show">
       <div class="so-line1">Created by</div>
-      <div class="so-name">Bolton Robotics FTC</div>
+      <img class="so-logo" src="assets/36563_logo.png" alt="Prime Symmetry 36563 — Bolton Robotics FTC">
       <div class="so-copy">Copyright © 2026 Bolton Robotics FTC</div>
       <div class="so-lic">Licensed under Apache 2.0 — Free to use with attribution</div>
     </div>
+    <div id="sp-partner" class="sp-phase">
+      <div class="sp-p-line">In Partnership with FRC Team</div>
+      <img class="sp-p-logo" src="assets/6328_logo.png" alt="FRC Team 6328 — Mechanical Advantage">
+      <div class="sp-p-name">Mechanical Advantage</div>
+    </div>
     <div id="sp-main" class="sp-phase">
       <div class="splash-imgwrap">
-        <img class="splash-img" src="assets/splash.jpg" alt="">
-        <img class="splash-icon" src="assets/sim_icon_v2.png" alt="">
+        <img class="splash-img" src="assets/impulse_3dsim_splash.png" alt="">
       </div>
       <div class="splash-title">Impulse 3D Robot Simulator</div>
       <div class="splash-ver">v2 — browser edition</div>
@@ -511,14 +519,15 @@
   </div>
   <script>
   (function(){
-    var ORIGIN_HOLD=3325, ORIGIN_FADE=800, SPLASH_HOLD=2660, ICON_FADE=1330, ICON_HOLD=2660, FADE_OUT=1330,
+    var ORIGIN_FADE_IN=650, ORIGIN_HOLD=5200, ORIGIN_FADE=800, PARTNER_HOLD=2000, PARTNER_FADE=800,
+        MAIN_HOLD=4600, FADE_OUT=1330,
         CREDIT_HOLD=5320, CREDIT_FADE_OUT=1060, CHEERPJ_HOLD=4200, CHEERPJ_FADE_OUT=1060;
     var root = document.getElementById('splash');
     var origin = document.getElementById('sp-origin');
+    var partner = document.getElementById('sp-partner');
     var main = document.getElementById('sp-main');
     var credits = document.getElementById('sp-credits');
     var cheerpj = document.getElementById('sp-cheerpj');
-    var icon = root.querySelector('.splash-icon');
     var skip = document.getElementById('sp-skip');
     var originDone = false, done = false, timers = [];
     function at(ms, fn){ timers.push(setTimeout(fn, ms)); }
@@ -538,31 +547,37 @@
     window.addEventListener('keydown', onSkip, true);
     window.addEventListener('mousedown', onSkip, true);
 
-    at(ORIGIN_HOLD, function(){
+    requestAnimationFrame(function(){ origin.classList.add('in'); });   // fade the attribution logo in
+    at(ORIGIN_FADE_IN + ORIGIN_HOLD, function(){
       origin.classList.remove('in');
       at(ORIGIN_FADE, function(){
         originDone = true;
         origin.classList.remove('show');
         skip.style.opacity = '1';
-        main.classList.add('show');
-        requestAnimationFrame(function(){ main.classList.add('in'); });
-        at(SPLASH_HOLD, function(){
-          icon.classList.add('show');
-          at(ICON_FADE + ICON_HOLD, function(){
-            main.classList.remove('in');
-            at(FADE_OUT, function(){
-              main.classList.remove('show');
-              credits.classList.add('show');
-              requestAnimationFrame(function(){ credits.classList.add('in'); });
-              at(CREDIT_HOLD, function(){
-                credits.classList.remove('in');
-                at(CREDIT_FADE_OUT, function(){
-                  credits.classList.remove('show');
-                  cheerpj.classList.add('show');
-                  requestAnimationFrame(function(){ cheerpj.classList.add('in'); });
-                  at(CHEERPJ_HOLD, function(){
-                    cheerpj.classList.remove('in');
-                    at(CHEERPJ_FADE_OUT, finish);
+        partner.classList.add('show');
+        requestAnimationFrame(function(){ partner.classList.add('in'); });
+        at(PARTNER_HOLD, function(){
+          partner.classList.remove('in');
+          at(PARTNER_FADE, function(){
+            partner.classList.remove('show');
+            main.classList.add('show');
+            requestAnimationFrame(function(){ main.classList.add('in'); });
+            at(MAIN_HOLD, function(){
+              main.classList.remove('in');
+              at(FADE_OUT, function(){
+                main.classList.remove('show');
+                credits.classList.add('show');
+                requestAnimationFrame(function(){ credits.classList.add('in'); });
+                at(CREDIT_HOLD, function(){
+                  credits.classList.remove('in');
+                  at(CREDIT_FADE_OUT, function(){
+                    credits.classList.remove('show');
+                    cheerpj.classList.add('show');
+                    requestAnimationFrame(function(){ cheerpj.classList.add('in'); });
+                    at(CHEERPJ_HOLD, function(){
+                      cheerpj.classList.remove('in');
+                      at(CHEERPJ_FADE_OUT, finish);
+                    });
                   });
                 });
               });
@@ -1341,6 +1356,9 @@
         lastCode: 0,       // most recent runner status code, so the hub button can be redrawn without one
         loaded: null,      // carried code snapshot for the match {name,files,active,fqn} — deployed from the Pit
         captured: 0,       // pollen currently held inside the robot (rendered as an internal stack)
+        stored: [],        // FIFO of typed pieces held inside this robot { type, alliance? } (max STORAGE_CAPACITY)
+        sh: { rpm: 0, feedCd: 0, elev: 58 * Math.PI / 180 },   // per-alliance shooter runtime (flywheel rpm, feed cadence, launch elevation)
+        captureCd: 0,      // intake capture cooldown
         ejectTimer: 0,     // countdown between reverse-fed hopper bursts
         calls: 0,
       };
@@ -1690,15 +1708,16 @@
       const exitSign = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.25), new THREE.MeshStandardMaterial({ map: exitTex, emissive: 0x7f1d1d, emissiveIntensity: 0.5 }));
       exitSign.position.set(0, 2.35, featureZ + 0.09); scene.add(exitSign);
 
-      // ---- wall signage: title sign, clock, small decorative time box (all static/decorative, per design) ----
-      const signTex = mkCanvas(1024, 200, (g, w, h) => {
-        g.fillStyle = '#f4efe4'; g.fillRect(0, 0, w, h);
-        g.strokeStyle = '#33404f'; g.lineWidth = 6; g.strokeRect(6, 6, w - 12, h - 12);
-        g.fillStyle = '#1f2937'; g.font = 'bold 92px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-        g.fillText('BOLTON ROBOTICS', w / 2, h / 2 + 4);
-      });
-      const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 0.82), new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.7 }));
+      // ---- wall signage: team logo banner, clock, small decorative time box (all static/decorative, per design) ----
+      const signMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.7 });
+      const signW = 3.6, signH = signW * 813 / 1934;   // Prime Symmetry 36563 team logo (native 1934x813)
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(signW, signH), signMat);
       sign.position.set(0, 3.55, featureZ + 0.09); scene.add(sign);
+      new THREE.TextureLoader().load('assets/36563_logo.png', tex => {
+        if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 8;
+        signMat.map = tex; signMat.color.set(0xffffff); signMat.needsUpdate = true;   // swap the flat placeholder for the logo once loaded
+      });
 
       const clockTex = mkCanvas(128, 128, (g, w, h) => {
         const cx = w / 2, cy = h / 2, r = w / 2 - 4;
@@ -2527,7 +2546,8 @@
       game.reset();
       setupMatchField();                                      // 4 pollen in the robot, 3 nectar per hive, 4 pollen per garden
       clearYellowCards();                                     // illegal-possession warnings persist only within a match
-      alliances.red.captured = alliances.blue.captured = 0;   // empty every robot's internal store on a fresh field
+      alliances.red.captured = alliances.red.stored.length;   // start each robot with its preloaded pollen count
+      alliances.blue.captured = alliances.blue.stored.length;
       resetRobot(robot, HALF * 0.45, Math.PI);
       resetRobot(robotBlue, -HALF * 0.45, 0);
       alliances.red.hold = alliances.blue.hold = null;   // drop any frozen-pose lock so robots start from spawn
@@ -2577,12 +2597,18 @@
         return;
       }
       match.t += dt;
-      if (match.state === 'AUTO' && !scored.red.moved) {                      // AUTO mobility: 3 pts the first time it leaves spawn
-        const p = robot.translation();
-        if (Math.hypot(p.x, p.z - HALF * 0.45) > 0.08) { scored.red.moved = true; matchScore.red += 3; }
+      // AUTO mobility: 3 pts the first time each participating robot leaves its spawn
+      if (match.state === 'AUTO') for (const al of participants()) {
+        if (scored[al.name].moved) continue;
+        const body = al.slot === 0 ? robot : robotBlue, sz = al.slot === 0 ? HALF * 0.45 : -HALF * 0.45;
+        const p = body.translation();
+        if (Math.hypot(p.x, p.z - sz) > 0.08) { scored[al.name].moved = true; matchScore[al.name] += 3; }
       }
       if (match.state === 'AUTO' && match.t >= MATCH.AUTO) {
-        { const p = robot.translation(); if (inLoadingZone('red', p.x, p.z)) matchScore.red += 5; }   // parked in LOADING ZONE at end of AUTO
+        for (const al of participants()) {                        // parked in the LOADING ZONE at end of AUTO -> 5 pts
+          const p = (al.slot === 0 ? robot : robotBlue).translation();
+          if (inLoadingZone(al.name, p.x, p.z)) matchScore[al.name] += 5;
+        }
         playSfx('autoComplete');                                  // AUTO ends: 3-buzzer
         match.state = 'XION'; match.xt = 0; match.telePickup = false;   // enter the 8s stop; robots are frozen in the render loop
         updateMatchClock();
@@ -2591,8 +2617,10 @@
       if (match.state === 'TELEOP' && !match.endgameAnnounced && inEndgame()) { match.endgameAnnounced = true; playSfx('endgame'); }
       if (match.state === 'TELEOP' && !match.nectarDumped && periodRemaining() <= 60) { match.nectarDumped = true; dumpRemainingNectar(); }
       if (match.t >= MATCH.AUTO + MATCH.TELEOP) {
-        const p = robot.translation();
-        if (inLoadingZone('red', p.x, p.z)) matchScore.red += 5;              // parked in LOADING ZONE at end of TELEOP
+        for (const al of participants()) {                        // parked in the LOADING ZONE at end of TELEOP -> 5 pts
+          const p = (al.slot === 0 ? robot : robotBlue).translation();
+          if (inLoadingZone(al.name, p.x, p.z)) matchScore[al.name] += 5;
+        }
         for (const color of ['red', 'blue']) matchScore[color] += 2 * game.piecesInHive(color);   // 2 pts / piece left in each HIVE
         endMatch(); return;
       }
@@ -2911,7 +2939,7 @@
       if (k === ' ') { auto = !auto; e.preventDefault(); }
       if (k === 'i') { debugIntake = !debugIntake; console.log('DEBUG intake ' + (debugIntake ? 'ON' : 'OFF')); }
       if (k === 'o') { debugFlywheel = !debugFlywheel; console.log('DEBUG flywheel ' + (debugFlywheel ? 'ON' : 'OFF')); }
-      if (k === 'p') fireShot();
+      if (k === 'p') fireShot(alliances.red);   // 'p' test key: fire one shot from the red robot
       keys[k] = true;
       if (['w','a','s','d','q','e',' '].includes(k)) e.preventDefault();
     });
@@ -2964,7 +2992,11 @@
     // A shot ball becomes an ordinary field ball the instant it lands (in place, no teleport),
     // so it behaves identically to a pre-seeded ball.
     const balls = [];                                              // { body, mesh, r, type, state, flightT }
-    const stored = [];                                             // FIFO queue of pieces in robot storage (max 4)
+    // per-alliance robot state (a.stored queue / a.sh shooter / a.captureCd) lives on the alliance; these
+    // helpers pick the THREE handle and which alliances are live, so the shooter/intake/storage pipeline
+    // runs identically for red (slot 0) and the blue opponent (slot 1).
+    const handleOf = a => a.slot === 0 ? mainRobot : blueRobot;
+    const activeAlliances = () => upMode === 2 ? [alliances.red, alliances.blue] : [alliances.red];
     game.setBallSource(() => balls);                               // let the hive rule read settled pieces in its cells
     const STORAGE_CAPACITY = 4;
     const storageSlots = [
@@ -2974,31 +3006,28 @@
       new THREE.Vector3( 0.020, 0.06, -0.02),
     ];
     const INITIAL_FIELD_BALLS = 11;
-    let captureCd = 0;
-    function debugStorageState(reason = '') {
+    function debugStorageState(a, reason = '') {
+      const stored = a.stored;
       const nField = balls.filter(b => b.state === 'field').length;
       const nFlight = balls.length - nField;
-      const text = `storage=${stored.length}/${STORAGE_CAPACITY} field=${nField} flight=${nFlight} queue=${stored.map(s => s.type[0]).join('') || '-'} captureCd=${captureCd.toFixed(2)} reason=${reason || 'ok'}`;
+      const text = `[${a.name}] storage=${stored.length}/${STORAGE_CAPACITY} field=${nField} flight=${nFlight} queue=${stored.map(s => s.type[0]).join('') || '-'} captureCd=${a.captureCd.toFixed(2)} reason=${reason || 'ok'}`;
       console.log('[storage]', text);
       const pitTele = document.getElementById('pit-tele');
-      if (pitTele) pitTele.textContent = text;
+      if (pitTele && a.slot === 0) pitTele.textContent = text;   // the pit test-stand readout follows the red robot
       return text;
     }
-    function enqueueStored(item) {
-      if (stored.length >= STORAGE_CAPACITY) {
-        debugStorageState('full');
-        return false;
-      }
-      stored.push(item);                                 // { type, alliance } — alliance set only for nectar
-      if (sim && typeof sim === 'object') sim.captured = stored.length;
-      debugStorageState('enqueue');
+    function enqueueStored(a, item) {
+      if (a.stored.length >= STORAGE_CAPACITY) { debugStorageState(a, 'full'); return false; }
+      a.stored.push(item);                               // { type, alliance } — alliance set only for nectar
+      a.captured = a.stored.length;
+      debugStorageState(a, 'enqueue');
       return true;
     }
-    function dequeueStored() {
-      if (stored.length === 0) return null;
-      const item = stored.shift();
-      if (sim && typeof sim === 'object') sim.captured = stored.length;
-      debugStorageState('dequeue');
+    function dequeueStored(a) {
+      if (a.stored.length === 0) return null;
+      const item = a.stored.shift();
+      a.captured = a.stored.length;
+      debugStorageState(a, 'dequeue');
       return item;
     }
     function makeBall(type, x, y, z, state, color) {
@@ -3044,10 +3073,11 @@
       b.state = 'flight'; b.flightT = 0;
       b.body.setLinearDamping(0); b.body.setAngularDamping(0.2);
     }
-    function expelPiece(item, dir) {                // dir +1 = out the front intake, -1 = off the rear dump
-      mainRobot.group.updateWorldMatrix(true, false);
-      const q = mainRobot.group.getWorldQuaternion(new THREE.Quaternion());
-      const ctr = mainRobot.group.getWorldPosition(new THREE.Vector3());
+    function expelPiece(a, item, dir) {             // dir +1 = out the front intake, -1 = off the rear dump
+      const H = handleOf(a);
+      H.group.updateWorldMatrix(true, false);
+      const q = H.group.getWorldQuaternion(new THREE.Quaternion());
+      const ctr = H.group.getWorldPosition(new THREE.Vector3());
       const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q); fwd.y = 0; fwd.normalize();
       const spec = specOf(item.type);
       const color = item.type === 'nectar' ? allianceColor(item.alliance) : undefined;
@@ -3144,10 +3174,12 @@
     }
     function setupMatchField() {
       for (let i = balls.length - 1; i >= 0; i--) removeBall(i);
-      stored.length = 0;
       nectarAdds.red = nectarAdds.blue = 0;                               // reset the per-alliance nectar budget
-      for (let i = 0; i < STORAGE_CAPACITY; i++) stored.push({ type: 'pollen' });   // robot pre-loaded with 4 POLLEN
-      if (sim && typeof sim === 'object') sim.captured = stored.length;
+      for (const a of [alliances.red, alliances.blue]) {                  // each robot pre-loaded with 4 POLLEN
+        a.stored.length = 0;
+        for (let i = 0; i < STORAGE_CAPACITY; i++) a.stored.push({ type: 'pollen' });
+        a.captured = a.stored.length;
+      }
       // 3 NECTAR, colour-matched to the alliance, pre-loaded into each HIVE's raised cell (3N = 5.4 load, no tip)
       const NCOL = { red: 0xd11e28, blue: 0x1f6dd6 };
       for (const c of game.raisedCellCenters()) {
@@ -3159,41 +3191,36 @@
       const layGarden = (xs, cornerZ, dir) => { for (let k = 0; k < 4; k++) makeBall('pollen', xs * gx, py, cornerZ + dir * (0.08 + k * 0.085), 'field'); };
       layGarden(-1, -edge, +1);   // BLUE garden: -X wall, from the top-left corner
       layGarden( 1,  edge, -1);   // RED  garden: +X wall, from the bottom-right corner
-      debugStorageState('match-setup');
+      debugStorageState(alliances.red, 'match-setup');
     }
     setupMatchField();
-    const storageViz = [];
-    for (let i = 0; i < STORAGE_CAPACITY; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 9), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 })); m.visible = false; m.castShadow = true; scene.add(m); storageViz.push(m); }
-    function fireShot() {                                           // FIFO queue: oldest stored piece leaves first
-      if (!mainRobot.muzzle) return;
-      const item = dequeueStored();
+    // per-alliance internal storage viz: 4 spheres held in each robot's turret volume. The bed store is
+    // hidden on the shooter, so these are the visible held pieces for BOTH red and the blue opponent.
+    for (const a of [alliances.red, alliances.blue]) {
+      a.storageViz = [];
+      for (let i = 0; i < STORAGE_CAPACITY; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 9), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 })); m.visible = false; m.castShadow = true; scene.add(m); a.storageViz.push(m); }
+    }
+    function fireShot(a) {                                          // FIFO queue: oldest stored piece leaves first
+      const H = handleOf(a);
+      if (!H.muzzle) return;
+      const item = dequeueStored(a);
       if (item === null) { console.log('no game pieces stored'); return; }
       const type = item.type;
-      const exit = (SH.rpm / SH.NOMINAL_RPM) * SH.NOMINAL_EXIT;
+      const exit = (a.sh.rpm / SH.NOMINAL_RPM) * SH.NOMINAL_EXIT;
       // Flywheel not spun up (the indexer lesson, before the flywheel exists): the piece just dribbles
       // out the front instead of launching -- the intended pre-flywheel behavior.
-      if (exit < 0.5) { expelPiece(item, 1); sim.captured = stored.length; return; }
-      mainRobot.muzzle.updateWorldMatrix(true, false); mainRobot.group.updateWorldMatrix(true, false);
-      const q = mainRobot.group.getWorldQuaternion(new THREE.Quaternion());
-      const ce = Math.cos(SH.ELEV), se = Math.sin(SH.ELEV);
+      if (exit < 0.5) { expelPiece(a, item, 1); return; }
+      H.muzzle.updateWorldMatrix(true, false); H.group.updateWorldMatrix(true, false);
+      const q = H.group.getWorldQuaternion(new THREE.Quaternion());
+      const ce = Math.cos(a.sh.elev), se = Math.sin(a.sh.elev);
       const wh = new THREE.Vector3(0, 0, 1).applyQuaternion(q); wh.y = 0; if (wh.lengthSq() < 1e-6) wh.set(0, 0, 1); wh.normalize();
       const dir = new THREE.Vector3(wh.x*ce, se, wh.z*ce);
-      const pos = mainRobot.muzzle.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.12);
+      const pos = H.muzzle.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.12);
       spawnBall(pos, dir, exit * (type === 'nectar' ? 0.7 : 1.0), item);   // heavier nectar leaves slower -> falls short of the raised cell
-      SH.rpm *= (type === 'nectar' ? 0.72 : 0.84);                 // RPM sag from energy transfer (bigger for nectar)
+      a.sh.rpm *= (type === 'nectar' ? 0.72 : 0.84);               // RPM sag from energy transfer (bigger for nectar)
     }
-    function stepShooter(dt) {
-      // flywheel: 1st-order spin toward the setpoint (heavy inertia); spin the striped wheel to match.
-      // Setpoint follows the student's shooter motor power (mech.shooter, fraction of the 6000-RPM free
-      // speed); the O key / debugFlywheel forces the nominal firing RPM for un-coded testing.
-      const pow = (sim && sim.mech) ? Math.max(0, Math.min(1, sim.mech.shooter)) : 0;
-      const tgt = debugFlywheel ? SH.NOMINAL_RPM : pow * SH.MAX_RPM;
-      SH.rpm += (tgt - SH.rpm) * Math.min(1, dt / SH.TAU);
-      // hood servo (mech.hood 0..1) sets launch elevation; the default 0.571 maps to the calibrated 58deg
-      if (sim && sim.mech) SH.ELEV = SH.ELEV_MIN + Math.max(0, Math.min(1, sim.mech.hood)) * (SH.ELEV_MAX - SH.ELEV_MIN);
-      if (mainRobot.hoodTilt) mainRobot.hoodTilt.rotation.x = SH.HOOD_VIS * (SH.ELEV - SH.ELEV_DEF);   // tilt the rendered hood to the aim angle
-      if (mainRobot.flywheelSpin) mainRobot.flywheelSpin.rotation.x += (SH.rpm / SH.MAX_RPM) * SH.VIS * dt;
-      // in-flight balls: quadratic drag impulse + sync mesh; cull when landed/out of bounds
+    function stepFlight(dt) {
+      // in-flight balls: quadratic drag impulse + sync mesh; cull when landed/out of bounds (field-global)
       const KD = 0.5 * 1.2 * 0.47;
       for (let i = balls.length - 1; i >= 0; i--) {
         const b = balls[i], t = b.body.translation();
@@ -3214,61 +3241,79 @@
         b.mesh.position.set(t.x, t.y, t.z);
         const rq = b.body.rotation(); b.mesh.quaternion.set(rq.x, rq.y, rq.z, rq.w);   // roll: mirror the body's spin so the holes turn
       }
-      // INTAKE: with intake on (I) and room in storage, capture the nearest field ball at the front mouth
-      mainRobot.group.updateWorldMatrix(true, false);
-      const q = mainRobot.group.getWorldQuaternion(new THREE.Quaternion());
-      const ctr = mainRobot.group.getWorldPosition(new THREE.Vector3());
+    }
+    // one alliance's shooter + intake + storage for this frame (red always; blue in 2UP). The O/I test
+    // keys (debugFlywheel/debugIntake) are red-only, so gate them to slot 0.
+    function stepShooterOne(a, dt) {
+      const H = handleOf(a), M = a.mech;
+      // flywheel: 1st-order spin toward the setpoint (heavy inertia); spin the striped wheel to match
+      const pow = M ? Math.max(0, Math.min(1, M.shooter)) : 0;
+      const tgt = (debugFlywheel && a.slot === 0) ? SH.NOMINAL_RPM : pow * SH.MAX_RPM;
+      a.sh.rpm += (tgt - a.sh.rpm) * Math.min(1, dt / SH.TAU);
+      if (M) a.sh.elev = SH.ELEV_MIN + Math.max(0, Math.min(1, M.hood)) * (SH.ELEV_MAX - SH.ELEV_MIN);
+      if (H.hoodTilt) H.hoodTilt.rotation.x = SH.HOOD_VIS * (a.sh.elev - SH.ELEV_DEF);   // tilt the rendered hood to the aim angle
+      if (H.flywheelSpin) H.flywheelSpin.rotation.x += (a.sh.rpm / SH.MAX_RPM) * SH.VIS * dt;
+      // INTAKE: with intake on and room in storage, capture the nearest field ball at the front mouth
+      H.group.updateWorldMatrix(true, false);
+      const q = H.group.getWorldQuaternion(new THREE.Quaternion());
+      const ctr = H.group.getWorldPosition(new THREE.Vector3());
       const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q); fwd.y = 0; fwd.normalize();
-      const intakeActive = debugIntake || (sim && sim.mech && sim.mech.intake < -0.15);   // Java intake forward (reversed motor -> negative) or the 'I' test key
-      captureCd -= dt;
-      if (intakeActive && stored.length < STORAGE_CAPACITY && captureCd <= 0) {
+      const intakeActive = (debugIntake && a.slot === 0) || (M && M.intake < -0.15);   // Java intake forward = reversed motor -> negative
+      a.captureCd -= dt;
+      if (intakeActive && a.stored.length < STORAGE_CAPACITY && a.captureCd <= 0) {
         const mouth = ctr.clone().addScaledVector(fwd, 0.20);
-        let capturedThisCycle = false;
-        let touchedBall = false;
+        let capturedThisCycle = false, touchedBall = false;
         for (let i = balls.length - 1; i >= 0; i--) {
           const b = balls[i];
           if (b.state !== 'field') continue;                     // in-flight shots aren't collectible yet
           const t = b.body.translation(), dx = t.x - mouth.x, dz = t.z - mouth.z;
           if (dx*dx + dz*dz < 0.08 && t.y < 0.22) {
             touchedBall = true;
-            if (enqueueStored({ type: b.type, alliance: b.alliance })) {   // keep nectar's alliance colour through storage
-              removeBall(i);
-              captureCd = 0.25;
-              capturedThisCycle = true;
-              break;
-            }
-            debugStorageState('blocked-by-capacity');
+            if (enqueueStored(a, { type: b.type, alliance: b.alliance })) { removeBall(i); a.captureCd = 0.25; capturedThisCycle = true; break; }   // keep nectar's alliance colour through storage
+            debugStorageState(a, 'blocked-by-capacity');
           }
         }
-        if (!capturedThisCycle && touchedBall) {
-          debugStorageState('intake-blocked');
-        } else if (!capturedThisCycle && stored.length < STORAGE_CAPACITY) {
-          debugStorageState('no-ball-near-mouth');
-        }
-      } else if (stored.length >= STORAGE_CAPACITY && intakeActive) {
-        debugStorageState('full');
+        if (!capturedThisCycle && touchedBall) debugStorageState(a, 'intake-blocked');
+        else if (!capturedThisCycle && a.stored.length < STORAGE_CAPACITY) debugStorageState(a, 'no-ball-near-mouth');
+      } else if (a.stored.length >= STORAGE_CAPACITY && intakeActive) debugStorageState(a, 'full');
+      // reverse intake: spit 1-3 held pieces out the front in short bursts (simple intake, no feeder)
+      const ejecting = M && M.intake > 0.15;
+      a.ejectTimer = ejecting ? a.ejectTimer - dt : 0;
+      if (ejecting && a.stored.length > 0 && a.ejectTimer <= 0) {
+        const n = Math.min(a.stored.length, 1 + Math.floor(Math.random() * 3));
+        for (let i = 0; i < n; i++) expelPiece(a, a.stored.shift(), 1);
+        a.captured = a.stored.length; a.ejectTimer = 0.1 + Math.random() * 0.3;
+        debugStorageState(a, 'eject');
       }
-      // storage visual: keep the queue inside the robot turret volume, behind the intake and below the flywheel
-      const anchorWorld = mainRobot.storageAnchor ? mainRobot.storageAnchor.getWorldPosition(new THREE.Vector3()) : ctr;
+      // dump: while the bed servo is tilted up, cascade held pieces off the rear
+      const dumping = M && M.dump > 0.6;
+      a.dumpTimer = dumping ? a.dumpTimer - dt : 0;
+      if (dumping && a.stored.length > 0 && a.dumpTimer <= 0) {
+        const n = Math.min(a.stored.length, 1 + Math.floor(Math.random() * 3));
+        for (let i = 0; i < n; i++) expelPiece(a, a.stored.shift(), -1);
+        a.captured = a.stored.length; a.dumpTimer = 0.12 + Math.random() * 0.18;
+        debugStorageState(a, 'dump');
+      }
+      // feeder (indexer): while the feeder CRServo runs, advance stored pieces at a fixed cadence -> launch
+      const feeding = M && Math.abs(M.feeder) > 0.15;
+      a.sh.feedCd -= dt;
+      if (feeding && a.stored.length > 0 && a.sh.feedCd <= 0) { fireShot(a); a.sh.feedCd = 0.30; }
+      else if (!feeding) a.sh.feedCd = 0;
+      // storage visual: keep the queue inside the robot turret volume, behind the intake, below the flywheel
       for (let i = 0; i < STORAGE_CAPACITY; i++) {
-        const m = storageViz[i];
-        if (i < stored.length) {
-          const item = stored[i];
+        const m = a.storageViz[i];
+        if (i < a.stored.length) {
+          const item = a.stored[i];
           const spec = specOf(item.type);
           const local = storageSlots[i].clone();
           m.visible = true;
           m.material.color.setHex(pieceColor(item));
           m.scale.setScalar(spec.r * 1.2);
-          if (mainRobot.storageAnchor) {
-            m.position.copy(mainRobot.storageAnchor.localToWorld(local.clone()));
-          } else {
-            m.position.copy(anchorWorld).add(local);
-          }
-        } else {
-          m.visible = false;
-        }
+          if (H.storageAnchor) m.position.copy(H.storageAnchor.localToWorld(local.clone()));
+          else m.position.copy(ctr.clone().add(local));
+        } else m.visible = false;
       }
-      if (sim && typeof sim === 'object') sim.captured = stored.length;
+      a.captured = a.stored.length;
     }
     // Chrome only reveals a pad after its first button press — tell the coach when one is live
     addEventListener('gamepadconnected', e => console.log('GAMEPAD connected: ' + e.gamepad.id + ' (index ' + e.gamepad.index + ')'));
@@ -3372,7 +3417,7 @@
     // JS -> Java flywheel encoder readback: modeled RPM as encoder ticks/sec (28 CPR). slot 0 = red robot
     // (the only modeled flywheel today); blue returns 0. The sampler injects this into the shooter motor so
     // the student's getVelocity() reads the real (sagging) speed -> the encoder + PID lessons work.
-    function Java_sim_OpModeHost_simFlywheelTicks(lib, slot){ return (slot|0) === 0 ? (SH.rpm / 60) * SH.CPR : 0; }
+    function Java_sim_OpModeHost_simFlywheelTicks(lib, slot){ return (bySlot[slot|0].sh.rpm / 60) * SH.CPR; }
     const teleEl = document.getElementById('tele');
     // each alliance's telemetry -> its own Driver Hub panel (+ the Pit test-stand drawer for the sim)
     function Java_sim_OpModeHost_telemetry(lib, slot, text){ const a = sel(slot); a.calls++; const el2 = document.getElementById(a.hub.tele); if (el2) el2.textContent = text; if (a === sim){ const pt = document.getElementById('pit-tele'); if (pt) pt.textContent = text; } }
@@ -3504,58 +3549,14 @@
       syncRobot(robotBlue, blueRobot, alliances.blue, dt);
       const M = sim.mech;
       game.step(dt);
-      stepShooter(dt);
-      if (stored.some(s => s.type === 'nectar' && s.alliance && s.alliance !== 'red')) flagIllegalNectar('red');   // red bot holding a BLUE nectar
-      // Canonical storage state is the queued balls themselves. The stubbed game.serviceIntake API
-      // can report stale counts, so we treat the real queue as authoritative for this shooter.
-      const CAP = STORAGE_CAPACITY;
-      sim.captured = stored.length;
-      const intakeOn = M.intake < -0.15 || debugIntake;              // intake motor is REVERSEd -> forward power is negative. 'I' toggles intake on for testing
-      // reverse intake: meter 1-3 held balls back out the front at a time, short randomized gap between bursts.
-      // Keyed on the intake motor alone (a simple Intake subsystem drives no feeder), so reversing spits pollen.
-      const ejecting = M.intake > 0.15;
-      sim.ejectTimer = ejecting ? sim.ejectTimer - dt : 0;
-      if (ejecting && stored.length > 0 && sim.ejectTimer <= 0) {
-        const count = Math.min(stored.length, 1 + Math.floor(Math.random() * 3));
-        for (let i = 0; i < count; i++) expelPiece(stored.shift(), 1);   // spit out the FRONT onto the field
-        sim.captured = stored.length;
-        sim.ejectTimer = 0.1 + Math.random() * 0.3;
-        debugStorageState('eject');
-      }
-      // dump: while the bed is tilted up (servo past mid-travel), cascade held balls off the rear at ~14"
-      const dumping = M.dump > 0.6;
-      sim.dumpTimer = dumping ? sim.dumpTimer - dt : 0;
-      if (dumping && stored.length > 0 && sim.dumpTimer <= 0) {
-        const count = Math.min(stored.length, 1 + Math.floor(Math.random() * 3));
-        for (let i = 0; i < count; i++) expelPiece(stored.shift(), -1);   // cascade off the REAR onto the field
-        sim.captured = stored.length;
-        sim.dumpTimer = 0.12 + Math.random() * 0.18;
-        debugStorageState('dump');
-      }
-      if (debugIntake) mainRobot.intakeRoller.rotation.y -= 10 * dt; // spin the roller so the test reads (forward dir)
-      // FEEDER (indexer): while the feeder CRServo runs (student holds X), advance stored pieces at a fixed
-      // cadence -- one per ~0.3s. Flywheel spun up -> launch; cold -> dribble out the front (indexer lesson).
-      const feeding = Math.abs(M.feeder) > 0.15;
-      SH.feedCd -= dt;
-      if (feeding && stored.length > 0 && SH.feedCd <= 0) { fireShot(); SH.feedCd = 0.30; }
-      else if (!feeding) SH.feedCd = 0;
-      renderStore(mainRobot, sim.captured);
-      if (upMode === 2) {
-        alliances.blue.captured = Math.min(CAP, alliances.blue.captured + game.serviceIntake(robotBlue, alliances.blue.mech.intake < -0.15, alliances.blue.captured, CAP));
-        const ejectingB = alliances.blue.mech.intake > 0.15;
-        alliances.blue.ejectTimer = ejectingB ? alliances.blue.ejectTimer - dt : 0;
-        if (ejectingB && alliances.blue.captured > 0 && alliances.blue.ejectTimer <= 0) {
-          alliances.blue.captured -= game.ejectBalls(robotBlue, Math.min(alliances.blue.captured, 1 + Math.floor(Math.random() * 3)));
-          alliances.blue.ejectTimer = 0.1 + Math.random() * 0.3;
-        }
-        const dumpingB = alliances.blue.mech.dump > 0.6;
-        alliances.blue.dumpTimer = dumpingB ? alliances.blue.dumpTimer - dt : 0;
-        if (dumpingB && alliances.blue.captured > 0 && alliances.blue.dumpTimer <= 0) {
-          alliances.blue.captured -= game.dumpBalls(robotBlue, Math.min(alliances.blue.captured, 1 + Math.floor(Math.random() * 3)), DUMP_H);
-          alliances.blue.dumpTimer = 0.12 + Math.random() * 0.18;
-        }
-        renderStore(blueRobot, alliances.blue.captured);
-      }
+      stepFlight(dt);
+      for (const a of activeAlliances()) stepShooterOne(a, dt);   // per-alliance flywheel + intake + storage + feed/launch
+      // nectar illegal-possession: a robot holding the OTHER alliance's nectar draws a yellow card
+      if (alliances.red.stored.some(s => s.type === 'nectar' && s.alliance && s.alliance !== 'red')) flagIllegalNectar('red');
+      if (upMode === 2 && alliances.blue.stored.some(s => s.type === 'nectar' && s.alliance && s.alliance !== 'blue')) flagIllegalNectar('blue');
+      if (debugIntake) mainRobot.intakeRoller.rotation.y -= 10 * dt;   // spin the roller so the 'I' test reads
+      renderStore(mainRobot, alliances.red.captured);
+      if (upMode === 2) renderStore(blueRobot, alliances.blue.captured);
       game.sync();
       updateCamera();
       renderer.render(scene, cam);
