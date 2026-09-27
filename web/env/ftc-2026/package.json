@@ -1,9 +1,9 @@
 {
   "id": "ftc-2026",
-  "name": "FTC 2026 Standard",
-  "version": "2026.0",
+  "name": "FTC 2026-2027 Standard (SDK 12.0)",
+  "version": "12.0",
   "kind": "ftc",
-  "description": "Base FTC SDK shims only (always available). No PedroPathing library.",
+  "description": "Base FTC SDK shims only (always available). Matches the official FIRST FTC SDK 12.0 for the BIOBUZZ 2026-2027 season. No PedroPathing library.",
   "libs": [],
   "classpathJars": [],
   "templates": null,
