@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.3';
+    window.APP_VERSION = '2.8.4';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -974,6 +974,15 @@
       </span>
       <button id="reset">Reset code</button>
       <span>mode <b id="mode">manual</b></span>
+    </div>
+    <div class="row">
+      <span>graphics</span>
+      <span id="gfxsel" class="camsel">
+        <button data-gfx="high" class="active">High</button>
+        <button data-gfx="auto">Auto</button>
+        <button data-gfx="low">Low</button>
+      </span>
+      <span style="font-size:.72rem;color:#9fb3d1">High = best &middot; Auto = adapts to FPS &middot; Low = fastest</span>
     </div>
     <div class="row">
       <span>offline</span>
@@ -2927,6 +2936,53 @@
     addEventListener('resize', resize); resize();
     setCam(savedCam);
 
+    // ================= graphics quality: High / Auto / Low =================
+    // The sim is GPU fill-rate bound (weak GPUs peg at 100% while step/host stay tiny), so the two
+    // runtime levers that matter are the render pixel-ratio and the shadow-map cost.
+    const GFX_DPR = Math.max(1, window.devicePixelRatio || 1);
+    const GFX_KEY = 'impulse.gfx.v1';
+    const GFX_LEVELS = [                                 // Auto ladder, best -> cheapest
+      { pr: Math.min(GFX_DPR, 2),    shadow: 2048 },
+      { pr: Math.min(GFX_DPR, 1.5),  shadow: 2048 },
+      { pr: Math.min(GFX_DPR, 1.25), shadow: 1024 },
+      { pr: 1,                       shadow: 1024 },
+      { pr: 1,                       shadow: 0    },
+    ];
+    let gfxMode = 'high', gfxAutoIdx = 1, gfxCooldown = 0;
+    function gfxMarkMaterials(){
+      scene.traverse(o => { if (o.material){ const ms = Array.isArray(o.material) ? o.material : [o.material]; for (const m of ms) m.needsUpdate = true; } });
+    }
+    function gfxSetShadows(px){
+      if (px <= 0){
+        if (renderer.shadowMap.enabled){ renderer.shadowMap.enabled = false; sun.castShadow = false; gfxMarkMaterials(); }
+      } else {
+        const wasOff = !renderer.shadowMap.enabled;
+        renderer.shadowMap.enabled = true; sun.castShadow = true;
+        if (sun.shadow.mapSize.x !== px){
+          sun.shadow.mapSize.set(px, px);
+          if (sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map = null; }   // force rebuild at the new size
+        }
+        if (wasOff) gfxMarkMaterials();
+      }
+    }
+    function gfxApplyLevel(lvl){ renderer.setPixelRatio(lvl.pr); gfxSetShadows(lvl.shadow); resize(); }
+    function gfxApply(mode){
+      gfxMode = mode;
+      if (mode === 'high') gfxApplyLevel({ pr: GFX_DPR, shadow: 2048 });
+      else if (mode === 'low') gfxApplyLevel({ pr: 1, shadow: 0 });
+      else gfxApplyLevel(GFX_LEVELS[gfxAutoIdx]);        // auto: hold current ladder position
+      document.querySelectorAll('#gfxsel button').forEach(b => b.classList.toggle('active', b.dataset.gfx === mode));
+      try { localStorage.setItem(GFX_KEY, mode); } catch(e){}
+    }
+    function gfxTickAuto(fps, dtMs){
+      if (gfxMode !== 'auto') return;
+      gfxCooldown -= dtMs; if (gfxCooldown > 0) return;
+      if (fps < 50 && gfxAutoIdx < GFX_LEVELS.length - 1){ gfxAutoIdx++; gfxApplyLevel(GFX_LEVELS[gfxAutoIdx]); gfxCooldown = 1500; }
+      else if (fps > 58 && gfxAutoIdx > 0){ gfxAutoIdx--; gfxApplyLevel(GFX_LEVELS[gfxAutoIdx]); gfxCooldown = 3000; }
+    }
+    document.querySelectorAll('#gfxsel button').forEach(b => b.addEventListener('click', () => gfxApply(b.dataset.gfx)));
+    { let savedGfx = 'high'; try { savedGfx = localStorage.getItem(GFX_KEY) || 'high'; } catch(e){} gfxApply(savedGfx); }
+
     // ================= input -> gamepad axes =================
     const keys = {};
     let auto = false, debugIntake = false, debugFlywheel = false;
@@ -3575,7 +3631,8 @@
 
       frames++;
       if (now - fpsT >= 500) {
-        el('fps').textContent = (frames*1000/(now-fpsT)).toFixed(0);
+        const fpsNow = frames*1000/(now-fpsT);
+        el('fps').textContent = fpsNow.toFixed(0);
         el('ms').textContent = stepMs.toFixed(2);
         el('lps').textContent = Math.round((sim.calls-lastCalls)*(1000/(now-fpsT)));
         el('vy').textContent = sim.cmd.vy.toFixed(2);
@@ -3590,6 +3647,7 @@
         const gb = el('gp1-b'); if (gb) { const bp = alliances.blue.pad; gb.textContent = upMode === 2
           ? 'lx ' + bp.lx.toFixed(2) + '  ly ' + bp.ly.toFixed(2) + '  rx ' + bp.rx.toFixed(2)
           : '—'; }
+        gfxTickAuto(fpsNow, now - fpsT);
         lastCalls = sim.calls; frames = 0; fpsT = now;
       }
       requestAnimationFrame(loop);
