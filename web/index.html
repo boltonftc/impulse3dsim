@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.4';
+    window.APP_VERSION = '2.8.5';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -1356,7 +1356,7 @@
       return {
         pad:  { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, rb: false, btns: 0 }, // JS -> Java gamepad (ly inverted: up = -1)
         cmd:  { vx: 0, vy: 0, omega: 0 }, // Java -> JS chassis velocity, robot frame
-        mech: { intake: 0, feeder: 0, shooter: 0, hood: 0.571, dump: 0 }, // Java -> JS mechanism state (spin/pos; hood 0.571 -> calibrated 58deg; dump = bed servo 0.1 carry .. 0.8 dump)
+        mech: { intake: 0, feeder: 0, shooter: 0, hood: 0.5, dump: 0 }, // Java -> JS mechanism state (spin/pos; hood 0.5 -> calibrated 75deg default; dump = bed servo 0.1 carry .. 0.8 dump)
         dumpTimer: 0,      // meters held balls off the bed over several frames while the bed is tilted up
         active: true,
         pending: 0,        // one-shot lifecycle command for the runner: 1 init, 2 start, 3 stop
@@ -1366,7 +1366,7 @@
         loaded: null,      // carried code snapshot for the match {name,files,active,fqn} — deployed from the Pit
         captured: 0,       // pollen currently held inside the robot (rendered as an internal stack)
         stored: [],        // FIFO of typed pieces held inside this robot { type, alliance? } (max STORAGE_CAPACITY)
-        sh: { rpm: 0, feedCd: 0, elev: 58 * Math.PI / 180 },   // per-alliance shooter runtime (flywheel rpm, feed cadence, launch elevation)
+        sh: { rpm: 0, feedCd: 0, elev: 75 * Math.PI / 180 },   // per-alliance shooter runtime (flywheel rpm, feed cadence, launch elevation)
         captureCd: 0,      // intake capture cooldown
         ejectTimer: 0,     // countdown between reverse-fed hopper bursts
         calls: 0,
@@ -3007,9 +3007,9 @@
     // Flywheel = goBILDA Yellow Jacket 1:1 (6000 RPM free speed, 28 CPR). Student shooter power drives the
     // target RPM; the shot is calibrated to drop into the raised hive cell at NOMINAL_RPM (~4000) -> running
     // near full overshoots (motivates 'don't run full blast' + the trim/PID lessons).
-    const SH = { rpm: 0, MAX_RPM: 6000, NOMINAL_RPM: 4000, TAU: 0.8, NOMINAL_EXIT: 5.625, CPR: 28, VIS: 30,
-                 ELEV: 58 * Math.PI/180, ELEV_MIN: 42 * Math.PI/180, ELEV_MAX: 70 * Math.PI/180,
-                 ELEV_DEF: 58 * Math.PI/180, HOOD_VIS: 1.0, feedCd: 0 };   // HOOD_VIS: sign/gain of the visual hood tilt (flip sign if it tilts the wrong way)
+    const SH = { rpm: 0, MAX_RPM: 6000, NOMINAL_RPM: 4000, TAU: 0.8, NOMINAL_EXIT: 4.879, CPR: 28, VIS: 30,
+                 ELEV: 75 * Math.PI/180, ELEV_MIN: 61 * Math.PI/180, ELEV_MAX: 89 * Math.PI/180,
+                 ELEV_DEF: 75 * Math.PI/180, HOOD_VIS: 1.0, feedCd: 0 };   // HOOD_VIS: sign/gain of the visual hood tilt (flip sign if it tilts the wrong way)
     // visual hood-pivot rotation (rad about the flywheel axle) for a hood fraction 0..1, centred on the modelled default pose
     const hoodElevRot = frac => SH.HOOD_VIS * ((SH.ELEV_MIN + Math.max(0, Math.min(1, frac)) * (SH.ELEV_MAX - SH.ELEV_MIN)) - SH.ELEV_DEF);
     const POLLEN = { r: 0.0356, density: 230, color: 0xf5d020 };   // ~0.045 kg
