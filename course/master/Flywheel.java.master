@@ -38,7 +38,6 @@ public class Flywheel implements Subsystem {
     private static final double MIN_POWER     = 0.30;   // softest allowed shot
     private static final double MAX_POWER     = 1.00;   // full power
 
-    // @begin(14_flywheel_pid)
     // ===============================================
     // Flywheel : PID Constants
     // Do not remove this comment
@@ -51,7 +50,6 @@ public class Flywheel implements Subsystem {
     private static final double TRIM_STEP  = 8.0;      // RPM the right stick trims the target per loop
     private static final double TARGET_MIN = 2500.0;   // limits the driver can trim the target between
     private static final double TARGET_MAX = 5500.0;
-    // @end(14_flywheel_pid)
     // @end(14_flywheel_pid)
 
     // The physical flywheel motor. It's a DcMotorEx (an "extended" DcMotor) because
@@ -68,7 +66,6 @@ public class Flywheel implements Subsystem {
     private double power = BASE_POWER;   // the nudgeable power level, remembered between loops
     // @end(13_flywheel)
 
-    // @begin(14_flywheel_pid)
     // ===============================================
     // Flywheel : Target Field
     // Do not remove this comment
@@ -76,7 +73,6 @@ public class Flywheel implements Subsystem {
     // ===============================================
     // @fill(14_flywheel_pid)
     private double targetRpm = TARGET_RPM;   // the speed the controller holds; the right stick trims it
-    // @end(14_flywheel_pid)
     // @end(14_flywheel_pid)
 
     /*
@@ -124,7 +120,6 @@ public class Flywheel implements Subsystem {
     }
     // @end(13_flywheel)
 
-    // @begin(14_flywheel_pid)
     // ===============================================
     // Flywheel : Trim
     // Do not remove this comment
@@ -143,7 +138,6 @@ public class Flywheel implements Subsystem {
     public double getTarget() {
         return targetRpm;
     }
-    // @end(14_flywheel_pid)
     // @end(14_flywheel_pid)
 
     /*

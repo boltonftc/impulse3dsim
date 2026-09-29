@@ -259,6 +259,69 @@ def report_links(failures):
         print(f"  [{lid}] {kind} \"{arg}\"  ->  {reason}")
 
 
+# -- carried-package cross-link checker ---------------------------------------
+# check_links validates each anchor against the REFERENCING lesson's snapshot. But a student never
+# holds that snapshot: they materialize each file ONCE (at its first appearance) and carry their
+# edited copy forward WITHOUT re-syncing. So an anchor must exist in the file's FIRST-APPEARANCE
+# snapshot, or the cross-link silently fails for any student who never hit "Reset Lesson Code".
+# Invariant: every anchor comment lives in the skeleton from the file's first appearance onward.
+def _first_appearance(snapshots, order, fname):
+    for lid in order:
+        if _resolve_file(snapshots.get(lid, {}).get("files", {}), fname):
+            return lid
+    return None
+
+
+def check_links_carry(module, snapshots):
+    """(lesson_id, kind, arg, reason) for anchors absent from their file's first-appearance snapshot."""
+    order = lesson_order(module)
+    failures = []
+    for lesson in module["lessons"]:
+        path = lesson_html_path(lesson)
+        if not path or not os.path.isfile(path):
+            continue
+        with open(path, "r", encoding="utf-8") as f:
+            html = f.read()
+        for tag in RE_ACT_TAG.findall(html):
+            kind = _attr(tag, "data-action")
+            arg = _attr(tag, "data-arg") or ""
+            if kind == "open_file":
+                fname, _, anchor = arg.partition("|")
+                fname, anchor = fname.strip(), anchor.strip()
+                if not anchor:
+                    continue
+                fa = _first_appearance(snapshots, order, fname)
+                if fa is None:
+                    continue   # missing-file case already reported by check_links
+                res = _resolve_file(snapshots[fa]["files"], fname)
+                if res and anchor not in snapshots[fa]["files"][res]:
+                    failures.append((lesson["id"], kind, arg,
+                                     f"anchor absent from {fname} at its first appearance (lesson '{fa}')"))
+            elif kind == "scroll_to":
+                sub = arg.strip()
+                if not sub:
+                    continue
+                reffiles = snapshots.get(lesson["id"], {}).get("files", {})
+                holder = next((k for k, v in reffiles.items() if sub in v), None)
+                if holder is None:
+                    continue   # already reported by check_links
+                fa = _first_appearance(snapshots, order, holder)
+                res = _resolve_file(snapshots.get(fa, {}).get("files", {}), holder) if fa else None
+                if not res or sub not in snapshots[fa]["files"][res]:
+                    failures.append((lesson["id"], kind, arg,
+                                     f"anchor absent from {holder} at its first appearance (lesson '{fa}')"))
+    return failures
+
+
+def report_carry(failures):
+    if not failures:
+        print("Carry check: every anchor exists at its file's first appearance. \u2713")
+        return
+    print(f"Carry check: {len(failures)} anchor(s) NOT seeded at first appearance (students must Reset to use these):")
+    for lid, kind, arg, reason in failures:
+        print(f"  [{lid}] {kind} \"{arg}\"  ->  {reason}")
+
+
 # -- quiz checker -------------------------------------------------------------
 # A lesson may ship a quiz.json beside its lesson.html. Schema:
 #   { "draw": 10, "questions": [ { "q", "correct", "wrong": [3 items], "explain" }, ... ] }
@@ -369,12 +432,15 @@ def main():
     print()
     report_links(link_failures)
 
+    carry_failures = check_links_carry(module, snapshots)
+    report_carry(carry_failures)
+
     quiz_have, quiz_failures, quiz_warnings = check_quizzes(module)
     report_quizzes(quiz_have, quiz_failures, quiz_warnings)
 
     if check:
         print("\n--check: nothing written.")
-        sys.exit(1 if (link_failures or quiz_failures) else 0)
+        sys.exit(1 if (link_failures or carry_failures or quiz_failures) else 0)
 
     os.makedirs(WEB_DIR, exist_ok=True)
     with open(COURSE_JSON_OUT, "w", encoding="utf-8", newline="\n") as f:
@@ -395,7 +461,7 @@ def main():
             json.dump(published, f, indent=2, ensure_ascii=False)
         print(f"Published lessons -> {os.path.relpath(WEB_LESSONS_DIR, WEB_DIR)}/ (+ module.json)")
 
-    if link_failures or quiz_failures:
+    if link_failures or carry_failures or quiz_failures:
         sys.exit(1)
 
 
