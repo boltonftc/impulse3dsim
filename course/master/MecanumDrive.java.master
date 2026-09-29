@@ -34,9 +34,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 @TeleOp(name = "MecanumDrive", group = "BIOBUZZ")
 public class MecanumDrive extends LinearOpMode {
 
-    // @begin(09_drivebase)
     // Edge-detection memory for the buttons (added in the subsystem lessons).
-    // @begin(11_intake)
     // ===============================================
     // Intake : Variables
     // Do not remove this comment
@@ -46,9 +44,7 @@ public class MecanumDrive extends LinearOpMode {
     private boolean previousA = false;
     private boolean previousB = false;
     // @end(11_intake)
-    // @end(11_intake)
 
-    // @begin(13_flywheel)
     // ===============================================
     // Flywheel : Variables
     // Do not remove this comment
@@ -57,19 +53,15 @@ public class MecanumDrive extends LinearOpMode {
     // @fill(13_flywheel)
     private boolean previousY = false;
     // @end(13_flywheel)
-    // @end(13_flywheel)
-    // @end(09_drivebase)
 
     @Override
     public void runOpMode() {
 
-        // @begin(05_tank_drive)
         // ===============================================
         // Drive : Setup
         // Do not remove this comment
         // Your four drive motors are created here, in INIT.
         // ===============================================
-        // @end(05_tank_drive)
         // @fill(09_drivebase, supersedes=05_tank_drive)
         // Build the whole robot. Every subsystem's constructor runs here (finding its motors and
         // servos), so it must happen during INIT, before the match starts.
@@ -84,7 +76,6 @@ public class MecanumDrive extends LinearOpMode {
         backLeft.setDirection(DcMotor.Direction.REVERSE);
         // @end(05_tank_drive)
 
-        // @begin(08_imu)
         // ===============================================
         // IMU : Setup
         // Do not remove this comment
@@ -96,7 +87,6 @@ public class MecanumDrive extends LinearOpMode {
             new RevHubOrientationOnRobot(
                 RevHubOrientationOnRobot.LogoFacingDirection.UP,
                 RevHubOrientationOnRobot.UsbFacingDirection.FORWARD)));
-        // @end(08_imu)
         // @end(08_imu)
 
         // ─── INIT ──────────────────────────────────────────────────────
@@ -122,7 +112,6 @@ public class MecanumDrive extends LinearOpMode {
         // in here, over and over.
         while (opModeIsActive()) {
 
-            // @begin(08_imu)
             // ===============================================
             // IMU : Heading
             // Do not remove this comment
@@ -136,24 +125,21 @@ public class MecanumDrive extends LinearOpMode {
                 imu.resetYaw();
             }
             // @end(08_imu)
-            // @end(08_imu)
 
-            // @begin(05_tank_drive)
             // ===============================================
             // Drive : Loop
             // Do not remove this comment
             // Your drive code runs here, every time through the loop.
             // ===============================================
-            // @end(05_tank_drive)
             // @fill(09_drivebase, supersedes=06_mecanum_drive)
             // 1) SCHEDULER: give every mechanism a turn to advance its own work.
             robot.update();
 
             // 2) DRIVE: hand the gamepad and the IMU heading to the drivebase.
             robot.drive.driveFieldCentric(gamepad1, heading);
+            // @end(09_drivebase)
 
             // 3) READ THE BUTTONS (with edge detection).
-            // @begin(11_intake)
             // ===============================================
             // Intake : Loop
             // Do not remove this comment
@@ -173,9 +159,7 @@ public class MecanumDrive extends LinearOpMode {
             previousA = gamepad1.a;
             previousB = gamepad1.b;
             // @end(11_intake)
-            // @end(11_intake)
 
-            // @begin(12_indexer)
             // ===============================================
             // Indexer : Loop
             // Do not remove this comment
@@ -186,9 +170,7 @@ public class MecanumDrive extends LinearOpMode {
             if (gamepad1.x) robot.indexer.feed();
             else robot.indexer.stop();
             // @end(12_indexer)
-            // @end(12_indexer)
 
-            // @begin(13_flywheel)
             // ===============================================
             // Flywheel : Loop
             // Do not remove this comment
@@ -207,9 +189,7 @@ public class MecanumDrive extends LinearOpMode {
             // Right stick trims the shot strength: push up = stronger, down = softer.
             robot.flywheel.nudge(-gamepad1.right_stick_y);
             // @end(13_flywheel)
-            // @end(13_flywheel)
 
-            // @begin(15_hood)
             // ===============================================
             // Hood : Loop
             // Do not remove this comment
@@ -219,8 +199,6 @@ public class MecanumDrive extends LinearOpMode {
             // Right stick LEFT/RIGHT aims the hood (up/down trims the flywheel target).
             robot.hood.aim(gamepad1.right_stick_x);
             // @end(15_hood)
-            // @end(15_hood)
-            // @end(09_drivebase)
 
             // @fill(06_mecanum_drive, supersedes=05_tank_drive)
             double drive  = -gamepad1.left_stick_y;
@@ -291,7 +269,6 @@ public class MecanumDrive extends LinearOpMode {
             telemetry.addData("Loops", loops);
             // @end(03_hello_telemetry)
 
-            // @fill(09_drivebase)
             // @begin(11_intake)
             // @fill(11_intake)
             telemetry.addData("Intake", robot.intake.getState());
@@ -302,7 +279,6 @@ public class MecanumDrive extends LinearOpMode {
             telemetry.addData("Indexer", robot.indexer.isFeeding() ? "FEEDING" : "idle");
             // @end(12_indexer)
             // @end(12_indexer)
-            // @begin(13_flywheel)
             // ===============================================
             // Flywheel : Telemetry
             // Do not remove this comment
@@ -324,13 +300,11 @@ public class MecanumDrive extends LinearOpMode {
             telemetry.addData("RPM error", "%.0f", robot.flywheel.getTarget() - robot.flywheel.getRpm());
             // @end(14_flywheel_pid)
             // @end(14_flywheel_pid)
-            // @end(13_flywheel)
             // @begin(15_hood)
             // @fill(15_hood)
             telemetry.addData("Hood", "%.2f", robot.hood.getPosition());
             // @end(15_hood)
             // @end(15_hood)
-            // @begin(13_localization)
             // ===============================================
             // Localization : Telemetry
             // Do not remove this comment
@@ -344,8 +318,6 @@ public class MecanumDrive extends LinearOpMode {
             telemetry.addData("Distance from start (in)", "%.1f",
                 robot.localization.getDistanceFromStartInches());
             // @end(13_localization)
-            // @end(13_localization)
-            // @end(09_drivebase)
 
             telemetry.update();
         }
