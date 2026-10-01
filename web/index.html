@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.6';
+    window.APP_VERSION = '2.8.7';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -988,6 +988,10 @@
       <span>offline</span>
       <span id="offstat" class="offstat">checking…</span>
       <button id="off-reset" title="Clear cached offline data and reload">Reset offline data</button>
+    </div>
+    <div class="row">
+      <span>licenses</span>
+      <span style="font-size:.72rem;color:#9fb3d1">Apache 2.0 &copy; 2026 Bolton Robotics FTC &middot; provided as is, without warranty &middot; <a href="THIRD_PARTY_NOTICES.txt" target="_blank" rel="noopener" style="color:#9fb3d1">third-party notices</a> (Pedro Pathing, CheerpJ, ECJ, OpenJDK, three.js, Rapier, CodeMirror)</span>
     </div>
     <div class="row" style="align-items:flex-start">
       <span>environment</span>
