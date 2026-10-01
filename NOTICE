@@ -26,7 +26,13 @@ distributed under its own license. Their inclusion does not transfer their
 copyright, and their respective licenses continue to govern their use:
 
   - CheerpJ (Leaning Technologies) — in-browser Java compiler and JVM.
-    Loaded at runtime from the CheerpJ CDN. See https://cheerpj.com/.
+    Self-hosted with the app (web/cj/). See https://cheerpj.com/.
+  - Pedro Pathing 2.0.6 (web/pedro-core.jar) — BSD 3-Clause License,
+    Copyright (c) 2024, Pedro Pathing. https://github.com/Pedro-Pathing/PedroPathing
+    Full license text: web/THIRD_PARTY_NOTICES.txt
+  - Java SE class library (web/jdk-base.jar, extracted from OpenJDK 17) —
+    GNU General Public License v2 with the Classpath Exception.
+    https://openjdk.org/legal/gplv2+ce.html
   - Eclipse Compiler for Java (ecj) — Eclipse Public License 2.0.
   - three.js — MIT License. https://threejs.org/
   - Rapier (rapier3d) — Apache License 2.0. https://rapier.rs/
