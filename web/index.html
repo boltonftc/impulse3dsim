@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.7';
+    window.APP_VERSION = '2.8.8';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -456,7 +456,10 @@
     #sp-origin .so-name{font-size:2.6rem;color:#e8dba3;font-weight:800;margin:.3em 0}
     #sp-origin .so-copy{font-size:.85rem;color:#8891a8}
     #sp-origin .so-lic{font-size:.72rem;color:#616b82;margin-top:.35em}
+    #sp-origin .so-tm{font-size:.66rem;color:#525a6e;margin-top:.9em;max-width:min(86vw,620px);line-height:1.45}
     #sp-origin .so-logo{width:min(72vw,560px);max-height:40vh;object-fit:contain;margin:.5em 0}
+    #sp-origin .so-beta{font-size:.95rem;color:#f5b942;letter-spacing:.18em;text-transform:uppercase;font-weight:700;
+                        border:1px solid #f5b94266;border-radius:999px;padding:.3em 1.1em;margin:.2em 0 .9em}
     #sp-partner .sp-p-line{font-size:1.15rem;color:#8891a8;letter-spacing:.08em}
     #sp-partner .sp-p-logo{width:min(56vw,400px);max-height:34vh;object-fit:contain;margin:.7em 0}
     #sp-partner .sp-p-name{font-size:2.2rem;color:#e8dba3;font-weight:800}
@@ -486,8 +489,10 @@
     <div id="sp-origin" class="sp-phase show">
       <div class="so-line1">Created by</div>
       <img class="so-logo" src="assets/36563_logo.png" alt="Prime Symmetry 36563 — Bolton Robotics FTC">
+      <div class="so-beta">Beta Test Version <span id="sp-ver"></span></div>
       <div class="so-copy">Copyright © 2026 Bolton Robotics FTC</div>
       <div class="so-lic">Licensed under Apache 2.0 — Free to use with attribution</div>
+      <div class="so-tm"><i>FIRST</i>® and <i>FIRST</i>® Tech Challenge are registered trademarks of <i>FIRST</i>®, which is not overseeing, involved with, or responsible for this software.</div>
     </div>
     <div id="sp-partner" class="sp-phase">
       <div class="sp-p-line">In Partnership with FRC Team</div>
@@ -529,6 +534,7 @@
     var credits = document.getElementById('sp-credits');
     var cheerpj = document.getElementById('sp-cheerpj');
     var skip = document.getElementById('sp-skip');
+    document.getElementById('sp-ver').textContent = window.APP_VERSION || '';
     var originDone = false, done = false, timers = [];
     function at(ms, fn){ timers.push(setTimeout(fn, ms)); }
     function finish(){
@@ -623,7 +629,7 @@
     <span class="verbadge">Impulse3DSim&nbsp;<span class="vtag" id="verlabel">v?.?.?</span></span>
     <span id="netpill" class="netpill" title="Network status">● Online</span>
     <button id="updpill" class="updpill" hidden title="A new version is ready — reload to update">⟳ Update ready — Reload</button>
-    <a id="bridge-dl" class="dlbtn" href="./downloads/impulse-wifi-bridge.exe" download="impulse-wifi-bridge.exe" title="Download the WiFi bridge helper. Install it on the laptop that connects to your robot — lets the sim deploy to the robot over WiFi. Works offline.">⬇ WiFi Bridge</a>
+    <a id="bridge-dl" class="dlbtn" href="./downloads/impulse-wifi-bridge.exe" download="impulse-wifi-bridge.exe" title="Download the WiFi bridge helper (beta, provided as-is). Install it on the laptop that connects to your robot — lets the sim deploy to the robot over WiFi. Works offline.">⬇ WiFi Bridge</a>
     <span class="sp"></span>
     <div id="status">STATUS: init…</div>
     <a class="cjbadge" href="https://cheerpj.com" target="_blank" rel="noopener" title="Powered by CheerpJ — Leaning Technologies"><img src="assets/cheerpj_logo.png" alt="CheerpJ"></a>
@@ -632,6 +638,16 @@
     (function () {
       var ver = document.getElementById('verlabel');
       if (ver) ver.textContent = 'v' + (window.APP_VERSION || '?');
+      var bridgeDl = document.getElementById('bridge-dl');
+      if (bridgeDl) bridgeDl.addEventListener('click', function (e) {
+        var ok = confirm('WiFi Bridge \u2014 beta helper for Windows\n\n'
+          + '\u2022 Provided as-is, with no warranty of any kind (MIT License).\n'
+          + '\u2022 It runs in the system tray and only talks to this laptop (127.0.0.1) and your robot.\n'
+          + '\u2022 When you ask it to connect, it can switch this laptop\u2019s WiFi to the robot\u2019s network.\n'
+          + '\u2022 To remove it: quit it from the tray, then delete the .exe.\n\n'
+          + 'Students: get an adult mentor\u2019s OK before installing.\n\nDownload it now?');
+        if (!ok) e.preventDefault();
+      });
       var btn = document.getElementById('dlbtn');
       var standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
       function markInstalled() {
@@ -4595,13 +4611,36 @@
         ic: '🤖', title: isDeploy ? 'Deploy → Real Robot' : 'Import ← Real Robot',
         sub: isDeploy ? 'Push OpModes to the Control Hub — USB or WiFi' : 'Pull OpModes from the Control Hub — USB or WiFi',
         go: 'Connect ▸',
-        body: '<div id="pit-xport">Looking for your robot…</div>'
+        body: (isDeploy ? '<div style="background:#2a1f08;border:1px solid #f59e0b;border-radius:8px;padding:8px 10px;margin:0 0 8px;color:#fde68a;font-size:12px;line-height:1.45">'
+              + '<b>\u26a0 Beta feature \u2014 use on real hardware at your own risk.</b>'
+              + '<ul style="margin:4px 0 0;padding-left:18px">'
+              + '<li>Provided as-is, with no warranty (Apache 2.0). Not made or endorsed by <i>FIRST</i>.</li>'
+              + '<li>Writes your code into OnBotJava on the Control Hub and builds it there. Files with the same name are replaced without asking, and old files in the <code>.ob</code> test folder are removed. Back up first with <b>Import \u2190 Real Robot</b>.</li>'
+              + '<li>Code that works in the sim can behave differently on a real robot. Test with the wheels off the ground, keep hands and people clear, and be ready to press STOP on the Driver Station.</li>'
+              + '<li>Know what your code does before you run it. If you\u2019re not sure, ask a mentor.</li>'
+              + '</ul>'
+              + '<label style="display:flex;align-items:flex-start;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #f59e0b55;cursor:pointer;color:#fff7e0">'
+              + '<input type="checkbox" id="sheet-accept" style="margin-top:2px"> <span><b>I understand and accept these risks.</b> An adult mentor has reviewed this code and is supervising the robot.</span></label>'
+              + '</div>' : '')
+            + '<div id="pit-xport">Looking for your robot…</div>'
             + '<div id="pit-wifi"></div>'
             + '<p style="font-size:12px;color:#93c5fd;margin:6px 0">' + (isDeploy ? 'Sends the live package to the physical Control Hub.' : 'Reads the source tree off the Control Hub into a new package.') + '</p>'
-            + (isDeploy ? '<div class="pit-chkline"><input type="checkbox" id="sheet-ob" checked> <label for="sheet-ob">On-bot test mode (<code>.ob</code>) — avoids class collisions, reversed on import</label></div>' : '')
+            + (isDeploy ? '<div class="pit-chkline"><input type="checkbox" id="sheet-ob" checked> <label for="sheet-ob">On-bot test mode (<code>.ob</code>) — avoids class collisions, reversed on import</label></div>'
+              + '<div id="sheet-ob-warn" style="display:none;background:#3a1414;border:1px solid #ea4335;border-radius:8px;padding:8px 10px;margin:4px 0;color:#fecaca;font-size:12px;line-height:1.45">'
+              + '<b>\u26d4 Test mode is off.</b> Your files go straight into <code>teamcode</code> and will <b>overwrite any robot file with the same name, without asking</b>. Back up with <b>Import \u2190 Real Robot</b> first.</div>' : '')
             + '<div class="pit-logbox" id="pit-sheet-log"></div>',
         onGo: () => runRobot(isDeploy),
-        onOpen: () => refreshRobotSheet(isDeploy, false)
+        onOpen: () => {
+          if (isDeploy){
+            const go = document.getElementById('pit-sheet-go');
+            const acc = document.getElementById('sheet-accept');
+            const ob = document.getElementById('sheet-ob');
+            go.disabled = true;
+            acc.addEventListener('change', () => { go.disabled = !acc.checked; });
+            ob.addEventListener('change', () => { document.getElementById('sheet-ob-warn').style.display = ob.checked ? 'none' : 'block'; });
+          }
+          refreshRobotSheet(isDeploy, false);
+        }
       });
     }
 
@@ -4696,6 +4735,9 @@
       const go = document.getElementById('pit-sheet-go');
       const log = (m, c) => sheetLog(m, c);
       const be = robotBackend();
+      const acc = document.getElementById('sheet-accept');
+      if (isDeploy && !(acc && acc.checked)){ log('Check \u201cI understand and accept these risks\u201d first.', 'warn'); return; }
+      let deployed = false;
       try {
         if (!(await be.isLive())){
           go.disabled = true; go.textContent = 'Connecting…';
@@ -4710,6 +4752,7 @@
           writeActive();
           const p = curPkg(); if (!p){ log('No package selected.', 'err'); return; }
           const ob = (document.getElementById('sheet-ob') || {}).checked;
+          deployed = true;
           await be.deployFiles(p.files, ob, log);
         } else {
           const files = await be.pullFiles(log);
@@ -4720,7 +4763,11 @@
           log('Imported into package "' + nn + '".', 'ok');
         }
       } catch (err){ log((isDeploy ? 'Deploy' : 'Import') + ' failed: ' + (err && err.message ? err.message : err), 'err'); }
-      finally { go.disabled = false; }
+      finally {
+        // acknowledgement is per deploy, not per session
+        if (deployed && acc) acc.checked = false;
+        go.disabled = !!(acc && !acc.checked);
+      }
     }
 
     document.getElementById('btn-deploy').addEventListener('click', () => {
