@@ -85,6 +85,33 @@ the JVM ever fails to start with a `SharedArrayBuffer` / `crossOriginIsolated`
 error, add the [`coi-serviceworker`](https://github.com/gzuidhof/coi-serviceworker)
 shim, which enables cross-origin isolation on GitHub Pages.
 
+## For coaches and mentors
+
+The simulator itself is safe to use anywhere. **Deploy → Real Robot** is a
+**beta** feature that changes a real Control Hub, so please supervise it:
+
+- It writes the student's code into OnBotJava on the Control Hub (over USB or
+  the WiFi Bridge helper) and builds it there. It may upload library jars.
+- With on-bot test mode (`.ob`, the default) it only touches its own
+  `teamcode/ob` folder and removes old files there. With test mode **off** it
+  writes straight into `teamcode` and overwrites same-named files without asking.
+  Back up first with **Import ← Real Robot**.
+- Code that works in the sim can behave differently on hardware. Test with the
+  wheels off the ground, keep people clear, and keep a hand on the Driver Station
+  STOP.
+- Every deploy requires the student to confirm that they accept these risks and
+  that **an adult mentor has reviewed the code and is supervising**.
+- The WiFi Bridge is a separate Windows helper. It only listens on
+  `127.0.0.1`, and can switch the laptop's WiFi to the robot's network when asked
+  to connect. To remove it, quit it from the tray and delete the `.exe` and
+  `%AppData%\impulse-wifi-bridge`.
+
+The simulator, the deploy feature and the WiFi Bridge are provided **as-is,
+without warranty of any kind** — see the License below.
+
+*FIRST*® and *FIRST*® Tech Challenge are registered trademarks of *FIRST*®,
+which is not overseeing, involved with, or responsible for this software.
+
 ## License
 
 Licensed under the [Apache License 2.0](LICENSE). Attribution to Bolton
