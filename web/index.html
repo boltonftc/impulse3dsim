@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.8';
+    window.APP_VERSION = '2.8.9';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -3692,16 +3692,41 @@
     let seedPackage = null;
     let starterSeed = null;   // the stubbed "empty framework" the Create-New-Package button clones
     let seedPkgName = 'competition_code';   // shipped default package name (set from the manifest); protected from git overwrite/rename
-    const LESSON_KEY = 'impulse.progress.v2';
+    const LESSON_KEY = 'impulse.progress.v2';   // legacy browser-wide checkmarks (read once by the migration)
+    const QUIZ_KEY = 'impulse.quiz.v1';         // legacy browser-wide quiz results (same)
+    const PROGRESS_MIGRATED_KEY = 'impulse.progress.perpkg';
+    const PROGRESS_FILE = 'lesson_progress.json';
     const COURSE_PKG = 'course';    // the single package the lessons build up in
     let lessons = [];               // [{id,title,tier,description,folder}]
     let curLessonId = '', curLessonFolder = '';
-    let lessonProgress = {};        // { lessonId: true }
+    let lessonProgress = {};        // { lessonId: true } -- the current package's progress.lessons
+    let quizStats = {};             // { lessonId: { attempts, best, passed } } -- the current package's progress.quiz
     let codeSnips = [];             // Copy-button payloads for the open lesson
     let courseSnapshots = {};       // { lessonId: { active, files } } -- per-lesson "reset to start" code
     const curPkg = () => store.packages[store.current];
     const clonePkg = p => ({ files: { ...p.files }, active: p.active });
     function saveStore(){ try { localStorage.setItem(PKG_KEY, JSON.stringify(store)); } catch(e){} }
+    // lesson checkmarks + quiz results live on each package (pkg.progress) so they follow its code
+    let boundProgress = null;
+    function bindProgress(){
+      const p = curPkg();
+      if (p && !p.progress) p.progress = { lessons: {}, quiz: {} };
+      const prog = p ? p.progress : null;
+      if (prog === boundProgress) return false;
+      boundProgress = prog;
+      lessonProgress = prog ? prog.lessons : {};
+      quizStats = prog ? prog.quiz : {};
+      return true;
+    }
+    const progressFileText = p => JSON.stringify({ lessons: (p.progress && p.progress.lessons) || {}, quiz: (p.progress && p.progress.quiz) || {} }, null, 2);
+    function parseProgressFile(text){
+      let o; try { o = JSON.parse(text); } catch(e){ return null; }
+      if (!o || typeof o !== 'object') return null;
+      if (o.lessons || o.quiz) return { lessons: o.lessons || {}, quiz: o.quiz || {} };
+      const lessons = {};   // v1 format: flat { lessonId: bool }
+      for (const k of Object.keys(o)) if (o[k] === true) lessons[k] = true;
+      return { lessons, quiz: {} };
+    }
     // heal the old buffer-crossing corruption (a shipped file left holding another file's class): FTC
     // requires class X live in X.java, so restore any seed file whose declared class no longer matches.
     const declaredClass = s => { const m = /public\s+class\s+(\w+)/.exec(s || ''); return m ? m[1] : null; };
@@ -4103,9 +4128,21 @@
       for (const name of Object.keys(store.packages)) healed = healFiles(store.packages[name].files) || healed;
       for (const name of Object.keys(store.packages)) healed = migrateFiles(store.packages[name].files) || healed;
       if (healed) saveStore();
+      // one-time: packages saved before per-package progress inherit the old browser-wide results
+      if (!localStorage.getItem(PROGRESS_MIGRATED_KEY)){
+        let lessons = {}, quiz = {};
+        try { lessons = JSON.parse(localStorage.getItem(LESSON_KEY) || '{}') || {}; } catch(e){}
+        try { quiz = JSON.parse(localStorage.getItem(QUIZ_KEY) || '{}') || {}; } catch(e){}
+        for (const name of Object.keys(store.packages)){
+          const p = store.packages[name];
+          if (!p.progress) p.progress = { lessons: { ...lessons }, quiz: JSON.parse(JSON.stringify(quiz)) };
+        }
+        saveStore();
+        try { localStorage.setItem(PROGRESS_MIGRATED_KEY, '1'); } catch(e){}
+      }
     }
 
-    function renderAll(){ renderPkgSel(); renderFileTabs(); const p = curPkg(); editorFile = p ? p.active : null; setEditorDoc(p ? p.files[p.active] : ''); syncPitOp(); if (typeof renderPitOps === 'function') renderPitOps(); for (const al of [alliances.red, alliances.blue]){ renderHubCode(al); renderHubOps(al); updateLoadState(al); } }
+    function renderAll(){ if (bindProgress()) refreshLessonProgressUI(); renderPkgSel(); renderFileTabs(); const p = curPkg(); editorFile = p ? p.active : null; setEditorDoc(p ? p.files[p.active] : ''); syncPitOp(); if (typeof renderPitOps === 'function') renderPitOps(); for (const al of [alliances.red, alliances.blue]){ renderHubCode(al); renderHubOps(al); updateLoadState(al); } }
 
     function renderPkgSel(){
       const sel = document.getElementById('pkgsel');
@@ -4193,7 +4230,7 @@
     function resetPackages(){
       if (!seedPackage) return;
       if (!confirm('Reset the starter package to the shipped code? Your edits to it will be lost.')) return;
-      store.packages['starter'] = clonePkg(seedPackage);
+      store.packages['starter'] = { ...clonePkg(seedPackage), progress: (store.packages['starter'] || {}).progress };
       store.current = 'starter'; selectedFqn = ''; saveStore(); renderAll();
     }
 
@@ -4213,6 +4250,7 @@
       writeActive();
       const files = { ...p.files };
       files['package.json'] = JSON.stringify({ name: store.current, package: 'org.firstinspires.ftc.teamcode', files: Object.keys(p.files) });
+      files[PROGRESS_FILE] = progressFileText(p);
       download(store.current + '.zip', zipStore(files));
     });
     document.getElementById('pkgimport').addEventListener('click', () => document.getElementById('pkgfile').click());
@@ -4222,14 +4260,17 @@
         const entries = await unzip(new Uint8Array(await file.arrayBuffer()));
         const files = {};
         let pkgName = file.name.replace(/\.zip$/i, '');
+        let progress = null;
         for (const [name, content] of Object.entries(entries)) {
           const base = name.split('/').pop();
           if (base === 'package.json') { try { const m = JSON.parse(content); if (m.name) pkgName = m.name; } catch(_){} continue; }
+          if (base === PROGRESS_FILE) { progress = parseProgressFile(content); continue; }
           if (base.endsWith('.java')) files[base] = content;
         }
         if (!Object.keys(files).length) { alert('No .java files found in that zip.'); return; }
         if (store.packages[pkgName] && !confirm('Replace existing package "' + pkgName + '"?')) return;
-        store.packages[pkgName] = { files, active: Object.keys(files)[0] };
+        // an older zip without progress keeps the replaced package's results
+        store.packages[pkgName] = { files, active: Object.keys(files)[0], progress: progress || (store.packages[pkgName] || {}).progress };
         store.current = pkgName; selectedFqn = ''; saveStore(); renderAll();
       } catch (err) {
         alert('Import failed: ' + err);
@@ -4354,9 +4395,16 @@
           const blob = await ghApi('/repos/' + repo + '/git/blobs/' + e.sha, {}, token);
           files[e.path.split('/').pop()] = blob.encoding === 'base64' ? ghDecodeB64(blob.content) : (blob.content || '');
         }
+        let progress = null;
+        const progEntry = (tree.tree || []).find(e => e.type === 'blob' && e.path === PROGRESS_FILE);
+        if (progEntry){
+          const pb = await ghApi('/repos/' + repo + '/git/blobs/' + progEntry.sha, {}, token);
+          progress = parseProgressFile(pb.encoding === 'base64' ? ghDecodeB64(pb.content) : (pb.content || ''));
+        }
         const choice = ghResolveName(branch);   // package name == branch (renamed on collision/protected)
         if (!choice){ ghStat('cancelled'); return; }
-        store.packages[choice.name] = { files, active: Object.keys(files)[0] };
+        // a branch pushed before progress sync keeps the overwritten package's results
+        store.packages[choice.name] = { files, active: Object.keys(files)[0], progress: progress || (store.packages[choice.name] || {}).progress };
         store.current = choice.name; selectedFqn = ''; saveStore(); renderAll();
         ghStat('pulled ' + Object.keys(files).length + ' file(s) → "' + choice.name + '"');
       } catch (err){ ghStat(String(err.message || err), true); }
@@ -4376,6 +4424,7 @@
       try {
         const files = Object.assign({}, p.files);
         files['package.json'] = JSON.stringify({ name: branch, package: 'org.firstinspires.ftc.teamcode', files: Object.keys(p.files) }, null, 2);
+        files[PROGRESS_FILE] = progressFileText(p);
         // resolve the target branch head; if it's missing, base a new branch off the repo default
         let baseCommit = null, baseTree = null, refExists = true;
         try { const ref = await ghApi('/repos/' + repo + '/git/ref/heads/' + encodeURIComponent(branch), {}, token); baseCommit = ref.object.sha; }
@@ -4520,7 +4569,7 @@
       const p = curPkg(); if (!p) return;
       let nn = prompt('Duplicate package as:', store.current + '_copy'); if (nn == null) return; nn = nn.trim(); if (!nn) return;
       if (store.packages[nn]){ alert('That package already exists.'); return; }
-      writeActive(); store.packages[nn] = { files: { ...p.files }, active: p.active };
+      writeActive(); store.packages[nn] = { files: { ...p.files }, active: p.active, progress: p.progress ? JSON.parse(JSON.stringify(p.progress)) : undefined };
       store.current = nn; selectedFqn = ''; saveStore(); renderAll();
     }
     function deletePackage(){
@@ -4758,7 +4807,7 @@
           const files = await be.pullFiles(log);
           let nn = prompt('Save pulled code as package:', 'robot_pull'); if (nn == null) return; nn = nn.trim(); if (!nn) return;
           if (store.packages[nn] && !confirm('Replace existing package "' + nn + '"?')) return;
-          store.packages[nn] = { files, active: Object.keys(files)[0] };
+          store.packages[nn] = { files, active: Object.keys(files)[0], progress: (store.packages[nn] || {}).progress };
           store.current = nn; selectedFqn = ''; saveStore(); renderAll();
           log('Imported into package "' + nn + '".', 'ok');
         }
@@ -5141,6 +5190,11 @@
       return { files: { ...snap.files }, active };
     }
 
+    // a different package is now current: redraw checkmarks and the open lesson's quiz button
+    function refreshLessonProgressUI(){
+      if (curLessonId && document.getElementById('lesson-reader-view').style.display !== 'none') openLesson(curLessonId);
+      else renderLessonList();
+    }
     async function openLesson(id){
       const meta = lessons.find(l => l.id === id);
       if (!meta) return;
@@ -5223,15 +5277,12 @@
     document.getElementById('lesson-reset').addEventListener('click', () => onLessonAction('revert', 'Reset to Start'));
     function markComplete(id, val){
       lessonProgress[id] = !!val;
-      try { localStorage.setItem(LESSON_KEY, JSON.stringify(lessonProgress)); } catch(e){}
+      saveStore();
       if (id === curLessonId) openLesson(id); else renderLessonList();
     }
 
     // ---------------- Quiz engine (mastery: all-correct earns the checkmark) ----------------
-    const QUIZ_KEY = 'impulse.quiz.v1';
     const QUIZ_PASS = 0.8;          // fraction correct needed to pass (80% -> 8 of 10)
-    let quizStats = {};
-    try { quizStats = JSON.parse(localStorage.getItem(QUIZ_KEY) || '{}'); } catch(e){ quizStats = {}; }
     let quizState = null;
     const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
     const drawQuestions = (pool, n) => shuffle(pool).slice(0, n).map(q => ({
@@ -5333,7 +5384,7 @@
       const passed = correct >= need, perfect = S.wrong === 0;
       const prev = quizStats[S.lessonId] || { attempts: 0, best: 0, passed: false };
       quizStats[S.lessonId] = { attempts: prev.attempts + 1, best: Math.max(prev.best || 0, correct), passed: prev.passed || passed };
-      try { localStorage.setItem(QUIZ_KEY, JSON.stringify(quizStats)); } catch(e){}
+      saveStore();
       quizShow('result');
       el('quiz-result-emoji').textContent = passed ? (perfect ? '\ud83c\udfc6' : '\ud83c\udf89') : '\ud83d\udcaa';
       el('quiz-result-title').textContent = (perfect ? 'Perfect! ' : passed ? 'You passed! ' : '') + correct + ' / ' + S.n + (passed ? '' : ' \u2014 so close!');
@@ -5353,7 +5404,7 @@
     // mark done + persist without re-rendering the reader (keeps the result screen up under the modal)
     function markCompleteQuiet(id){
       lessonProgress[id] = true;
-      try { localStorage.setItem(LESSON_KEY, JSON.stringify(lessonProgress)); } catch(e){}
+      saveStore();
       renderLessonList();
     }
     function quizConfetti(){
@@ -5455,7 +5506,7 @@
       const snap = courseSnapshots[id];
       if (!snap || !snap.files || !Object.keys(snap.files).length) return false;
       const active = snap.files[snap.active] != null ? snap.active : Object.keys(snap.files)[0];
-      store.packages[store.current] = { files: { ...snap.files }, active };
+      store.packages[store.current] = { files: { ...snap.files }, active, progress: (curPkg() || {}).progress };
       selectedFqn = '';
       saveStore(); renderAll();
       return true;
@@ -5503,7 +5554,6 @@
       if (a) onLessonAction(a.dataset.action, a.dataset.arg);
     });
     async function loadLessons(){
-      try { lessonProgress = JSON.parse(localStorage.getItem(LESSON_KEY) || '{}'); } catch(e){ lessonProgress = {}; }
       try { const c = await (await fetch('course.json')).json(); courseSnapshots = c.snapshots || {}; }
       catch(e){ courseSnapshots = {}; }   // no course.json yet -> revert buttons simply report "no code"
       try {
