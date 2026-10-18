@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.9';
+    window.APP_VERSION = '2.8.10';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -5204,7 +5204,9 @@
       document.getElementById('lesson-title').textContent = meta.title;
       const file = meta.file || (meta.html ? 'lesson.html' : 'lesson.md');
       try {
-        const src = await (await fetch('lessons/' + meta.folder + '/' + file)).text();
+        const res = await fetch('lessons/' + meta.folder + '/' + file);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const src = await res.text();
         if (/\.html?$/i.test(file)){
           readerEl.innerHTML = src;                 // trusted coach-authored lesson page: embed <video>/<img>/<iframe> freely
           resolveLessonMedia(meta.folder);
@@ -5213,7 +5215,12 @@
           readerEl.innerHTML = renderLesson(src, meta.folder);
         }
         injectQuizCTA(meta);
-      } catch (e){ readerEl.textContent = 'Could not load lesson: ' + e; }
+      } catch (e){
+        readerEl.innerHTML = '<div style="margin:24px 0;padding:16px 18px;border:1px solid #f59e0b;border-radius:10px;background:#2a1f08;color:#fde68a">'
+          + '<b>\ud83d\udce1 Couldn\u2019t load this lesson.</b><br>You may be offline or connected to the robot\u2019s WiFi. Reconnect to the internet, then try again.'
+          + '<div style="margin-top:10px"><button type="button" class="lesson-retry">Try again</button></div></div>';
+        readerEl.querySelector('.lesson-retry').addEventListener('click', () => openLesson(id));
+      }
       readerEl.scrollTop = 0;
       renderLessonList();
       renderAll();
@@ -5307,8 +5314,14 @@
       const meta = lessons.find(l => l.id === lessonId);
       if (!meta) return;
       let data;
-      try { data = await (await fetch('lessons/' + meta.folder + '/quiz.json')).json(); }
-      catch(e){ console.log('quiz load failed: ' + e); return; }
+      try {
+        const res = await fetch('lessons/' + meta.folder + '/quiz.json');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        data = await res.json();
+      } catch(e){
+        alert('Couldn\u2019t load this quiz. You may be offline or connected to the robot\u2019s WiFi \u2014 reconnect to the internet, then try again.');
+        return;
+      }
       const pool = data.questions || [];
       const n = Math.min(data.draw || 10, pool.length);
       quizState = { lessonId, title: data.title || (meta.title + ' Quiz'), n, pool, idx: 0, wrong: 0, questions: drawQuestions(pool, n) };
@@ -5563,6 +5576,36 @@
       renderLessonList();
       // list stays hidden the first time a lesson is opened -- students start on the tier-grouped
       // list (showLessonListView is the default; only openLesson() switches to the reader)
+      setTimeout(cacheAllLessons, 20000);   // after startup, so it doesn't compete with the JVM download
+    }
+    // Pre-fill the lessons cache (same name as sw.js LESSONS) so every lesson, quiz and image works
+    // offline -- e.g. on the robot's WiFi -- after one online visit. Only downloads what's missing.
+    async function cacheAllLessons(){
+      if (!('caches' in window) || !navigator.onLine) return;
+      let cache;
+      try { cache = await caches.open('impulse-lessons-v1'); } catch(e){ return; }
+      const want = async (path) => {
+        const url = new URL(path, document.baseURI).href;
+        const hit = await caches.match(url);
+        if (hit) return hit;
+        try { const r = await fetch(url); if (r.ok){ await cache.put(url, r.clone()); return r; } } catch(e){}
+        return null;
+      };
+      for (const l of lessons){
+        if (!navigator.onLine) return;
+        const base = 'lessons/' + l.folder + '/';
+        const file = l.file || (l.html ? 'lesson.html' : 'lesson.md');
+        const page = await want(base + file);
+        if (l.quiz) await want(base + 'quiz.json');
+        if (!page || !/\.html?$/i.test(file)) continue;
+        const doc = new DOMParser().parseFromString(await page.text(), 'text/html');
+        for (const m of doc.querySelectorAll('img[src], video[src], video[poster], source[src], audio[src]')){
+          for (const attr of ['src', 'poster']){
+            const v = m.getAttribute(attr);
+            if (v && !/^([a-z]+:|\/|#)/i.test(v)) await want(base + v);
+          }
+        }
+      }
     }
     loadLessons();   // lessons don't need the JVM — show them right away
 
@@ -6167,18 +6210,13 @@
           if (!ok) return;
         }
 
-        // System templates (localizer + drivetrain) are NOT meant to be student-edited and carry the
-        // coordinate-frame math, so always re-fetch them -- otherwise a stale copy from an earlier export
-        // silently breaks path following. Student-editable templates are only fetched when missing.
+        // Templates are only fetched when missing, so a student's robot-specific edits (pod
+        // directions/offsets, motor names/directions) survive every export.
         // Template set + directory come from the active environment package (Phase 4).
         const tpl = (window.envMgr && envMgr.templates()) || { dir: 'pedro_templates/', system: ['PinpointLocalizer.java', 'MecanumDrivetrainSubsystem.java'], student: ['Subsystem.java', 'Robot.java', 'Intake.java'] };
         const tplDir = tpl.dir || 'pedro_templates/';
-        const systemTemplates = tpl.system || [];
-        const studentTemplates = tpl.student || [];
-        for (const f of systemTemplates) {
-          try { p.files[f] = await (await fetch(tplDir + f)).text(); } catch (e) { if (!p.files[f]) p.files[f] = ''; }
-        }
-        for (const f of studentTemplates) {
+        const templates = (tpl.system || []).concat(tpl.student || []);
+        for (const f of templates) {
           if (!p.files[f]) {
             try { p.files[f] = await (await fetch(tplDir + f)).text(); } catch (e) { p.files[f] = ''; }
           }
