@@ -14,6 +14,9 @@
 const APP_VERSION = new URL(self.location).searchParams.get('v') || 'dev';
 const SHELL = 'impulse-shell-' + APP_VERSION;
 const RUNTIME = 'impulse-runtime-v1';
+// Lessons (pages, quizzes, images) get their own unversioned cache so app updates don't wipe them;
+// the page pre-fills it in the background (cacheAllLessons in index.html).
+const LESSONS = 'impulse-lessons-v1';
 
 // Same-origin jars that hold OUR code (rebuilt on every `tools/build.ps1`). Purged from the
 // RUNTIME cache on each activate so a version bump always serves the freshly built jar.
@@ -98,7 +101,7 @@ async function cacheStatus() {
 }
 
 function isRuntime(url) { return url.pathname.includes('/cj/') || url.pathname.endsWith('.jar'); }
-function cacheFor(url) { return isRuntime(url) ? RUNTIME : SHELL; }
+function cacheFor(url) { return isRuntime(url) ? RUNTIME : (url.pathname.includes('/lessons/') ? LESSONS : SHELL); }
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
