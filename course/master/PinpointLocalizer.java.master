@@ -61,6 +61,9 @@ public class PinpointLocalizer implements Localizer {
             GoBildaPinpointDriver.EncoderDirection.FORWARD,    // X (forward) pod
             GoBildaPinpointDriver.EncoderDirection.REVERSED);  // Y (strafe) pod -> +Y = left
         pinpoint.resetPosAndIMU();
+        // The real Pinpoint keeps calibrating ~0.25 s after a reset and silently zeroes a setPosition()
+        // sent during that time -- wait it out so the start pose sticks (the sim is instant).
+        try { Thread.sleep(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
     }
 
     @Override
@@ -129,6 +132,7 @@ public class PinpointLocalizer implements Localizer {
     @Override
     public void resetIMU() throws InterruptedException {
         pinpoint.recalibrateIMU();   // ROBOT MUST BE STATIONARY
+        Thread.sleep(300);           // let calibration finish before any later setPosition() re-anchor
     }
 
     @Override

@@ -1,0 +1,206 @@
+{
+  "title": "Actions in Autonomous Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "What does calling robot.indexer.feed() actually do?",
+      "correct": "Records that we want feeding; update() moves the servo",
+      "wrong": [
+        "Spins the indexer servo for exactly one second",
+        "Moves the servo right away, without any update() call",
+        "Waits until a pollen is loaded, then feeds it out"
+      ],
+      "explain": "feed() only flips the feeding flag. The servo's power is set in update(), so nothing moves until robot.update() runs."
+    },
+    {
+      "q": "What does robot.update() do?",
+      "correct": "Calls update() on every subsystem so hardware matches its state",
+      "wrong": [
+        "Downloads the newest version of your code to the robot",
+        "Resets every subsystem back to off",
+        "Refreshes the telemetry shown on the Driver Hub"
+      ],
+      "explain": "robot.update() is the scheduler: it walks the list of subsystems and calls each one's update(), which turns their state into real motor and servo power."
+    },
+    {
+      "q": "An auto calls robot.flywheel.toggle(); and then sleep(3000);. What does the flywheel do during those 3 seconds?",
+      "correct": "Nothing, because update() never runs during the sleep",
+      "wrong": [
+        "Spins up to its target RPM, ready to shoot",
+        "Spins at half speed until the sleep finishes",
+        "Turns on and off over and over, once per second"
+      ],
+      "explain": "toggle() only records the wish. The flywheel's power is set in update(), and nothing calls update() while the OpMode is asleep."
+    },
+    {
+      "q": "During a long sleep() in an auto, what happens to follower.update()?",
+      "correct": "It isn't called, so nothing holds the robot on its spot",
+      "wrong": [
+        "It keeps running in the background, holding the robot still",
+        "It runs twice as often to make up for the pause",
+        "It drives the robot back to its starting pose"
+      ],
+      "explain": "sleep() pauses the whole OpMode. follower.update() is what holds the robot at the end of its path, and it can't run while the OpMode sleeps."
+    },
+    {
+      "q": "Why is sleep(20) inside a loop OK, when sleep(3000) on its own is not?",
+      "correct": "The loop still calls update() every lap; the short pause only sets the pace",
+      "wrong": [
+        "sleep(20) is too short for the robot to notice at all",
+        "Short sleeps are run on a separate, faster thread",
+        "It's not OK either; any sleep() freezes the robot for the match"
+      ],
+      "explain": "A tiny pause between laps keeps the heartbeat going: update() still runs every lap, about 50 times a second."
+    },
+    {
+      "q": "How long does this loop take?  for (int i = 0; i < 150 && opModeIsActive(); i++) { ... sleep(20); }",
+      "correct": "About 3 seconds",
+      "wrong": [
+        "About 150 seconds",
+        "About 20 seconds",
+        "About 0.15 seconds"
+      ],
+      "explain": "150 laps × 20 ms per lap = 3000 ms = about 3 seconds."
+    },
+    {
+      "q": "Each lap of your loop takes about 20 ms. How many laps keep the heartbeat going for 5 seconds?",
+      "correct": "250 laps",
+      "wrong": [
+        "100 laps",
+        "500 laps",
+        "5 laps"
+      ],
+      "explain": "5 seconds = 5000 ms, and 5000 ÷ 20 = 250 laps."
+    },
+    {
+      "q": "In  for (int i = 0; i < 150; i++), what does i++ do?",
+      "correct": "Adds 1 to the lap counter after each lap",
+      "wrong": [
+        "Doubles the lap counter every single lap",
+        "Starts a second loop inside the first one",
+        "Ends the loop as soon as it is reached"
+      ],
+      "explain": "A for loop has three parts: start (int i = 0), keep going while (i < 150), and after each lap (i++), which adds 1."
+    },
+    {
+      "q": "Why can two of these for loops, one after the other, both use int i?",
+      "correct": "Each i only exists inside its own loop",
+      "wrong": [
+        "Java renames the second i to j behind the scenes",
+        "The second loop deletes the first loop's i before it starts",
+        "They can't; the second one will always fail to compile"
+      ],
+      "explain": "A variable declared in a for loop's parentheses only lives inside that loop, so each loop gets its own fresh i."
+    },
+    {
+      "q": "When does opModeIsActive() become false?",
+      "correct": "When STOP is pressed or the AUTO period ends",
+      "wrong": [
+        "As soon as the robot finishes its first path",
+        "Whenever the flywheel reaches its target speed",
+        "When the battery voltage drops below 12 volts"
+      ],
+      "explain": "opModeIsActive() is true while the OpMode is running and turns false on STOP or when the 30-second AUTO ends."
+    },
+    {
+      "q": "What could happen if a waiting loop leaves out opModeIsActive()?",
+      "correct": "The robot ignores STOP until the loop finishes counting",
+      "wrong": [
+        "The loop runs twice as fast as it should",
+        "The flywheel can never reach its target speed",
+        "The code compiles, but the loop is skipped entirely"
+      ],
+      "explain": "Without opModeIsActive() in the condition, the loop keeps going after STOP is pressed. Every loop should listen for STOP."
+    },
+    {
+      "q": "In the condition  i < 150 && opModeIsActive(), what does && mean?",
+      "correct": "Both parts must be true to keep looping",
+      "wrong": [
+        "Either part being true keeps the loop going",
+        "Run the left part first, then the right part on the next lap",
+        "Compare the two parts to see if they are equal"
+      ],
+      "explain": "&& means AND: the loop continues only while it hasn't finished its laps AND the OpMode is still active."
+    },
+    {
+      "q": "What does follower.update() do while the robot waits at the end of a path?",
+      "correct": "Keeps nudging the robot back onto its spot",
+      "wrong": [
+        "Spins the flywheel up to its target speed",
+        "Plans the next path in the background",
+        "Saves the robot's position to a file"
+      ],
+      "explain": "Paths are followed with holdEnd = true, so each follower.update() at the end of a path pushes the robot back to its end point."
+    },
+    {
+      "q": "In Path Capture, what does pressing X at the shooting spot do?",
+      "correct": "Adds a bookmark in the code where you write the action",
+      "wrong": [
+        "Makes the robot shoot automatically when the auto runs",
+        "Saves the auto file and closes the Path Capture tool",
+        "Records the shooter's exact speed at that point on the field"
+      ],
+      "explain": "A button press only inserts a CAP:ACTION / CAP:ACTION-END pair of comments. The robot does nothing there until you write the code."
+    },
+    {
+      "q": "Where does your shooting code go in a captured auto?",
+      "correct": "Between the CAP:ACTION and CAP:ACTION-END lines",
+      "wrong": [
+        "Above the @Autonomous line at the very top of the file",
+        "Inside the path-following while loop after chain 1",
+        "In a brand new Shoot.java file in your package"
+      ],
+      "explain": "The action block marks the spot in the auto. Code between the two CAP lines runs there, and is kept when you reopen the file in Path Capture."
+    },
+    {
+      "q": "Why must both CAP lines stay exactly as Path Capture wrote them?",
+      "correct": "Path Capture needs them to reopen your auto for editing",
+      "wrong": [
+        "The robot reads them to decide which button to press",
+        "Java won't compile a file without those two comments",
+        "They tell the flywheel which speed it should hold"
+      ],
+      "explain": "They're comments, so Java ignores them, but Path Capture uses them to reload the file. If one is changed or deleted, it refuses to load it."
+    },
+    {
+      "q": "After the action block finishes, what does a captured auto do next?",
+      "correct": "Carries on with the next path, for example to park",
+      "wrong": [
+        "Stops the OpMode, since the action was the last step",
+        "Goes back to the start pose and repeats the action",
+        "Waits for the driver to press X again before moving"
+      ],
+      "explain": "The auto runs in order: follow a path, run the action, then follow the next path you captured."
+    },
+    {
+      "q": "AUTO lasts 30 seconds. A shot uses about 3 s to spin up and 5 s to feed. How much time is left to drive?",
+      "correct": "About 22 seconds",
+      "wrong": [
+        "About 8 seconds",
+        "About 27 seconds",
+        "About 15 seconds"
+      ],
+      "explain": "3 + 5 = 8 seconds for the shot, so about 30 − 8 = 22 seconds remain to drive to the shooting spot and on to park."
+    },
+    {
+      "q": "In an auto, what is robot.indexer.feed() the same as in TeleOp?",
+      "correct": "Holding down the X button",
+      "wrong": [
+        "Pressing Y to toggle the flywheel",
+        "Pressing A to turn the intake on",
+        "Moving the right stick to trim the speed"
+      ],
+      "explain": "In TeleOp, holding X calls robot.indexer.feed() every loop. In an auto there's no driver, so the code calls it directly."
+    },
+    {
+      "q": "Why does the shooting code call robot.update() one last time after turning everything off?",
+      "correct": "So the flywheel and indexer actually stop right away",
+      "wrong": [
+        "To make the robot drive to the parking spot",
+        "To save the auto before the match ends",
+        "To reset the lap counter back to zero"
+      ],
+      "explain": "toggle() and stop() only record the wishes. One more robot.update() applies them, so the motors stop immediately."
+    }
+  ]
+}

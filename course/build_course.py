@@ -452,11 +452,15 @@ def main():
         if os.path.isdir(WEB_LESSONS_DIR):
             shutil.rmtree(WEB_LESSONS_DIR)
         shutil.copytree(LESSONS_SRC_DIR, WEB_LESSONS_DIR)
-        # module.json lives beside the lessons; stamp "quiz": true onto lessons that ship a quiz.json
+        # module.json lives beside the lessons; stamp "quiz": true onto lessons that ship a quiz.json,
+        # and "reward": true onto lessons that ship a reward.html (shown only after the quiz is passed)
         published = dict(module)
-        published["lessons"] = [
-            ({**l, "quiz": True} if l["id"] in quiz_have else l) for l in module["lessons"]
-        ]
+        published["lessons"] = []
+        for l in module["lessons"]:
+            entry = {**l, "quiz": True} if l["id"] in quiz_have else dict(l)
+            if os.path.isfile(os.path.join(LESSONS_SRC_DIR, l["folder"], "reward.html")):
+                entry["reward"] = True
+            published["lessons"].append(entry)
         with open(os.path.join(WEB_LESSONS_DIR, "module.json"), "w", encoding="utf-8", newline="\n") as f:
             json.dump(published, f, indent=2, ensure_ascii=False)
         print(f"Published lessons -> {os.path.relpath(WEB_LESSONS_DIR, WEB_DIR)}/ (+ module.json)")

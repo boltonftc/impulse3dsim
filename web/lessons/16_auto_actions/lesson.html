@@ -1,0 +1,241 @@
+<h1>Actions in Autonomous: Make It Shoot</h1>
+
+<p>In the last lesson your <code>SimpleAuto</code> drove a path of poses all by itself, and you saw that the
+simulator's <strong>Path Capture</strong> tool writes that same kind of code for you: you drive the route, press buttons
+where things should happen, and it writes the Java. Path Capture can mark <em>where</em> the robot should shoot, but it
+can't write the shooting code. That part is yours.</p>
+
+<p>This lesson is different from the others: <strong>you won't change any code</strong>. Instead you'll dig into how an
+OpMode really runs &mdash; the run loop, <code>robot.update()</code>, <code>sleep()</code>, <code>for</code> loops and
+<code>opModeIsActive()</code> &mdash; until you could almost write the shooting code yourself.</p>
+
+<div class="blk blk-challenge">
+  <div class="blk-head">&#128274; Earn the code</div>
+  <p>This lesson ends with a reward: <strong>the complete code that makes a captured auto spin up the flywheel and
+  shoot</strong>, ready to paste in. It unlocks only when you <strong>pass the quiz</strong> at the bottom of this lesson
+  (8 out of 10). The questions check that you understand <em>why</em> the code works, so read carefully.</p>
+</div>
+
+<hr>
+
+<h2>1. The robot's heartbeat: the run loop</h2>
+
+<p>Every OpMode you have written has a loop at its heart. In your TeleOp it looks roughly like this:</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>The TeleOp run loop (just read it)</span></div>
+<pre><code>while (opModeIsActive()) {
+    if (gamepad1.x) robot.indexer.feed();   // 1. read buttons, give commands
+    else robot.indexer.stop();
+
+    robot.update();                          // 2. make the hardware match the commands
+
+    telemetry.update();                      // 3. show what's happening
+}</code></pre>
+</div>
+
+<p>Each trip around this loop takes only a few milliseconds, so it runs <strong>dozens of times every second</strong>.
+Think of it as the robot's <strong>heartbeat</strong>: every beat, the robot looks at what you want and makes it
+happen. As long as the heartbeat keeps going, the robot stays responsive.</p>
+
+<figure>
+  <img src="images/heartbeat_loop.png" alt="A circular loop of three arrows labeled read buttons and sensors, give commands, and robot.update makes the motors obey, with a heart-monitor line around it and a badge saying about 50 laps every second. The robot mascot points at the loop. A banner reads: Commands are wishes. update() makes them real.">
+  <figcaption>The run loop is the robot's heartbeat: read, command, <code>update()</code> &mdash; over and over, dozens
+  of times a second.</figcaption>
+</figure>
+
+<h2>2. Commands are wishes; <code>update()</code> makes them real</h2>
+
+<p>Here is something that surprises a lot of programmers. When you call <code>robot.indexer.feed()</code>, <strong>the
+servo does not move</strong>. Look at what <code>feed()</code> actually does in your <code>Indexer</code>:</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>From Indexer.java (just read it)</span></div>
+<pre><code>public void feed() {
+    feeding = true;            // only remembers what we WANT
+}
+
+@Override
+public void update() {
+    feeder.setPower(feeding ? FEED_POWER : 0.0);   // the ONLY line that moves the servo
+}</code></pre>
+</div>
+
+<p><code>feed()</code> just flips a boolean. The servo only changes when <code>update()</code> runs and calls
+<code>setPower()</code>. Your <code>Flywheel</code> works the same way: <code>toggle()</code> flips
+<code>spinning</code>, and it's <code>update()</code> that measures the RPM and sets the motor power to hold the target
+speed. <code>robot.update()</code> simply calls <code>update()</code> on every subsystem &mdash; that's the scheduler you
+built in <em>From Messy Loop to Clean Class</em>.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Commands vs. update()</div>
+  <p>A command (<code>feed()</code>, <code>toggle()</code>, <code>forward()</code>) only records what you <em>want</em>.
+  Nothing on the robot changes until <code>robot.update()</code> runs. No heartbeat, no movement.</p>
+</div>
+
+<h2>3. Autos have a heartbeat too</h2>
+
+<p>An autonomous OpMode doesn't read a gamepad, but it still needs a heartbeat. Open any auto made by Path Capture and
+you'll find a loop like this after each path:</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>From a captured auto (just read it)</span></div>
+<pre><code>follower.followPath(chain1, SPEED, true);
+while (opModeIsActive() &amp;&amp; follower.isBusy()) {
+    follower.update();    // Pedro's heartbeat: where am I? push the wheels toward the path
+    robot.update();       // your subsystems' heartbeat
+    ...
+}</code></pre>
+</div>
+
+<p>There are now <strong>two</strong> heartbeats. <code>follower.update()</code> is Pedro Pathing's: it reads the
+Pinpoint, compares where the robot is to where it should be, and sets the wheel powers. The <code>true</code> in
+<code>followPath(..., true)</code> means <em>hold the end point</em>: after the path finishes, every
+<code>follower.update()</code> keeps nudging the robot back onto its spot &mdash; but only as long as something keeps
+calling it.</p>
+
+<h2>4. <code>sleep()</code> stops the heartbeat</h2>
+
+<p><code>sleep(3000)</code> pauses your OpMode for 3000 milliseconds (3 seconds). It sounds like exactly what you need
+to &ldquo;wait for the flywheel&rdquo;. But during a <code>sleep()</code> <strong>nothing else in your OpMode
+runs</strong> &mdash; not <code>robot.update()</code>, not <code>follower.update()</code>. The heartbeat stops.</p>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Spot the bug &mdash; don't copy this!</div>
+<pre><code>robot.flywheel.toggle();   // wish: flywheel on
+sleep(3000);               // wait for it to spin up...?
+robot.indexer.feed();      // wish: feed
+sleep(5000);               // wait while it shoots...?</code></pre>
+  <p>Think it through. <code>toggle()</code> and <code>feed()</code> only record wishes. Nothing ever calls
+  <code>robot.update()</code>, so the flywheel never gets power and the indexer never turns. The robot just sits there
+  for 8 seconds. And with <code>follower.update()</code> frozen too, nothing is holding the robot on its spot.</p>
+</div>
+
+<figure>
+  <img src="images/sleep_freezes.png" alt="Two panels. Left, labeled sleep(3000): the robot mascot asleep, a flat heart-monitor line, a flywheel gauge stuck at 0 RPM and a red X. Right, labeled for loop plus robot.update(): the mascot awake holding a stopwatch, a pulsing heart-monitor line, the flywheel gauge climbing into the green, and a green check. Banner: Never stop the heartbeat.">
+  <figcaption>A long <code>sleep()</code> freezes everything. To wait, keep the heartbeat going.</figcaption>
+</figure>
+
+<p>A <em>tiny</em> <code>sleep()</code> inside a loop is fine, though. <code>sleep(20)</code> is just a short breath
+between heartbeats: the loop still calls <code>update()</code> every lap, and the pause sets how fast the laps go.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Never stop the heartbeat</div>
+  <p>Don't wait with one long <code>sleep()</code>. Wait with a <strong>loop</strong> that keeps calling
+  <code>follower.update()</code> and <code>robot.update()</code> every lap.</p>
+</div>
+
+<h2>5. A <code>for</code> loop is a stopwatch</h2>
+
+<p>You need a loop that keeps the heartbeat going for a set amount of time. A <code>for</code> loop that counts laps
+does exactly that:</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Counting laps (just read it)</span></div>
+<pre><code>for (int i = 0; i &lt; 100; i++) {
+    // ... do one lap of work ...
+    sleep(20);             // each lap takes about 20 ms
+}</code></pre>
+</div>
+
+<p>A <code>for</code> loop has three parts inside its parentheses:</p>
+<ul>
+  <li><code>int i = 0</code> &mdash; <strong>start</strong>: make a lap counter called <code>i</code>, starting at 0.</li>
+  <li><code>i &lt; 100</code> &mdash; <strong>keep going while</strong> this is true.</li>
+  <li><code>i++</code> &mdash; <strong>after each lap</strong>, add 1 to <code>i</code>.</li>
+</ul>
+
+<p>So this loop runs 100 laps. If each lap takes about 20 milliseconds, the whole loop takes about
+<strong>100 &times; 20&nbsp;ms = 2000&nbsp;ms = 2 seconds</strong>. Want 3 seconds? 3000 &divide; 20 = 150 laps.
+Want 5 seconds? 250 laps. (It's &ldquo;about&rdquo; because each lap also spends a little time on its work, so the real
+time runs slightly long. For an auto, that's close enough.)</p>
+
+<p>One more detail: <code>i</code> only exists <em>inside</em> its own loop. That means you can write several of these
+loops one after another, each with its own <code>i</code>, and they won't clash.</p>
+
+<h2>6. <code>opModeIsActive()</code>: listen for STOP</h2>
+
+<p><code>opModeIsActive()</code> is <code>true</code> while your OpMode is running. It turns <code>false</code> the moment
+the driver presses <strong>STOP</strong> &mdash; or when the 30-second AUTO period ends. That's why it appears in the
+condition of every loop you've seen:</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>A loop that listens for STOP (just read it)</span></div>
+<pre><code>for (int i = 0; i &lt; 150 &amp;&amp; opModeIsActive(); i++) {
+    ...
+}</code></pre>
+</div>
+
+<p>The <code>&amp;&amp;</code> means <em>and</em>: keep going while we haven't finished 150 laps <strong>and</strong> the
+OpMode is still active. Leave out <code>opModeIsActive()</code> and the loop ignores STOP until it finishes counting
+&mdash; the robot would keep running after the referee or your driver tried to stop it. Every loop needs it.</p>
+
+<hr>
+
+<h2>7. Marking an action in Path Capture</h2>
+
+<p>Now the Path Capture side. While capturing, you drive the robot around the field and save poses. When the robot
+reaches a spot where something should happen, press a button &mdash; for shooting, press <strong>X</strong> on the
+controller (or the <strong>3</strong> key). Then keep driving, for example to park, and save.</p>
+
+<figure>
+  <img src="images/capture_action_marker.png" alt="Top: a cartoon game field with a dotted path from START on the wall to a star at the shooting spot, where a green gamepad X button pops up labeled pressed here, then on to a PARK box in the loading zone. Bottom: a dark code card with the lines // CAP:ACTION seq=5 button=X, a highlighted dashed box saying YOUR CODE GOES HERE, and // CAP:ACTION-END seq=5. The robot mascot points at the box saying Keep both CAP lines!">
+  <figcaption>Pressing X drops a bookmark in your auto. Your shooting code goes <em>between</em> the two
+  <code>CAP</code> lines.</figcaption>
+</figure>
+
+<p>Pressing X does <strong>not</strong> make the robot do anything by itself. It's a bookmark. In the saved file you'll
+find a block like this at that point in the auto:</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>What Path Capture writes when you press X</span></div>
+<pre><code>        // CAP:ACTION seq=5 button=X
+        // ── Captured action: Button X pressed here ──
+        // TODO: call your subsystem here, ...
+        // CAP:ACTION-END seq=5</code></pre>
+</div>
+
+<p>When the auto runs, it follows the path up to the shooting spot, runs whatever code sits between these two lines,
+and then carries on with the next path &mdash; to park, in our example. (Your <code>seq</code> number may be
+different; that's fine.)</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">The rules for action code</div>
+  <ul>
+    <li>Your code goes <strong>between</strong> <code>// CAP:ACTION</code> and <code>// CAP:ACTION-END</code>. Replace the
+    two comment lines in the middle with it.</li>
+    <li><strong>Keep both <code>CAP</code> lines exactly as they are.</strong> Path Capture uses them to reopen your auto
+    for editing; if one is changed or deleted, it refuses to load the file.</li>
+    <li>Code between the <code>CAP</code> lines is kept when you reopen the file in Path Capture. Code you put
+    anywhere else can be lost.</li>
+  </ul>
+</div>
+
+<h2>8. The plan for a shot</h2>
+
+<p>Put it all together and shooting is a short recipe:</p>
+<ol>
+  <li>Turn the flywheel on with <code>robot.flywheel.toggle()</code>. It aims for its default target speed (4000 RPM in
+  your Flywheel code).</li>
+  <li>Keep the heartbeat going for about <strong>3 seconds</strong> while it spins up.</li>
+  <li>Start the indexer with <code>robot.indexer.feed()</code> &mdash; the same thing holding X does in TeleOp.</li>
+  <li>Keep the heartbeat going for about <strong>5 seconds</strong> while it shoots.</li>
+  <li>Turn the flywheel off and stop the indexer, then let the auto drive on to park.</li>
+</ol>
+
+<p>Watch the clock: AUTO lasts <strong>30 seconds</strong>, and this shot uses about 8 of them. Driving to the shooting
+spot and then to park has to fit in what's left.</p>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li>Re-read any section that felt fuzzy &mdash; especially <em>commands vs. update()</em> and <em>sleep() stops the
+    heartbeat</em>.</li>
+    <li>Take the quiz below. Pass it (8 out of 10) to <strong>unlock the shooting code</strong>, then paste it between the
+    <code>CAP</code> lines of your captured auto.</li>
+  </ul>
+</div>
+
+<hr>
+
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>
