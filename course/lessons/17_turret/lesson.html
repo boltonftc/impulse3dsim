@@ -1,0 +1,195 @@
+<h1>The Turret: Gears, Servos and Aiming</h1>
+
+<p>A <strong>turret</strong> lets the shooter swing left and right to aim, without turning the whole robot. Our
+turret is driven by a servo, through two sets of gears. In this lesson you'll learn how <strong>gear ratios</strong>
+work, why a servo <strong>can't spin forever</strong> (and what we do about it), how to turn a servo position into a
+turret angle, and how to drive the turret by hand with the <strong>D-pad</strong> &mdash; the first step toward letting the
+robot <strong>aim itself</strong>.</p>
+
+<p>Not every robot has a turret, but everyone takes this lesson: gears, servos and limits show up on every robot you'll
+ever build. Like the last lesson, <strong>you won't change any code here</strong>.</p>
+
+<div class="blk blk-challenge">
+  <div class="blk-head">&#128274; Earn the code</div>
+  <p>This lesson ends with a reward: <strong>a complete <code>Turret</code> subsystem</strong>, plus the lines that add it
+  to your <code>Robot</code> and your TeleOp. It unlocks only when you <strong>pass the quiz</strong> at the bottom (8 out
+  of 10). Turret robots like <strong>Gurt</strong> can then paste it in and customize it.</p>
+</div>
+
+<hr>
+
+<h2>1. The parts</h2>
+
+<p>Our turret uses three goBILDA&reg; parts, chained together: the servo turns the overdrive gearbox, and the gearbox
+turns the turret.</p>
+
+<figure>
+  <img src="images/gobilda_axon_max.jpg" alt="The Axon MAX Servo MK2: a standard-size servo in a black aluminum case with a splined output shaft.">
+  <figcaption><strong>1. Axon MAX Servo MK2</strong> &mdash; a very strong servo that can turn up to <strong>350&deg;</strong>.
+  Image: <a href="https://www.gobilda.com/axon-max-servo-mk2/" target="_blank" rel="noopener">goBILDA&reg;</a>.</figcaption>
+</figure>
+
+<figure>
+  <img src="images/gobilda_overdrive_kit.jpg" alt="The Axon MAX 1:3.2 Overdrive Kit: a gearbox that mounts on the servo, with a round pattern spacer and a hub on its output shaft.">
+  <figcaption><strong>2. Axon MAX 1:3.2 Overdrive Kit</strong> &mdash; a gearbox that makes the servo's output turn
+  <strong>3.2&times; farther and faster</strong>. Image:
+  <a href="https://www.gobilda.com/axon-max-1-3-2-overdrive-kit/" target="_blank" rel="noopener">goBILDA&reg;</a>.</figcaption>
+</figure>
+
+<figure>
+  <img src="images/gobilda_turret.jpg" alt="The goBILDA Gear-Driven Turret: a large ring gear with 176 teeth around a 105 mm hole, driven by a small 64-tooth gear on the side.">
+  <figcaption><strong>3. Gear-Driven Turret (2.75:1)</strong> &mdash; a big <strong>176-tooth</strong> ring gear, driven by a small
+  <strong>64-tooth</strong> gear. Image:
+  <a href="https://www.gobilda.com/gear-driven-turret-2-75-1-ratio-105mm-id/" target="_blank" rel="noopener">goBILDA&reg;</a>.</figcaption>
+</figure>
+
+<h2>2. Gear ratios</h2>
+
+<p>When two gears mesh, their teeth pass each other one for one. So if a small gear with 64 teeth drives a big gear with
+176 teeth, the small gear has to turn <strong>176 &divide; 64 = 2.75 times</strong> to make the big gear turn once. That
+number is the <strong>gear ratio</strong>, written <strong>2.75:1</strong>.</p>
+
+<figure>
+  <img src="images/gear_ratio_basics.png" alt="A small gear with 64 teeth meshed with a big gear with 176 teeth. The small gear spins fast with a label 2.75 turns; the big gear turns once, slowly but strongly. Below, a seesaw balance shows speed on one side and torque on the other.">
+  <figcaption>A small gear driving a big gear: the big one turns <strong>slower</strong> but <strong>stronger</strong>.
+  Speed and strength (torque) always trade off.</figcaption>
+</figure>
+
+<div class="blk blk-key">
+  <div class="blk-head">Speed and torque always trade off</div>
+  <ul>
+    <li><strong>Reduction</strong> (small gear drives big gear, like 2.75:1): the output turns <strong>slower</strong> and
+    with <strong>more torque</strong> (twisting strength).</li>
+    <li><strong>Overdrive</strong> (big gear drives small gear, like 1:3.2): the output turns <strong>faster and
+    farther</strong>, with <strong>less torque</strong>.</li>
+    <li>When gears are chained, you <strong>multiply</strong> (or divide) their ratios.</li>
+    <li>Two meshing gears spin in <strong>opposite directions</strong> &mdash; so a turret may turn the &ldquo;wrong&rdquo;
+    way until you flip it in code.</li>
+  </ul>
+</div>
+
+<h2>3. Why a servo can't spin forever</h2>
+
+<p>A <strong>positional servo</strong> has a sensor inside that knows its own angle. You tell it a position with
+<code>setPosition()</code> and it drives there and <strong>holds</strong> it. But that sensor only covers a limited range:
+the Axon MAX can turn about <strong>350&deg;</strong>, and then it stops. That's the price of knowing exactly where it is.</p>
+
+<p>A <strong>continuous-rotation</strong> servo (like the indexer's <code>CRServo</code>) <em>can</em> spin forever, but it
+gives up knowing where it is &mdash; you control its <em>speed</em>, not its angle. For aiming we need an angle, so the
+turret servo must be in <strong>positional (servo) mode</strong>.</p>
+
+<p>Here's the problem. The turret's 2.75:1 gears divide the servo's motion. With the servo alone, the turret could only
+turn <strong>350&deg; &divide; 2.75 &asymp; 127&deg;</strong> &mdash; barely a third of a circle.</p>
+
+<figure>
+  <img src="images/servo_limit_overdrive.png" alt="Two turret dials. Left, labeled servo alone: a narrow 127-degree slice of turret travel with a red X. Right, labeled with 1:3.2 overdrive: a full circle plus a bit, about 407 degrees, with a green check. Between them a servo icon with a stop sign at 350 degrees.">
+  <figcaption>The servo stops at 350&deg;. Through the turret's gears alone that's only 127&deg; of aim; the overdrive
+  stretches it past a full circle.</figcaption>
+</figure>
+
+<div class="blk blk-key">
+  <div class="blk-head">That's why we need the overdrive</div>
+  <p>The 1:3.2 overdrive multiplies the servo's 350&deg; to <strong>350 &times; 3.2 = 1,120&deg;</strong> &mdash; more than
+  three full turns. Then the turret's 2.75:1 gears bring it back down to
+  <strong>1,120 &divide; 2.75 &asymp; 407&deg;</strong> of turret travel: more than a full circle, from a servo that can't
+  even turn once.</p>
+</div>
+
+<h2>4. From servo position to turret angle</h2>
+
+<p><code>setPosition()</code> takes a number from <code>0.0</code> to <code>1.0</code>. Across that whole range, the
+turret swings through its full travel. One catch: the servo's full 350&deg; needs a signal range the Control Hub doesn't
+send by default. With the hub's normal servo signal, you get about <strong>90%</strong> of it &mdash; about
+<strong>367&deg;</strong> of turret travel. That's still more than a full circle, so we use that number.</p>
+
+<figure>
+  <img src="images/servo_to_turret_math.png" alt="A number line from 0.0 to 1.0 labeled servo position, with 0.5 in the middle marked forward. Above it, a turret drawn from the top pointing forward at 0.5, swung left toward 1.0 and right toward 0.0. A formula card reads: turret angle equals position minus 0.5, times 367 degrees.">
+  <figcaption>Position <code>0.5</code> points the turret forward. Every <code>0.1</code> of position is about
+  <strong>37&deg;</strong> of turret.</figcaption>
+</figure>
+
+<div class="blk blk-key">
+  <div class="blk-head">Turret angle from servo position</div>
+  <p><strong>turret angle = (position &minus; 0.5) &times; 367&deg;</strong></p>
+  <ul>
+    <li><code>0.5</code> &rarr; 0&deg; (straight forward)</li>
+    <li><code>0.6</code> &rarr; +37&deg; (a bit to the left)</li>
+    <li><code>0.25</code> &rarr; &minus;92&deg; (pointing right)</li>
+  </ul>
+  <p>And going the other way, to aim at an angle: <strong>position = 0.5 + angle &divide; 367&deg;</strong>.</p>
+</div>
+
+<p>What about strength? The overdrive trades away torque: the Axon MAX's 34&nbsp;kg&middot;cm becomes about
+11&nbsp;kg&middot;cm after the gearbox. The turret's 2.75:1 reduction then multiplies it back up to about
+<strong>30&nbsp;kg&middot;cm</strong> at the turret &mdash; plenty to swing a shooter.</p>
+
+<hr>
+
+<h2>5. Setting it up safely</h2>
+
+<div class="blk blk-key">
+  <div class="blk-head">Before the turret ever moves</div>
+  <ul>
+    <li><strong>Program the servo first.</strong> Use the
+    <a href="https://www.gobilda.com/axon-servo-programmer-mk2/" target="_blank" rel="noopener">Axon Servo Programmer</a>
+    to make sure it's in <strong>servo (positional) mode</strong> with its full travel. In continuous mode,
+    <code>setPosition()</code> can't hold an angle.</li>
+    <li><strong>Center, then assemble.</strong> Send the servo to <code>0.5</code> <em>first</em>, then mesh the gears with
+    the turret pointing straight forward. Now <code>0.5</code> means &ldquo;forward&rdquo; and you have equal travel each
+    way.</li>
+    <li><strong>It moves on INIT.</strong> A positional servo jumps to its commanded position as soon as the code starts.
+    Keep hands clear of the turret when you press INIT.</li>
+    <li><strong>Protect the wires.</strong> More than a full circle of travel can wrap and pull cables. Limit the range in
+    code (for example <code>0.15</code> to <code>0.85</code>, about &plusmn;128&deg;) until the wiring is proven.</li>
+    <li><strong>Give it power.</strong> An Axon MAX can draw up to 4&nbsp;A when it's straining. Use a
+    <strong>servo power injector</strong> so it doesn't brown out the hub.</li>
+  </ul>
+</div>
+
+<h2>6. Driving it by hand with the D-pad</h2>
+
+<p>For testing and manual override, the driver nudges the turret with the <strong>D-pad</strong>: hold
+<strong>left</strong> to swing left, <strong>right</strong> to swing right. In the simulator, the <code>,</code> and
+<code>.</code> keys (the <code>&lt;</code> and <code>&gt;</code> keys) do the same thing.</p>
+
+<p>This works like the Hood's aiming, with one difference. The Hood used a <em>stick</em>, so pushing it farther moved it
+faster. A D-pad button is just on or off, so while it's held, the turret moves the <strong>same small step every
+loop</strong>. At dozens of loops a second, those small steps add up to a smooth swing. And every step is clamped to the
+safe limits, so the driver can't wrap the wires.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">The turret is just another subsystem</div>
+  <p>Same shape as the Hood: a <code>position</code> field remembers where we want the turret, command methods
+  (<code>nudgeLeft()</code>, <code>nudgeRight()</code>, <code>setAngle()</code>) only change that field, and
+  <code>update()</code> sends it to the servo every loop. Nothing moves until <code>robot.update()</code> runs.</p>
+</div>
+
+<p>The simulator now has a servo named <code>turret</code> on the robot, so once you add the code, you'll see the turret
+swing &mdash; and shots fly where it points.</p>
+
+<h2>7. What's next: let the robot aim itself</h2>
+
+<p>Aiming by hand is slow. The real goal is a robot that keeps its turret pointed at the goal on its own. That's why the
+reward includes a <code>setAngle(degrees)</code> method: any part of your code can say &ldquo;point at 30&deg;&rdquo;, and
+the turret does the math. Two ways to work out that angle are coming in a future lesson:</p>
+<ul>
+  <li><strong>With the Limelight camera:</strong> it spots the goal's AprilTag and reports how many degrees off-center it
+  is. Turn the turret by that much, and it's centered.</li>
+  <li><strong>With odometry:</strong> the Pinpoint already knows where the robot is on the field. Since you also know where
+  the goal is, a little trigonometry (<code>Math.atan2</code>) gives the angle to it &mdash; minus the robot's own heading.</li>
+</ul>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li>Re-read anything that felt fuzzy &mdash; especially <em>gear ratios</em> and <em>why a servo can't spin
+    forever</em>.</li>
+    <li>Take the quiz below. Pass it (8 out of 10) to <strong>unlock the Turret code</strong>.</li>
+    <li><strong>Turret robots:</strong> add it to your package, then test it in the simulator with the D-pad (or
+    <code>,</code> and <code>.</code>) before trying it on the real robot.</li>
+  </ul>
+</div>
+
+<hr>
+
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

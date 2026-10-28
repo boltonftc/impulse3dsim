@@ -1,0 +1,126 @@
+{
+  "title": "The Turret Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "A 64-tooth gear drives a 176-tooth gear. What is the gear ratio?",
+      "correct": "2.75:1",
+      "wrong": ["1:2.75", "112:1", "3.2:1"],
+      "explain": "176 ÷ 64 = 2.75, so the small gear turns 2.75 times for each turn of the big gear: a 2.75:1 reduction."
+    },
+    {
+      "q": "A small gear drives a big gear (a reduction). The big gear turns...",
+      "correct": "Slower, with more torque",
+      "wrong": ["Faster, with more torque", "Faster, with less torque", "At the same speed, with the same torque"],
+      "explain": "A reduction trades speed for strength: the output turns slower but twists harder."
+    },
+    {
+      "q": "What does the 1:3.2 overdrive kit do to the servo's output?",
+      "correct": "Turns it 3.2× farther and faster, with less torque",
+      "wrong": ["Makes it 3.2× stronger but 3.2× slower to turn", "Lets it spin forever like a continuous servo", "Makes it hold its angle 3.2× more accurately"],
+      "explain": "Overdrive is the opposite of a reduction: more speed and travel, less torque. The Axon MAX has torque to spare."
+    },
+    {
+      "q": "Why can't a positional servo spin forever?",
+      "correct": "Its built-in sensor only covers a limited angle range",
+      "wrong": ["FTC rules ban servos from turning more than once", "Its wires would twist off inside the case", "It would overheat after one full turn"],
+      "explain": "A positional servo knows its angle from an internal sensor, and that sensor only covers about 350° on the Axon MAX. Past that, it stops."
+    },
+    {
+      "q": "A continuous-rotation servo can spin forever. Why don't we use one for the turret?",
+      "correct": "You control its speed, not its angle, so it can't hold an aim",
+      "wrong": ["It's far too weak to move a turret with a shooter on it", "It only spins in one direction, so the turret can't come back", "It needs a motor port instead of a servo port"],
+      "explain": "Continuous mode gives up knowing the angle. For aiming we need setPosition() to drive to an angle and hold it."
+    },
+    {
+      "q": "With NO overdrive, how far could the 350° servo turn the 2.75:1 turret?",
+      "correct": "About 127°",
+      "wrong": ["About 962°", "About 350°", "About 407°"],
+      "explain": "350 ÷ 2.75 ≈ 127°, only about a third of a circle. That's the problem the overdrive solves."
+    },
+    {
+      "q": "With the 1:3.2 overdrive, how far can the turret turn at the servo's full signal?",
+      "correct": "About 407°",
+      "wrong": ["About 127°", "About 1,120°", "About 3,080°"],
+      "explain": "350 × 3.2 = 1,120° out of the gearbox, then ÷ 2.75 ≈ 407° at the turret: more than a full circle."
+    },
+    {
+      "q": "Why does the lesson use about 367° instead of 407°?",
+      "correct": "The Control Hub's default servo signal reaches about 90% of the range",
+      "wrong": ["The turret's bearing adds friction that eats about 40°", "The gears lose teeth over time, so we leave extra room", "FTC rules limit turrets to one full turn plus a bit"],
+      "explain": "The servo's full 350° needs a 500–2500 µs signal; the hub's default is narrower, so you get about 90% of the travel."
+    },
+    {
+      "q": "Using turret angle = (position − 0.5) × 367°, where does position 0.6 point?",
+      "correct": "About 37° to the left",
+      "wrong": ["About 37° to the right", "About 220° to the left", "Straight forward"],
+      "explain": "(0.6 − 0.5) × 367 ≈ 37°. Positive angles are to the left (counter-clockwise)."
+    },
+    {
+      "q": "Which servo position points the turret straight forward?",
+      "correct": "0.5",
+      "wrong": ["0.0", "1.0", "0.25"],
+      "explain": "We assemble the turret with the servo at 0.5, so the middle of the range is forward and there's equal travel each way."
+    },
+    {
+      "q": "To aim the turret at 0° with no limits, what position would you send?",
+      "correct": "0.5",
+      "wrong": ["0.0", "0.367", "1.0"],
+      "explain": "position = 0.5 + angle ÷ 367°. For 0°, that's just 0.5."
+    },
+    {
+      "q": "Why do we send the servo to 0.5 BEFORE meshing the turret gears?",
+      "correct": "So 0.5 means forward, with equal travel both ways",
+      "wrong": ["Because the gears only mesh when the servo is powered", "So the servo is at its strongest when meshing", "Because 0.5 is the only legal starting position"],
+      "explain": "Centering first lines up the code's middle with the turret's forward direction, so you can swing equally left and right."
+    },
+    {
+      "q": "What happens to a positional-servo turret when you press INIT?",
+      "correct": "It jumps to its starting position right away",
+      "wrong": ["Nothing, until the driver presses START", "It slowly searches for the forward direction", "It spins one full turn to calibrate itself"],
+      "explain": "As soon as the code sends a position, the servo drives there. Keep hands clear of the turret at INIT."
+    },
+    {
+      "q": "Why does the Turret code clamp the position between MIN_POS and MAX_POS?",
+      "correct": "So the turret can't swing far enough to wrap and pull the wires",
+      "wrong": ["So the servo doesn't overheat from moving too far", "Because positions outside 0.15–0.85 are illegal in FTC", "So the turret always points toward the goal"],
+      "explain": "More than a full circle of travel can wrap cables. Software limits keep the turret inside a safe range."
+    },
+    {
+      "q": "Why put the Axon MAX on a servo power injector?",
+      "correct": "It can draw up to 4 A, more than the hub's servo ports like to supply",
+      "wrong": ["Servo power injectors make the servo turn 3.2× farther", "Without one, the servo can only run in continuous mode", "It's needed to send the servo its position signal"],
+      "explain": "A strong servo under load can brown out the hub's servo power. The injector feeds it extra power."
+    },
+    {
+      "q": "Holding D-pad left calls nudgeLeft() every loop. How does the turret move?",
+      "correct": "A small fixed step each loop, adding up to a smooth swing",
+      "wrong": ["One big jump to the far left limit", "Faster the harder you press the button", "It stays still until you let go of the button"],
+      "explain": "A D-pad button is just on or off, so each loop adds the same NUDGE_STEP. Dozens of loops a second add up to a smooth swing."
+    },
+    {
+      "q": "The turret swings RIGHT when you hold D-pad left. What's the simplest fix?",
+      "correct": "Reverse the servo's direction in the code",
+      "wrong": ["Take the turret apart and flip the gears over", "Swap the servo cable to a different port", "Change the overdrive kit to a 3.2:1 reduction"],
+      "explain": "Meshing gears flip direction. servo.setDirection(Servo.Direction.REVERSE) flips it back in software."
+    },
+    {
+      "q": "What does nudgeLeft() actually do?",
+      "correct": "Changes the position field; update() moves the servo",
+      "wrong": ["Moves the servo immediately, without update()", "Waits until the turret has finished moving", "Resets the turret back to forward"],
+      "explain": "Like every subsystem command, it only changes the state. robot.update() calls the turret's update(), which sends the position to the servo."
+    },
+    {
+      "q": "Why does the Turret code include a setAngle(degrees) method?",
+      "correct": "So auto-aim code can just say which angle to point at",
+      "wrong": ["Because the servo only understands degrees, not positions", "So the driver can type an angle on the gamepad", "To make the D-pad nudges more accurate"],
+      "explain": "Later, Limelight or odometry code will work out the angle to the goal and call setAngle(). The turret does the position math."
+    },
+    {
+      "q": "How could odometry help the turret aim at the goal?",
+      "correct": "Use the robot's pose and the goal's spot to compute the angle",
+      "wrong": ["Odometry pods can see the goal's AprilTag", "Odometry measures the turret's gear teeth", "Odometry spins the turret until the shots go in"],
+      "explain": "The Pinpoint knows where the robot is. With the goal's known position, Math.atan2 gives the direction to it, minus the robot's heading."
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+<p>Turret robots: add these three pieces to your code package. (No turret on your robot? You've still earned it &mdash;
+and the same pattern works for any positional servo.)</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>&#128275; 1. New file: <code>Turret.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.Servo;
+
+/*
+ * Turret -- an Axon MAX servo (servo mode) through a 1:3.2 overdrive into a 2.75:1 turret.
+ * 350 deg x 3.2 / 2.75 = ~407 deg at the servo's full signal; the Control Hub's default
+ * signal reaches ~90% of that, so the full 0..1 position range is about 367 deg of turret.
+ */
+public class Turret implements Subsystem {
+
+    private static final double DEGREES_PER_FULL_RANGE = 367.0;  // turret degrees across position 0..1
+    private static final double CENTER     = 0.5;    // servo position that points the turret forward
+    private static final double MIN_POS    = 0.15;   // software limits (about +/-128 deg) so the wires can't wrap
+    private static final double MAX_POS    = 0.85;
+    private static final double NUDGE_STEP = 0.002;  // position change per loop while a D-pad button is held
+
+    private final Servo servo;
+    private double position = CENTER;
+
+    public Turret(HardwareMap hardwareMap) {
+        servo = hardwareMap.get(Servo.class, "turret");
+        servo.setPosition(position);   // the turret moves to center as soon as INIT runs -- hands clear!
+    }
+
+    /** Swing a little to the left (counter-clockwise). Call every loop while D-pad left is held. */
+    public void nudgeLeft() {
+        setPosition(position + NUDGE_STEP);
+    }
+
+    /** Swing a little to the right (clockwise). Call every loop while D-pad right is held. */
+    public void nudgeRight() {
+        setPosition(position - NUDGE_STEP);
+    }
+
+    /** Point at an angle: 0 = forward, + = left. Auto-aim (Limelight or odometry) will call this. */
+    public void setAngle(double degrees) {
+        setPosition(CENTER + degrees / DEGREES_PER_FULL_RANGE);
+    }
+
+    /** The angle we're aiming at, in degrees (0 = forward, + = left). */
+    public double getAngle() {
+        return (position - CENTER) * DEGREES_PER_FULL_RANGE;
+    }
+
+    private void setPosition(double p) {
+        position = Math.max(MIN_POS, Math.min(MAX_POS, p));   // never past the safe limits
+    }
+
+    @Override
+    public void update() {
+        servo.setPosition(position);
+    }
+}</code></pre>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>2. In <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>    // with the other subsystem fields:
+    public final Turret turret;
+
+    // in the constructor, with the other subsystems:
+    turret = new Turret(hardwareMap);
+    subsystems.add(turret);</code></pre>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>3. In your TeleOp (<code>MecanumDrive.java</code>), inside the loop</span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>            // Turret: hold D-pad left/right to swing it (manual override until auto-aim)
+            if (gamepad1.dpad_left)  robot.turret.nudgeLeft();
+            if (gamepad1.dpad_right) robot.turret.nudgeRight();
+            telemetry.addData("Turret", "%.0f deg", robot.turret.getAngle());</code></pre>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Make it yours</div>
+  <ul>
+    <li><strong>Configuration:</strong> the servo must be named <code>turret</code> in the Control Hub configuration.</li>
+    <li><strong>Turns the wrong way?</strong> Meshing gears flip direction. Add
+    <code>servo.setDirection(Servo.Direction.REVERSE);</code> in the constructor.</li>
+    <li><strong>Not quite forward at 0.5?</strong> Re-mesh the gears with the servo at 0.5, or adjust <code>CENTER</code>.</li>
+    <li><strong>Limits:</strong> widen <code>MIN_POS</code>/<code>MAX_POS</code> only after you've checked the wires can
+    follow the turret all the way.</li>
+    <li><strong>Speed:</strong> raise <code>NUDGE_STEP</code> for a faster swing, lower it for finer aiming.</li>
+    <li><strong>Measure it:</strong> point the turret at 0&deg; and 90&deg; with <code>setAngle()</code> and check with a
+    protractor. If 90&deg; is off, adjust <code>DEGREES_PER_FULL_RANGE</code>.</li>
+  </ul>
+</div>

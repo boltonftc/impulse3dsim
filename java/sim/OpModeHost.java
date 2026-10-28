@@ -45,8 +45,8 @@ public class OpModeHost {
 
     // Java -> JS chassis velocity, robot frame (m/s, m/s, rad/s CCW+).
     static native void publish(int slot, double vx, double vy, double omega);
-    // Java -> JS mechanism state so the sim can animate them (intake/feeder/shooter spin, hood + dump-bed pos).
-    static native void mech(int slot, double intake, double feeder, double shooter, double hood, double dump);
+    // Java -> JS mechanism state so the sim can animate them (intake/feeder/shooter spin, hood + dump-bed + turret pos).
+    static native void mech(int slot, double intake, double feeder, double shooter, double hood, double dump, double turret);
     // Java -> JS telemetry snapshot for the HUD.
     static native void telemetry(int slot, String text);
     // Java -> JS run state: 1 compiling, 2 initialized, 3 running, 4 stopped, 5 error.
@@ -192,6 +192,9 @@ public class OpModeHost {
             hood.setPosition(0.571);   // calibrated ~58deg launch elevation until the hood lesson drives it
             hw.put("intake", intake); hw.put("feeder", feeder);
             hw.put("shooter", shooter); hw.put("hood", hood);
+            final SimServo turret   = new SimServo("turret");
+            turret.setPosition(0.5);   // centered = facing forward until student code drives it
+            hw.put("turret", turret);
 
             // DUMPER robot type -- the names the v2 course and competition_code use.
             // The four drive motors are aliased to the SAME SimMotor instances the
@@ -270,7 +273,7 @@ public class OpModeHost {
                     // models the RPM from it). This closes the loop the encoder + PID lessons depend on.
                     shooter.setVelocity(simFlywheelTicks(s));
                     double shooterPow = Math.max(-1.0, Math.min(1.0, shooter.getEffectivePower()));
-                    mech(s, intake.getEffectivePower(), feeder.getEffectivePower(), shooterPow, hood.getPosition(), dumpServo.getPosition());
+                    mech(s, intake.getEffectivePower(), feeder.getEffectivePower(), shooterPow, hood.getPosition(), dumpServo.getPosition(), turret.getEffectivePosition());
 
                     samples++;
                     // ~60 Hz control rate; under CheerpJ this loop shares the browser main thread, so a tighter sleep starves rendering.
