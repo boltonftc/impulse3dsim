@@ -35,7 +35,9 @@
       "description": "Consistent speed is done; now aim. Build a Hood subsystem on a positional servo (precise angles, not a CR servo) and steer the launch angle with the right stick -- changing the hood re-aims the shot instantly, no waiting on the flywheel." },
     { "id": "13_localization",  "title": "Where Am I? Pinpoint Localization", "tier": "advanced",    "code": true,  "html": true, "active": "Localization.java", "folder": "13_localization",
       "description": "Give the robot a sense of place: read x, y, and heading off a goBILDA Pinpoint smart sensor, share them through getters, and measure straight-line distance from the start with the Pythagorean theorem (Math.hypot)." },
-    { "id": "14_autonomous",    "title": "Autonomous with Pedro Pathing", "tier": "advanced",        "code": true,  "html": true, "active": "SimpleAuto.java", "folder": "14_autonomous",
-      "description": "Write your first self-driving OpMode: hand Pedro Pathing's Follower a Pinpoint localizer and a mecanum drivetrain, draw a two-segment path out of Poses and BezierLines, set the starting pose, and run it with follow-and-wait loops that spin up and shoot in between -- all without a single sleep()." }
+    { "id": "14_autonomous",    "title": "Autonomous: Poses and Paths", "tier": "advanced",        "code": true,  "html": true, "active": "SimpleAuto.java", "folder": "14_autonomous",
+      "description": "Write your first self-driving OpMode: learn what a Pose is, chain poses into a path with BezierLines and a PathChain, set the starting pose, and drive it with a follow-and-wait loop -- all without a single sleep(). Then see that this is exactly what the simulator's Path Capture tool writes for you." },
+    { "id": "16_auto_actions",  "title": "Actions in Autonomous: Make It Shoot", "tier": "advanced",  "code": false, "html": true, "folder": "16_auto_actions",
+      "description": "How an OpMode really runs: the run loop, commands vs. robot.update(), why sleep() freezes the robot, for loops as a stopwatch, and opModeIsActive(). Then mark a shot in Path Capture -- and pass the quiz to unlock the shooting code." }
   ]
 }

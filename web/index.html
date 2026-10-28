@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.10';
+    window.APP_VERSION = '2.8.11';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -1306,6 +1306,9 @@
     .quiz-cta-btn:hover{ filter:brightness(1.06); }
     .quiz-cta-btn:active{ transform:translateY(3px); box-shadow:0 1px 0 #0b3350; }
     .quiz-cta-btn.retake{ background:linear-gradient(180deg,#3a4a63,#2a3852); box-shadow:0 4px 0 #17202e; color:#dbe7f5; font-size:.9rem; padding:10px 20px; }
+    .quiz-locked{ margin:12px 0 8px; padding:12px 16px; border-radius:12px; border:1px dashed #6b7a93; color:#9fb0c6; font-size:.92rem; text-align:center; }
+    .quiz-reward{ margin:18px 0 8px; padding:14px 16px; border-radius:14px; border:2px solid #34d399; background:linear-gradient(180deg,#0f2a20,#0c1f18); }
+    .quiz-reward-head{ font-weight:900; color:#67e6a8; font-size:1.05rem; margin-bottom:8px; }
     @keyframes quizFade{ from{ opacity:0; } to{ opacity:1; } }
     @keyframes quizPop{ from{ opacity:0; transform:translateY(18px) scale(.94); } to{ opacity:1; transform:none; } }
     @keyframes quizPopIn{ 0%{ transform:scale(.96); } 60%{ transform:scale(1.03); } 100%{ transform:scale(1); } }
@@ -3752,7 +3755,12 @@
       { from: '        telemetry.addData("Status", "Initialized");\n        telemetry.update();\n\n        waitForStart();\n\n        while (opModeIsActive()) {\n            double drive  = -gamepad1.left_stick_y;  // up = forward\n            double strafe =  gamepad1.left_stick_x;  // right\n            double turn   =  gamepad1.right_stick_x; // clockwise\n\n            double fl = drive + strafe + turn;\n            double fr = drive - strafe - turn;\n            double bl = drive - strafe + turn;\n            double br = drive + strafe - turn;',
         to:   '        telemetry.addData("Status", "Initialized");\n        telemetry.update();\n\n        // Field-centric by default so the left stick moves the robot relative to the FIELD (and to what\n        // you see on screen) no matter which way it faces -- this makes lining up on a captured pose easy.\n        // Press X to switch to classic robot-centric ("forward is wherever the robot points").\n        boolean fieldCentric = true;\n        boolean prevX = false;\n\n        waitForStart();\n\n        while (opModeIsActive()) {\n            pinpoint.update();\n            double heading = pinpoint.getHeading(AngleUnit.RADIANS);\n\n            if (gamepad1.x && !prevX) fieldCentric = !fieldCentric;\n            prevX = gamepad1.x;\n\n            double drive  = -gamepad1.left_stick_y;  // stick up = away from the driver\n            double strafe =  gamepad1.left_stick_x;  // stick right = driver\'s right\n            double turn   =  gamepad1.right_stick_x; // clockwise\n\n            double fwd = drive, str = strafe;\n            if (fieldCentric) {\n                // rotate the driver-relative stick vector into the robot frame with the Pinpoint heading.\n                // driver "away" = field -X, driver "right" = field +Y (same axes the Path Capture view uses).\n                double c = Math.cos(heading), s = Math.sin(heading);\n                fwd = -drive * c + strafe * s;\n                str = -drive * s - strafe * c;\n            }\n\n            double fl = fwd + str + turn;\n            double fr = fwd - str - turn;\n            double bl = fwd - str + turn;\n            double br = fwd + str - turn;' },
       { from: '            // Telemetry : Driver Feedback\n            pinpoint.update();\n            telemetry.addData("Coords", "FTC/Pedro inches, heading deg CCW+, origin = field center");',
-        to:   '            // Telemetry : Driver Feedback\n            telemetry.addData("Drive mode", fieldCentric ? "FIELD-centric (press X for robot-centric)" : "ROBOT-centric (press X for field-centric)");\n            telemetry.addData("Coords", "FTC/Pedro inches, heading deg CCW+, origin = field center");' }
+        to:   '            // Telemetry : Driver Feedback\n            telemetry.addData("Drive mode", fieldCentric ? "FIELD-centric (press X for robot-centric)" : "ROBOT-centric (press X for field-centric)");\n            telemetry.addData("Coords", "FTC/Pedro inches, heading deg CCW+, origin = field center");' },
+      // course PinpointLocalizer (lesson 14) lacked the real-robot calibration wait -> start pose zeroed on hardware
+      { from: '        pinpoint.resetPosAndIMU();\n    }\n\n    @Override\n    public Pose getPose() { return currentPose; }',
+        to:   '        pinpoint.resetPosAndIMU();\n        // The real Pinpoint keeps calibrating ~0.25 s after a reset and silently zeroes a setPosition()\n        // sent during that time -- wait it out so the start pose sticks (the sim is instant).\n        try { Thread.sleep(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }\n    }\n\n    @Override\n    public Pose getPose() { return currentPose; }' },
+      { from: '        pinpoint.recalibrateIMU();   // ROBOT MUST BE STATIONARY\n    }',
+        to:   '        pinpoint.recalibrateIMU();   // ROBOT MUST BE STATIONARY\n        Thread.sleep(300);           // let calibration finish before any later setPosition() re-anchor\n    }' }
     ];
     function migrateFiles(files){
       if (!files) return false;
@@ -5308,6 +5316,22 @@
         : '<div class="quiz-cta-tag">Ready? Pass the quiz to finish this lesson.</div><button class="quiz-cta-btn">\ud83c\udfaf Take Quiz</button>';
       wrap.querySelector('.quiz-cta-btn').addEventListener('click', () => openQuiz(meta.id));
       readerEl.appendChild(wrap);
+      if (!meta.reward) return;
+      // the lesson's reward.html is only shown once its quiz is passed (a soft lock -- the file is public)
+      const box = document.createElement('div');
+      if (!passed){
+        box.className = 'quiz-locked';
+        box.textContent = '\ud83d\udd12 Pass the quiz to unlock this lesson\u2019s code.';
+        readerEl.appendChild(box);
+        return;
+      }
+      box.className = 'quiz-reward';
+      box.innerHTML = '<div class="quiz-reward-head">\ud83d\udd13 Unlocked: your reward</div><div class="quiz-reward-body">Loading\u2026</div>';
+      readerEl.appendChild(box);
+      fetch('lessons/' + meta.folder + '/reward.html')
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .then(html => { box.querySelector('.quiz-reward-body').innerHTML = html; })
+        .catch(() => { box.querySelector('.quiz-reward-body').textContent = 'Couldn\u2019t load the reward. You may be offline or on the robot\u2019s WiFi \u2014 reconnect and reopen this lesson.'; });
     }
 
     async function openQuiz(lessonId){
@@ -5336,8 +5360,14 @@
     }
     function closeQuiz(){
       const wasFor = quizState ? quizState.lessonId : null;
+      const unlocked = !!(quizState && quizState.unlocked);
       el('quiz-modal').classList.add('quiz-hidden'); quizState = null;
-      if (wasFor && wasFor === curLessonId && document.getElementById('lesson-reader-view').style.display !== 'none') openLesson(curLessonId);
+      if (wasFor && wasFor === curLessonId && document.getElementById('lesson-reader-view').style.display !== 'none'){
+        openLesson(curLessonId).then(() => {
+          const r = unlocked && readerEl.querySelector('.quiz-reward');
+          if (r) r.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
     }
     function quizShow(which){ for (const s of ['intro','play','result']) el('quiz-' + s).style.display = s === which ? '' : 'none'; }
 
@@ -5412,7 +5442,14 @@
         d.innerHTML = '<div class="rq">' + escHtml(q.q) + '</div><div class="ra">\u2713 ' + escHtml(q.correct) + '</div><div class="re">' + escHtml(q.explain) + '</div>';
         rev.appendChild(d);
       });
-      if (passed){ markCompleteQuiet(S.lessonId); quizConfetti(); }
+      if (passed){
+        markCompleteQuiet(S.lessonId); quizConfetti();
+        const meta = lessons.find(l => l.id === S.lessonId);
+        if (meta && meta.reward){
+          S.unlocked = true;
+          el('quiz-result-sub').textContent += ' \ud83d\udd13 You unlocked this lesson\u2019s code \u2014 close the quiz to see it.';
+        }
+      }
     }
     // mark done + persist without re-rendering the reader (keeps the result screen up under the modal)
     function markCompleteQuiet(id){
@@ -5597,6 +5634,7 @@
         const file = l.file || (l.html ? 'lesson.html' : 'lesson.md');
         const page = await want(base + file);
         if (l.quiz) await want(base + 'quiz.json');
+        if (l.reward) await want(base + 'reward.html');
         if (!page || !/\.html?$/i.test(file)) continue;
         const doc = new DOMParser().parseFromString(await page.text(), 'text/html');
         for (const m of doc.querySelectorAll('img[src], video[src], video[poster], source[src], audio[src]')){
@@ -6164,6 +6202,7 @@
             } else {
               push('        // ── Captured action: Button ' + seg.actionAfter + ' pressed here ──');
               push('        // TODO: call your subsystem here, e.g. robot.intake.forward(); or robot.intake.reverse();');
+              push('        // To shoot here, see the lesson "Actions in Autonomous: Make It Shoot".');
             }
             push('        // CAP:ACTION-END seq=' + seq);
             push('');

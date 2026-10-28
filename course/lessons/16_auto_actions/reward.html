@@ -1,0 +1,41 @@
+<div class="blk blk-code">
+  <div class="blk-head"><span>&#128275; Shooting action &mdash; paste between the <code>CAP:ACTION</code> lines</span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>        robot.flywheel.toggle();                                  // flywheel ON (default target RPM)
+        for (int i = 0; i &lt; 150 &amp;&amp; opModeIsActive(); i++) {       // ~3 s: let it spin up
+            follower.update();                                    // hold our spot
+            robot.update();                                       // make the flywheel actually spin
+            sleep(20);
+        }
+        robot.indexer.feed();                                     // same as holding X
+        for (int i = 0; i &lt; 250 &amp;&amp; opModeIsActive(); i++) {       // ~5 s: shoot
+            follower.update();
+            robot.update();
+            sleep(20);
+        }
+        robot.flywheel.toggle();                                  // flywheel OFF
+        robot.indexer.stop();                                     // indexer OFF
+        robot.update();                                           // apply both right away</code></pre>
+</div>
+
+<p>Paste it in place of the two comment lines in the middle of your action block, so it ends up like this:</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Where it goes</div>
+<pre><code>        // CAP:ACTION seq=5 button=X
+        robot.flywheel.toggle();
+        ...the rest of the shooting code...
+        robot.update();
+        // CAP:ACTION-END seq=5</code></pre>
+  <p>Keep both <code>CAP</code> lines exactly as Path Capture wrote them (your <code>seq</code> number may differ).</p>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Make it yours</div>
+  <ul>
+    <li><strong>Change the timing</strong> by changing the lap counts: laps = seconds &times; 1000 &divide; 20. For
+    example, 4 seconds of shooting is 200 laps.</li>
+    <li><strong>Mind the clock:</strong> as written, the shot takes about 8 of AUTO's 30 seconds.</li>
+    <li><strong>Using a motor-driven <code>Feeder</code></strong> instead of the indexer? Use
+    <code>robot.feeder.feed()</code> and <code>robot.feeder.stop()</code>.</li>
+  </ul>
+</div>

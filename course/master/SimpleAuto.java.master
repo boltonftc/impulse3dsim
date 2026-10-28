@@ -11,7 +11,6 @@ import com.pedropathing.paths.PathChain;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.qualcomm.robotcore.util.ElapsedTime;
 
 /*
  * ============================================================================
@@ -20,8 +19,8 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *
  *  TeleOp is you driving. AUTONOMOUS is the robot driving on its own for the
  *  first 30 seconds of a match, with no controller input. Instead of reading a
- *  gamepad, an autonomous OpMode follows a PLAN: go to this spot, do a thing,
- *  go to the next spot.
+ *  gamepad, an autonomous OpMode follows a PLAN: a list of POSES (spots on the
+ *  field) joined into a PATH.
  *
  *  TWO DIFFERENT JOBS, TWO DIFFERENT TOOLS
  *    1. DRIVING to an exact field spot is a closed-loop control problem, so we
@@ -30,17 +29,19 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *       MecanumDrivetrainSubsystem (how do I push the wheels?).
  *    2. MECHANISMS (intake, flywheel, indexer) are the SAME subsystems from
  *       TeleOp. We build the same Robot and call the same robot.update()
- *       scheduler, so the shooter code you wrote in TeleOp works here unchanged.
+ *       scheduler, so a later lesson can add actions like shooting.
  *
  *  HOW WE "WAIT" WITHOUT FREEZING (no sleep!)
- *    Some actions take time (following a path; the flywheel spinning up to
- *    speed; feeding the game pieces through). We never sleep(). Instead we run a
- *    small loop that keeps pumping updates until the thing reports it is done:
+ *    Following a path takes time, but we never sleep(). Instead we run a small
+ *    loop that keeps pumping updates until the Follower reports it is done:
  *        while (opModeIsActive() && follower.isBusy()) {
  *            follower.update();   // drive one small step along the path
  *            robot.update();      // let mechanisms advance too
  *        }
  *    Same rhythm as the scheduler -- lots of tiny steps, never one long freeze.
+ *
+ *  This is the SAME shape of code the simulator's Path Capture tool writes for
+ *  you -- so once you understand this file, you can read any captured auto.
  * ============================================================================
  */
 @Autonomous(name = "SimpleAuto", group = "BIOBUZZ")
@@ -66,9 +67,9 @@ public class SimpleAuto extends LinearOpMode {
     public void runOpMode() throws InterruptedException {
 
         // ── MECHANISMS: the same Robot/subsystems TeleOp uses ────────────
-        // Building Robot also configures its Localization (Pinpoint). We build
-        // it here for its flywheel and indexer. HOLD THE ROBOT STILL during
-        // INIT -- the Pinpoint calibrates now.
+        // Building Robot also configures its Localization (Pinpoint). We build it
+        // so robot.update() keeps every mechanism alive, exactly like TeleOp.
+        // HOLD THE ROBOT STILL during INIT -- the Pinpoint calibrates now.
         Robot robot = new Robot(hardwareMap);
 
         // ── DRIVING: Pedro Pathing setup (closed-loop path following) ────
@@ -98,26 +99,24 @@ public class SimpleAuto extends LinearOpMode {
         // ===============================================
         // SimpleAuto : Paths
         // Do not remove this comment
-        // Define your start pose and waypoints, then build the two path chains below
+        // Define your start pose and waypoints, then chain them into one path below
         // ===============================================
         // @fill(14_autonomous)
         // Each spot on the field is a Pose(x, y, headingRadians). Units are
         // inches; heading 0 = facing +X, counter-clockwise positive.
         Pose startPose = new Pose(START_X_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));
-        Pose pose1 = new Pose(12.0, -36.0, Math.toRadians(0.0));   // 48" forward to the SHOOTING spot
+        Pose pose1 = new Pose(12.0, -36.0, Math.toRadians(0.0));   // 48" forward
         Pose pose2 = new Pose(12.0,  12.0, Math.toRadians(0.0));   // then 48" left to park (+Y)
 
         // A BezierLine is a straight path from one pose to the next. A PathChain
-        // wraps it up for the Follower. We keep the heading constant along each
-        // line so the robot faces the same way the whole time.
+        // strings the lines together, in order, into one path for the Follower.
+        // Linear heading interpolation turns the robot smoothly from one pose's
+        // heading to the next's (here both are 0, so it keeps facing forward).
         PathChain chain1 = follower.pathBuilder()
                 .addPath(new BezierLine(startPose, pose1))
-                .setConstantHeadingInterpolation(Math.toRadians(START_HEADING_DEG))
-                .build();
-
-        PathChain chain2 = follower.pathBuilder()
+                .setLinearHeadingInterpolation(startPose.getHeading(), pose1.getHeading())
                 .addPath(new BezierLine(pose1, pose2))
-                .setConstantHeadingInterpolation(Math.toRadians(START_HEADING_DEG))
+                .setLinearHeadingInterpolation(pose1.getHeading(), pose2.getHeading())
                 .build();
         // @end(14_autonomous)
 
@@ -130,7 +129,7 @@ public class SimpleAuto extends LinearOpMode {
         // ===============================================
         // SimpleAuto : Run
         // Do not remove this comment
-        // Seed the start pose, then follow each chain with a pump-wait loop below
+        // Seed the start pose, then follow the path with a follow-and-wait loop below
         // ===============================================
         // @fill(14_autonomous)
         // Tell the localizer exactly where the robot is starting. From here on,
@@ -138,53 +137,14 @@ public class SimpleAuto extends LinearOpMode {
         // it powered on."
         follower.setStartingPose(startPose);
 
-        // ── Segment 1: drive forward to pose1 ────────────────────────────
+        // Follow the whole chain: forward to pose1, then left to pose2.
         follower.followPath(chain1, SPEED, true);
         while (opModeIsActive() && follower.isBusy()) {
             follower.update();   // drive one step along the path
             robot.update();      // keep the mechanisms' state machines alive
             Pose p = follower.getPose();
-            telemetry.addData("Phase", "Segment 1");
+            telemetry.addData("Phase", "Following the path");
             telemetry.addData("Pos", "(%.1f, %.1f)", p.getX(), p.getY());
-            telemetry.update();
-        }
-
-        // ── Action: SHOOT -- spin up, then fire all four ─────────────────
-        // The heavy flywheel takes time to reach speed, so we turn it ON and
-        // PUMP updates until the encoder says it is up to target RPM (with a
-        // time cap so we never wait forever). No sleep().
-        robot.flywheel.toggle();                 // turn the flywheel ON
-        ElapsedTime shotTimer = new ElapsedTime();
-        while (opModeIsActive()
-                && robot.flywheel.getRpm() < robot.flywheel.getTarget() * 0.95
-                && shotTimer.seconds() < 3.0) {
-            robot.update();      // advance the flywheel controller (spins it up)
-            follower.update();   // hold our spot on the field
-            telemetry.addData("Phase", "Spin-up");
-            telemetry.addData("RPM", "%.0f", robot.flywheel.getRpm());
-            telemetry.update();
-        }
-
-        // Up to speed: run the feeder for a couple seconds so all four pieces
-        // launch, then stop the feeder and the flywheel.
-        robot.indexer.feed();
-        shotTimer.reset();
-        while (opModeIsActive() && shotTimer.seconds() < 2.0) {
-            robot.update();      // keep the flywheel at speed AND run the feeder
-            follower.update();   // hold position while firing
-            telemetry.addData("Phase", "Firing");
-            telemetry.addData("RPM", "%.0f", robot.flywheel.getRpm());
-            telemetry.update();
-        }
-        robot.indexer.stop();
-        robot.flywheel.toggle();                 // turn the flywheel back OFF
-
-        // ── Segment 2: strafe left to pose2 ──────────────────────────────
-        follower.followPath(chain2, SPEED, true);
-        while (opModeIsActive() && follower.isBusy()) {
-            follower.update();
-            robot.update();
-            telemetry.addData("Phase", "Segment 2");
             telemetry.update();
         }
         // @end(14_autonomous)

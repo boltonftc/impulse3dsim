@@ -1,9 +1,11 @@
-<h1>Autonomous with Pedro Pathing</h1>
+<h1>Autonomous: Poses and Paths</h1>
 
 <p>Every FTC match starts with <strong>30 seconds of autonomous</strong>: the robot drives itself, with nobody
 touching a controller. Up to now you have written <em>TeleOp</em> &mdash; <em>you</em> drive. Now the robot needs a
-<strong>plan</strong> it can run alone: go to this spot, do a thing, go to the next spot. In this lesson you write your
-first autonomous and watch the robot follow a path you drew for it.</p>
+<strong>plan</strong> it can run alone: a list of spots on the field, joined into a path. In this lesson you learn what
+those spots (<strong>poses</strong>) are, how they chain together into a <strong>path</strong>, and you write a short
+autonomous that drives a path by itself. Most of your real autos will be made with the simulator's <strong>Path
+Capture</strong> tool &mdash; and by the end of this lesson you'll be able to read exactly what it writes.</p>
 
 <div class="blk blk-key">
   <div class="blk-head">TeleOp reads a gamepad; Autonomous follows a plan</div>
@@ -64,15 +66,24 @@ can read but do not have to write:</p>
 </div>
 
 <p>Your mechanisms are <em>not</em> new: autonomous builds the same <code>Robot</code> as TeleOp and calls the same
-<code>robot.update()</code> scheduler, so the shooter you built earlier works here unchanged.</p>
+<code>robot.update()</code> scheduler. This lesson only drives; the next lesson adds actions like shooting.</p>
 
 <hr>
 
-<h2>Poses and the field frame</h2>
+<h2>What is a pose?</h2>
 
 <p>A <strong>Pose</strong> is the same three-number idea from the localization lesson &mdash; an <code>(x, y)</code> spot
-plus a <code>heading</code> &mdash; but now you use it to <em>tell the robot where to go</em>. And it uses the exact
-same field frame you sanity-checked last lesson:</p>
+plus a <code>heading</code> &mdash; but now you use it to <em>tell the robot where to go</em>. <code>x</code> and
+<code>y</code> are in <strong>inches</strong>, measured from the <strong>center of the field</strong> (the origin,
+<code>(0, 0)</code>). The heading is which way the robot is pointing when it gets there.</p>
+
+<figure>
+  <img src="images/pose_field_frame.png" alt="A top-down field with the origin at the center, a +X arrow pointing forward and a +Y arrow pointing left. A robot sits at one spot with dashed lines down to its x and y values and a curved arrow showing its heading, labeled Pose(x, y, heading).">
+  <figcaption>A pose is three numbers: where the robot is (<code>x</code>, <code>y</code>, in field inches) and which way it
+  faces (<code>heading</code>).</figcaption>
+</figure>
+
+<p>It uses the exact same field frame you sanity-checked last lesson:</p>
 
 <div class="blk blk-key">
   <div class="blk-head">+X is forward, +Y is left, +heading is counter-clockwise</div>
@@ -95,11 +106,31 @@ same field frame you sanity-checked last lesson:</p>
 
 <hr>
 
+<h2>Chaining poses into a path</h2>
+
+<p>One pose is just a spot. A <strong>path</strong> is a list of poses, visited in order. Pedro builds it from two
+pieces:</p>
+<ul>
+  <li>A <strong><code>BezierLine</code></strong> is a straight line from one pose to the next.</li>
+  <li>A <strong><code>PathChain</code></strong> strings those lines together, in order, into one path the Follower can
+  drive: start &rarr; pose 1 &rarr; pose 2 &rarr; &hellip;</li>
+</ul>
+<p>Each line also says what the robot's heading does along the way. <code>setLinearHeadingInterpolation(a, b)</code>
+turns the robot smoothly from heading <code>a</code> at the start of the line to heading <code>b</code> at the end. If
+both headings are the same, the robot simply keeps facing that way.</p>
+
+<figure>
+  <img src="images/path_chain.png" alt="Three poses drawn as numbered dots on a field: START, POSE 1 and POSE 2, each with a small heading arrow. Straight dashed lines labeled BezierLine connect START to POSE 1 and POSE 1 to POSE 2, and a bracket around both lines is labeled PathChain. The robot mascot rides along the first line.">
+  <figcaption>Poses are the stops; <code>BezierLine</code>s connect them; a <code>PathChain</code> strings the lines
+  together into one path.</figcaption>
+</figure>
+
+<hr>
+
 <h2>Part A &mdash; Draw the path</h2>
 
-<p>A path is a list of <strong>poses</strong> joined by straight lines. A <code>BezierLine</code> is a straight path from
-one pose to the next, and a <code>PathChain</code> bundles it up for the Follower. You will build two chains: one to
-drive forward, and one to strafe left.</p>
+<p>Your path has three poses: the start, 48&nbsp;inches <strong>forward</strong> to <code>pose1</code>, then
+48&nbsp;inches <strong>left</strong> to park at <code>pose2</code>. One <code>PathChain</code> holds both lines.</p>
 
 <span class="act" data-action="open_file" data-arg="SimpleAuto.java|SimpleAuto : Paths">&#9656; SimpleAuto.java : SimpleAuto : Paths</span>
 
@@ -107,19 +138,15 @@ drive forward, and one to strafe left.</p>
   <div class="blk-head"><span>Type this into <code>SimpleAuto.java</code></span><span class="copybtn">&#10850; Copy</span></div>
   <pre><code>// Each spot on the field is a Pose(x, y, headingRadians).
 Pose startPose = new Pose(START_X_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));
-Pose pose1 = new Pose(12.0, -36.0, Math.toRadians(0.0));   // 48" forward to the SHOOTING spot
+Pose pose1 = new Pose(12.0, -36.0, Math.toRadians(0.0));   // 48" forward
 Pose pose2 = new Pose(12.0,  12.0, Math.toRadians(0.0));   // then 48" left to park (+Y)
 
-// A BezierLine is a straight path; a PathChain wraps it for the Follower.
-// Keep the heading constant so the robot faces the same way the whole time.
+// A BezierLine is a straight path; a PathChain strings the lines together, in order.
 PathChain chain1 = follower.pathBuilder()
         .addPath(new BezierLine(startPose, pose1))
-        .setConstantHeadingInterpolation(Math.toRadians(START_HEADING_DEG))
-        .build();
-
-PathChain chain2 = follower.pathBuilder()
+        .setLinearHeadingInterpolation(startPose.getHeading(), pose1.getHeading())
         .addPath(new BezierLine(pose1, pose2))
-        .setConstantHeadingInterpolation(Math.toRadians(START_HEADING_DEG))
+        .setLinearHeadingInterpolation(pose1.getHeading(), pose2.getHeading())
         .build();</code></pre>
 </div>
 
@@ -134,9 +161,9 @@ PathChain chain2 = follower.pathBuilder()
 
 <h2>Part B &mdash; Run the plan</h2>
 
-<p>Now sequence the match. Seed the start pose, follow chain 1, shoot, then follow chain 2. The key pattern is the
-<strong>follow-and-wait loop</strong>: after <code>followPath(...)</code> you keep pumping <code>follower.update()</code>
-(to drive) and <code>robot.update()</code> (to keep mechanisms alive) until the Follower says it is no longer busy.</p>
+<p>Now run the plan: seed the start pose, then follow the chain. The key pattern is the <strong>follow-and-wait
+loop</strong>: after <code>followPath(...)</code> you keep pumping <code>follower.update()</code> (to drive) and
+<code>robot.update()</code> (to keep mechanisms alive) until the Follower says it is no longer busy.</p>
 
 <span class="act" data-action="open_file" data-arg="SimpleAuto.java|SimpleAuto : Run">&#9656; SimpleAuto.java : SimpleAuto : Run</span>
 
@@ -145,46 +172,49 @@ PathChain chain2 = follower.pathBuilder()
   <pre><code>// Tell the localizer where the robot is starting (field inches from here on).
 follower.setStartingPose(startPose);
 
-// Segment 1: drive forward to the shooting spot.
+// Follow the whole chain: forward to pose1, then left to pose2.
 follower.followPath(chain1, SPEED, true);
 while (opModeIsActive() &amp;&amp; follower.isBusy()) {
     follower.update();   // drive one step along the path
     robot.update();      // keep the mechanisms' state machines alive
-}
-
-// Action: spin up the flywheel, then fire all four (pump both, never sleep).
-robot.flywheel.toggle();                 // turn the flywheel ON
-ElapsedTime shotTimer = new ElapsedTime();
-while (opModeIsActive()
-        &amp;&amp; robot.flywheel.getRpm() &lt; robot.flywheel.getTarget() * 0.95
-        &amp;&amp; shotTimer.seconds() &lt; 3.0) {
-    robot.update();      // spin the flywheel up to speed
-    follower.update();   // hold our spot on the field
-}
-
-robot.indexer.feed();                    // feed the pieces through
-shotTimer.reset();
-while (opModeIsActive() &amp;&amp; shotTimer.seconds() &lt; 2.0) {
-    robot.update();
-    follower.update();
-}
-robot.indexer.stop();
-robot.flywheel.toggle();                 // flywheel back OFF
-
-// Segment 2: strafe left to park.
-follower.followPath(chain2, SPEED, true);
-while (opModeIsActive() &amp;&amp; follower.isBusy()) {
-    follower.update();
-    robot.update();
 }</code></pre>
 </div>
 
 <div class="blk blk-key">
   <div class="blk-head">The follow-and-wait loop is just the scheduler again</div>
   <p>You never call <code>sleep()</code>. Instead you take thousands of tiny steps: each <code>follower.update()</code>
-  nudges the wheels a little and re-checks the position, and each <code>robot.update()</code> advances the shooter a
-  little. When the Follower reaches the target it reports <code>isBusy() == false</code> and the loop ends &mdash; the
-  exact same &ldquo;lots of small steps, never one big freeze&rdquo; rhythm you have used all along.</p>
+  nudges the wheels a little and re-checks the position, and each <code>robot.update()</code> keeps the mechanisms
+  running. When the Follower reaches the end of the path it reports <code>isBusy() == false</code> and the loop ends
+  &mdash; the exact same &ldquo;lots of small steps, never one big freeze&rdquo; rhythm you have used all along.</p>
+</div>
+
+<hr>
+
+<h2>This is what Path Capture writes for you</h2>
+
+<p>Typing poses by hand is fine for a short path, but measuring every spot gets slow. That's what the simulator's
+<strong>Path Capture</strong> tool is for: you drive the robot to each spot and save it, and it writes the auto for you.
+Open any captured auto and you'll recognize every piece of it:</p>
+<ul>
+  <li><code>Pose pose1 = new Pose(...)</code> lines &mdash; one for each spot you saved, in field inches, with
+  <code>Math.toRadians(...)</code> headings.</li>
+  <li>A <code>PathChain</code> built from <code>BezierLine</code>s with <code>setLinearHeadingInterpolation</code>,
+  joining your poses in order.</li>
+  <li><code>follower.setStartingPose(startPose)</code> &mdash; so where you place the robot still has to match.</li>
+  <li>The same follow-and-wait loop, calling <code>follower.update()</code> and <code>robot.update()</code>.</li>
+</ul>
+
+<figure>
+  <img src="images/capture_matches_code.png" alt="Left: the simulator's Path Capture view with a robot path through three saved poses on the field. Right: a code card with matching Pose lines, a PathChain with BezierLines, and a follow-and-wait loop. Colored arrows link each saved pose on the field to its Pose line in the code.">
+  <figcaption>Path Capture writes the same poses, chain and loop you just wrote by hand &mdash; it just measures the
+  poses for you.</figcaption>
+</figure>
+
+<div class="blk blk-key">
+  <div class="blk-head">You write it once by hand; then let the tool do it</div>
+  <p><code>SimpleAuto</code> is your reference for <em>how</em> an auto works. For match autos, use Path Capture to place
+  the poses &mdash; and because you understand poses, chains and the follow-and-wait loop, you can read and fix
+  anything it writes.</p>
 </div>
 
 <div class="blk blk-challenge">
@@ -202,19 +232,20 @@ while (opModeIsActive() &amp;&amp; follower.isBusy()) {
   <ul>
     <li><strong>Read the helpers:</strong> open <code>PinpointLocalizer.java</code> and
     <code>MecanumDrivetrainSubsystem.java</code> and skim them &mdash; the sensor and wheels you already know.</li>
-    <li><strong>Part A:</strong> in <code>SimpleAuto.java</code>, define <code>startPose</code>, <code>pose1</code>,
-    <code>pose2</code> and build <code>chain1</code> and <code>chain2</code>.</li>
-    <li><strong>Part B:</strong> seed the start pose, then follow each chain with a pump-wait loop, with a shot in
-    between.</li>
+    <li><strong>Part A:</strong> in <code>SimpleAuto.java</code>, define <code>startPose</code>, <code>pose1</code> and
+    <code>pose2</code>, and chain them into <code>chain1</code>.</li>
+    <li><strong>Part B:</strong> seed the start pose, then follow the chain with a follow-and-wait loop.</li>
     <li><strong>Build</strong>, pick <strong>SimpleAuto</strong> from the autonomous list, <strong>Init</strong> (hold
     still while the Pinpoint calibrates), then <strong>Start</strong>.</li>
-    <li><strong>Watch it drive itself:</strong> the robot should roll forward about 4&nbsp;feet, spin up and shoot, then
-    strafe left about 4&nbsp;feet &mdash; following the gray path drawn on the field.</li>
+    <li><strong>Watch it drive itself:</strong> the robot should roll forward about 4&nbsp;feet, then strafe left about
+    4&nbsp;feet &mdash; following the gray path drawn on the field.</li>
+    <li><strong>Try it:</strong> change <code>pose2</code>'s heading to <code>Math.toRadians(90.0)</code> and run it
+    again. The robot should turn to face left while it strafes.</li>
   </ul>
 </div>
 
-<p>Your robot just ran a match segment with nobody driving. Next up: <strong>FTC Dashboard</strong>, where you draw the
-robot and its path on a live field view so you can <em>see</em> exactly what the Follower is thinking.</p>
+<p>Your robot just drove a path with nobody touching the controls. Next up: <strong>Actions in Autonomous</strong>, where
+you learn how the run loop really works and earn the code that makes a captured auto stop and shoot.</p>
 
 <hr>
 

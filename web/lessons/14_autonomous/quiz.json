@@ -1,5 +1,5 @@
 {
-  "title": "Autonomous with Pedro Pathing Quiz",
+  "title": "Autonomous: Poses and Paths Quiz",
   "draw": 10,
   "questions": [
     {
@@ -110,7 +110,7 @@
         "only robot.update(), never the follower",
         "telemetry.update() and nothing else at all"
       ],
-      "explain": "Each loop you call follower.update() (drive one step) and robot.update() (advance mechanisms). Both run so driving and shooting make progress together."
+      "explain": "Each loop you call follower.update() (drive one step) and robot.update() (advance mechanisms). Both run so driving and mechanisms make progress together."
     },
     {
       "q": "What tells you a path is still running?",
@@ -133,14 +133,64 @@
       "explain": "A BezierLine is a straight path between two poses. A PathChain bundles one (or more) up for the Follower to drive along."
     },
     {
-      "q": "The autonomous builds the same Robot as TeleOp so it can...",
-      "correct": "Reuse the same subsystems, like the shooter",
+      "q": "Why does SimpleAuto still build a Robot and call robot.update()?",
+      "correct": "So mechanisms stay alive and later actions can use them",
       "wrong": [
-        "Skip the localization step entirely",
-        "Drive around without any wheels at all",
-        "Charge the robot's battery while driving"
+        "Because Pedro Pathing can't drive unless the intake is running",
+        "To move the field's origin back to the robot before every path",
+        "Because robot.update() is what draws the path on the field"
       ],
-      "explain": "Autonomous makes the same Robot and calls robot.update(), so the flywheel and indexer you built for TeleOp work here unchanged \u2014 it can drive AND shoot."
+      "explain": "Autonomous builds the same Robot as TeleOp and keeps its scheduler running, so the next lesson can add actions like shooting with the subsystems you already wrote."
+    },
+    {
+      "q": "Where is (0, 0) on the field?",
+      "correct": "The center of the field",
+      "wrong": [
+        "The red alliance's starting corner",
+        "Wherever the robot was turned on",
+        "The front-left corner of the robot"
+      ],
+      "explain": "Pose x and y are field inches measured from the origin at the center of the field. That's why the start pose must match where you place the robot."
+    },
+    {
+      "q": "A pose of (12, -36, 0°) means the robot is...",
+      "correct": "12 in toward +X, 36 in toward -Y (right), facing +X",
+      "wrong": [
+        "12 in to the left and 36 in forward, facing to the left",
+        "12 feet forward and 36 feet right, with no heading at all",
+        "Told to drive 12 in, then turn 36°, then stop facing 0°"
+      ],
+      "explain": "x = 12 is 12 inches toward +X, y = -36 is 36 inches toward -Y (right, since +Y is left), and heading 0° faces +X."
+    },
+    {
+      "q": "What does a PathChain do?",
+      "correct": "Strings BezierLines together into one path, in order",
+      "wrong": [
+        "Picks the shortest line and skips all of the others",
+        "Drives every line at the same time, side by side",
+        "Saves the path into a file on the Control Hub"
+      ],
+      "explain": "A PathChain joins straight BezierLines end to end, so the Follower drives start → pose 1 → pose 2 as one path."
+    },
+    {
+      "q": "setLinearHeadingInterpolation(0°, 90°) on a line makes the robot...",
+      "correct": "Turn smoothly from 0° to 90° along the line",
+      "wrong": [
+        "Spin to 90° first, then drive the whole line facing forward",
+        "Drive the line twice, once facing each of the two headings",
+        "Ignore both headings and keep facing 0° the entire time"
+      ],
+      "explain": "Linear heading interpolation blends the heading from the start value to the end value as the robot travels the line."
+    },
+    {
+      "q": "What does the simulator's Path Capture tool write for you?",
+      "correct": "The poses, the path chain and the follow-and-wait loop",
+      "wrong": [
+        "Only a list of button presses and how long each one lasted",
+        "A new robot configuration file for the Driver Hub app",
+        "Shooting code that runs automatically at every saved pose"
+      ],
+      "explain": "A captured auto has the same pieces as SimpleAuto: Pose lines, a PathChain of BezierLines, setStartingPose and the follow-and-wait loop. Path Capture just measures the poses for you."
     },
     {
       "q": "What is a dependency?",
