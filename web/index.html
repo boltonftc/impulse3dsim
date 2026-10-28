@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.11';
+    window.APP_VERSION = '2.8.12';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -1379,7 +1379,7 @@
       return {
         pad:  { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, rb: false, btns: 0 }, // JS -> Java gamepad (ly inverted: up = -1)
         cmd:  { vx: 0, vy: 0, omega: 0 }, // Java -> JS chassis velocity, robot frame
-        mech: { intake: 0, feeder: 0, shooter: 0, hood: 0.5, dump: 0 }, // Java -> JS mechanism state (spin/pos; hood 0.5 -> calibrated 75deg default; dump = bed servo 0.1 carry .. 0.8 dump)
+        mech: { intake: 0, feeder: 0, shooter: 0, hood: 0.5, dump: 0, turret: 0.5 }, // Java -> JS mechanism state (spin/pos; hood 0.5 -> calibrated 75deg default; dump = bed servo 0.1 carry .. 0.8 dump; turret 0.5 = forward)
         dumpTimer: 0,      // meters held balls off the bed over several frames while the bed is tilted up
         active: true,
         pending: 0,        // one-shot lifecycle command for the runner: 1 init, 2 start, 3 stop
@@ -3279,6 +3279,10 @@
       a.storageViz = [];
       for (let i = 0; i < STORAGE_CAPACITY; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 9), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 })); m.visible = false; m.castShadow = true; scene.add(m); a.storageViz.push(m); }
     }
+    // Turret: Axon MAX (350 deg) x 1:3.2 overdrive / 2.75:1 turret = ~407 deg at the full 500-2500us signal;
+    // the Control Hub's default 600-2400us servo signal reaches ~90% of that. 0.5 = forward, higher = CCW.
+    const TURRET_RANGE_DEG = 367;
+    const turretYawRad = p => (Math.max(0, Math.min(1, p == null ? 0.5 : p)) - 0.5) * TURRET_RANGE_DEG * Math.PI / 180;
     function fireShot(a) {                                          // FIFO queue: oldest stored piece leaves first
       const H = handleOf(a);
       if (!H.muzzle) return;
@@ -3293,6 +3297,7 @@
       const q = H.group.getWorldQuaternion(new THREE.Quaternion());
       const ce = Math.cos(a.sh.elev), se = Math.sin(a.sh.elev);
       const wh = new THREE.Vector3(0, 0, 1).applyQuaternion(q); wh.y = 0; if (wh.lengthSq() < 1e-6) wh.set(0, 0, 1); wh.normalize();
+      wh.applyAxisAngle(new THREE.Vector3(0, 1, 0), turretYawRad(a.mech && a.mech.turret));   // launch where the turret points
       const dir = new THREE.Vector3(wh.x*ce, se, wh.z*ce);
       const pos = H.muzzle.getWorldPosition(new THREE.Vector3()).addScaledVector(dir, 0.12);
       spawnBall(pos, dir, exit * (type === 'nectar' ? 0.7 : 1.0), item);   // heavier nectar leaves slower -> falls short of the raised cell
@@ -3331,6 +3336,7 @@
       a.sh.rpm += (tgt - a.sh.rpm) * Math.min(1, dt / SH.TAU);
       if (M) a.sh.elev = SH.ELEV_MIN + Math.max(0, Math.min(1, M.hood)) * (SH.ELEV_MAX - SH.ELEV_MIN);
       if (H.hoodTilt) H.hoodTilt.rotation.x = SH.HOOD_VIS * (a.sh.elev - SH.ELEV_DEF);   // tilt the rendered hood to the aim angle
+      if (H.turretYaw && M) H.turretYaw.rotation.y = turretYawRad(M.turret);
       if (H.flywheelSpin) H.flywheelSpin.rotation.x += (a.sh.rpm / SH.MAX_RPM) * SH.VIS * dt;
       // INTAKE: with intake on and room in storage, capture the nearest field ball at the front mouth
       H.group.updateWorldMatrix(true, false);
@@ -3439,6 +3445,8 @@
       }
       if (keys['x']) btns |= (1 << 2);   // keyboard X == gamepad X (shoot / field-centric toggle)
       if (keys['y']) btns |= (1 << 3);   // keyboard Y == gamepad Y (flywheel on/off in the shooter lessons)
+      if (keys[',']) btns |= (1 << 7);   // keyboard , (<) == D-pad left  (turret)
+      if (keys['.']) btns |= (1 << 8);   // keyboard . (>) == D-pad right (turret)
       sim.pad.ly = ly; sim.pad.lx = lx; sim.pad.rx = rx;
       sim.pad.ry = ry; sim.pad.lt = lt; sim.pad.rt = rt; sim.pad.rb = rb; sim.pad.btns = btns;
     }
@@ -3490,8 +3498,8 @@
     function Java_sim_OpModeHost_publish(lib, slot, vx, vy, omega){
       const a = sel(slot); a.calls++; a.cmd.vx = vx; a.cmd.vy = vy; a.cmd.omega = omega;
     }
-    function Java_sim_OpModeHost_mech(lib, slot, intake, feeder, shooter, hood, dump){
-      const a = sel(slot); a.calls++; a.mech.intake = intake; a.mech.feeder = feeder; a.mech.shooter = shooter; a.mech.hood = hood; a.mech.dump = dump;
+    function Java_sim_OpModeHost_mech(lib, slot, intake, feeder, shooter, hood, dump, turret){
+      const a = sel(slot); a.calls++; a.mech.intake = intake; a.mech.feeder = feeder; a.mech.shooter = shooter; a.mech.hood = hood; a.mech.dump = dump; a.mech.turret = turret;
     }
     // JS -> Java flywheel encoder readback: modeled RPM as encoder ticks/sec (28 CPR). slot 0 = red robot
     // (the only modeled flywheel today); blue returns 0. The sampler injects this into the shooter motor so
@@ -3645,6 +3653,7 @@
         resizeBench();
         benchRobot.intakeRoller.rotation.y += M.intake  * 10  * dt;
         if (benchRobot.hoodTilt) benchRobot.hoodTilt.rotation.x = hoodElevRot(M.hood);   // hood tilts with the aim angle on the test stand
+        if (benchRobot.turretYaw) benchRobot.turretYaw.rotation.y = turretYawRad(M.turret);
         animateBed(benchRobot, M, dt);
         const bv = localVel(robot);
         spinWheels(benchRobot, bv.fwd, bv.strafe, bv.turn, dt);

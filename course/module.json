@@ -38,6 +38,8 @@
     { "id": "14_autonomous",    "title": "Autonomous: Poses and Paths", "tier": "advanced",        "code": true,  "html": true, "active": "SimpleAuto.java", "folder": "14_autonomous",
       "description": "Write your first self-driving OpMode: learn what a Pose is, chain poses into a path with BezierLines and a PathChain, set the starting pose, and drive it with a follow-and-wait loop -- all without a single sleep(). Then see that this is exactly what the simulator's Path Capture tool writes for you." },
     { "id": "16_auto_actions",  "title": "Actions in Autonomous: Make It Shoot", "tier": "advanced",  "code": false, "html": true, "folder": "16_auto_actions",
-      "description": "How an OpMode really runs: the run loop, commands vs. robot.update(), why sleep() freezes the robot, for loops as a stopwatch, and opModeIsActive(). Then mark a shot in Path Capture -- and pass the quiz to unlock the shooting code." }
+      "description": "How an OpMode really runs: the run loop, commands vs. robot.update(), why sleep() freezes the robot, for loops as a stopwatch, and opModeIsActive(). Then mark a shot in Path Capture -- and pass the quiz to unlock the shooting code." },
+    { "id": "17_turret",        "title": "The Turret: Gears, Servos and Aiming", "tier": "advanced",  "code": false, "html": true, "folder": "17_turret",
+      "description": "Gear ratios, why a servo can't spin forever (and how a 1:3.2 overdrive fixes it), turning a servo position into a turret angle, and D-pad manual aiming -- the first step toward auto-aim with Limelight or odometry. Pass the quiz to unlock the Turret subsystem." }
   ]
 }

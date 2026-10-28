@@ -17,6 +17,8 @@ public class SimServo implements Servo {
     @Override public Direction getDirection() { return direction; }
     @Override public void setPosition(double position) { this.position = Math.max(0.0, Math.min(1.0, position)); }
     @Override public double getPosition() { return position; }
+    /** Position the hardware actually goes to: a REVERSE servo mirrors the commanded value. */
+    public double getEffectivePosition() { return direction == Direction.REVERSE ? 1.0 - position : position; }
     @Override public void scaleRange(double min, double max) { }
 
     @Override public String getDeviceName() { return name; }
