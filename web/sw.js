@@ -20,7 +20,8 @@ const LESSONS = 'impulse-lessons-v1';
 
 // Same-origin jars that hold OUR code (rebuilt on every `tools/build.ps1`). Purged from the
 // RUNTIME cache on each activate so a version bump always serves the freshly built jar.
-const APP_JARS = ['/app.jar', '/shim.jar'];
+// Matched by file name: on GitHub Pages they live under a subpath (/impulse3dsim/app.jar).
+const APP_JARS = ['app.jar', 'shim.jar'];
 
 // Small, always-present shell files worth precaching so the app can boot offline even if the
 // first visit was interrupted before everything got runtime-cached. Big/optional assets (audio,
@@ -60,7 +61,11 @@ self.addEventListener('activate', (e) => {
     // fresh app.jar/shim.jar is re-fetched instead of served stale from the cached whole file.
     try {
       const rt = await caches.open(RUNTIME);
-      await Promise.all(APP_JARS.map((p) => rt.delete(p)));
+      const reqs = await rt.keys();
+      await Promise.all(reqs.filter((r) => {
+        const name = new URL(r.url).pathname.split('/').pop();
+        return APP_JARS.includes(name);
+      }).map((r) => rt.delete(r)));
     } catch (_) {}
     await self.clients.claim();
   })());

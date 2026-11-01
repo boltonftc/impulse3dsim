@@ -195,6 +195,9 @@ public class OpModeHost {
             final SimServo turret   = new SimServo("turret");
             turret.setPosition(0.5);   // centered = facing forward until student code drives it
             hw.put("turret", turret);
+            // pollen extractor arm (lesson 19): registered so student code runs; not drawn or simulated yet
+            final SimServo extractor = new SimServo("extractor");
+            hw.put("extractor", extractor);
 
             // DUMPER robot type -- the names the v2 course and competition_code use.
             // The four drive motors are aliased to the SAME SimMotor instances the

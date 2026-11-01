@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.20';
+    window.APP_VERSION = '2.8.21';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -3449,6 +3449,8 @@
       if (keys['y']) btns |= (1 << 3);   // keyboard Y == gamepad Y (flywheel on/off in the shooter lessons)
       if (keys[',']) btns |= (1 << 7);   // keyboard , (<) == D-pad left  (turret)
       if (keys['.']) btns |= (1 << 8);   // keyboard . (>) == D-pad right (turret)
+      if (keys[';']) btns |= (1 << 5);   // keyboard ; == D-pad up   (extractor stow)
+      if (keys['/']) btns |= (1 << 6);   // keyboard / == D-pad down (extractor deploy)
       sim.pad.ly = ly; sim.pad.lx = lx; sim.pad.rx = rx;
       sim.pad.ry = ry; sim.pad.lt = lt; sim.pad.rt = rt; sim.pad.rb = rb; sim.pad.btns = btns;
     }

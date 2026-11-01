@@ -1,0 +1,153 @@
+<p>Extractor robots: add these pieces to your code package. (No extractor? You've still earned it &mdash; and thanks to
+the try/catch, the code is safe even on a robot without one.)</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>&#128275; 1. New file: <code>Extractor.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.Servo;
+
+/*
+ * Extractor -- the pollen extractor arm. A positional servo with just TWO places to be:
+ *   STOWED   = up, tucked in (where it starts every match)
+ *   DEPLOYED = lowered in front of the robot
+ * The driver decides when: D-pad down deploys, D-pad up stows.
+ */
+public class Extractor implements Subsystem {
+
+    /** The two places the arm can be. public so TeleOp can show it on telemetry. */
+    public enum State {
+        STOWED,     // up, tucked in -- where it starts
+        DEPLOYED    // lowered in front of the robot
+    }
+
+    // Servo numbers (0.0 .. 1.0) for each state. FIND YOURS with Extractor Calibrate!
+    private static final double STOWED_POS   = 0.10;
+    private static final double DEPLOYED_POS = 0.75;
+
+    private final Servo servo;                 // null if this robot has no "extractor" configured
+    private State state = State.STOWED;        // where we WANT the arm to be
+
+    public Extractor(HardwareMap hardwareMap) {
+        Servo found = null;
+        try {
+            found = hardwareMap.get(Servo.class, "extractor");
+        } catch (IllegalArgumentException e) {
+            found = null;   // no "extractor" in the configuration -- run without it
+        }
+        servo = found;
+        if (servo != null) {
+            servo.setPosition(STOWED_POS);   // moves as soon as INIT runs -- hands clear!
+        }
+    }
+
+    /** Lower the arm in front of the robot. */
+    public void deploy() {
+        state = State.DEPLOYED;
+    }
+
+    /** Raise the arm back up, out of the way. */
+    public void stow() {
+        state = State.STOWED;
+    }
+
+    /** Where we're sending the arm right now. */
+    public State getState() {
+        return state;
+    }
+
+    public boolean isDeployed() {
+        return state == State.DEPLOYED;
+    }
+
+    @Override
+    public void update() {
+        if (servo == null) {
+            return;                              // no extractor on this robot
+        }
+        switch (state) {
+            case STOWED:
+                servo.setPosition(STOWED_POS);
+                break;
+            case DEPLOYED:
+                servo.setPosition(DEPLOYED_POS);
+                break;
+        }
+    }
+}</code></pre>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>2. In <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>    // with the other subsystem fields:
+    public final Extractor extractor;
+
+    // in the constructor, with the other subsystems:
+    extractor = new Extractor(hardwareMap);
+    subsystems.add(extractor);</code></pre>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>3. In your TeleOp (<code>MecanumDrive.java</code>), inside the loop</span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>            // Extractor arm: D-pad down lowers it, D-pad up raises it. The driver decides when.
+            if (gamepad1.dpad_down) robot.extractor.deploy();
+            if (gamepad1.dpad_up)   robot.extractor.stow();
+            telemetry.addData("Extractor", robot.extractor.getState());</code></pre>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>4. New file (a tool): <code>ExtractorCalibrate.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.Servo;
+
+/*
+ * Extractor Calibrate -- move the arm with the right stick and read its servo number on the
+ * Driver Hub. Write down the numbers for "up" and "down" and put them in Extractor.java.
+ */
+@TeleOp(name = "Extractor Calibrate", group = "Tools")
+public class ExtractorCalibrate extends LinearOpMode {
+
+    @Override
+    public void runOpMode() {
+        Servo servo = hardwareMap.get(Servo.class, "extractor");
+        double position = 0.5;
+
+        telemetry.addLine("Hands clear: the arm moves to the middle at START.");
+        telemetry.addLine("Then move it slowly with the right stick.");
+        telemetry.update();
+        waitForStart();
+
+        while (opModeIsActive()) {
+            position -= gamepad1.right_stick_y * 0.003;                // stick up = bigger number
+            position = Math.max(0.0, Math.min(1.0, position));        // stay between 0 and 1
+            servo.setPosition(position);
+            telemetry.addData("Extractor position", "%.3f", position);
+            telemetry.addLine("Write down the number for UP and for DOWN.");
+            telemetry.update();
+        }
+    }
+}</code></pre>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Make it yours</div>
+  <ul>
+    <li><strong>Configuration:</strong> the servo must be named <code>extractor</code> in the Control Hub configuration
+    (type: Servo).</li>
+    <li><strong>Calibrate first.</strong> Replace <code>0.10</code> and <code>0.75</code> with the numbers you measured.</li>
+    <li><strong>Moves the wrong way?</strong> Add <code>servo.setDirection(Servo.Direction.REVERSE);</code> in the
+    constructor (before the first <code>setPosition</code>), or swap your two numbers.</li>
+    <li><strong>Rather have one button?</strong> Make LB a <em>toggle</em>. Because it flips, it needs edge detection,
+    like the intake's A button:
+    <code>if (gamepad1.left_bumper &amp;&amp; !previousLB) { if (robot.extractor.isDeployed()) robot.extractor.stow(); else robot.extractor.deploy(); }</code>
+    then <code>previousLB = gamepad1.left_bumper;</code> (and a <code>private boolean previousLB = false;</code> field).</li>
+    <li><strong>Two drivers?</strong> Use <code>gamepad2.dpad_down</code> / <code>gamepad2.dpad_up</code> so the second
+    driver runs the arm.</li>
+    <li><strong>Safety lock:</strong> if the arm could hit something (for example the intake running in reverse), call
+    <code>robot.extractor.stow()</code> automatically when that happens.</li>
+  </ul>
+</div>

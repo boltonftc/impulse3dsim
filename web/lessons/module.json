@@ -220,6 +220,17 @@
       "description": "Field coordinates as graph paper, atan2 as 'which way does the arrow point?', and the one formula: field angle minus heading = turret angle. Wrapping, opening the turret to ±200° (two ways to point behind you, and unwinding), driver trim, aiming at the cell on your side (with a dead zone), and setting the start pose. Pass the quiz to unlock AutoAim.",
       "quiz": true,
       "reward": true
+    },
+    {
+      "id": "19_extractor",
+      "title": "The Extractor Arm: A Two-Position Servo",
+      "tier": "advanced",
+      "code": false,
+      "html": true,
+      "folder": "19_extractor",
+      "description": "A pollen extractor arm that the driver lowers with D-pad down and raises with D-pad up. Enum and switch review, named constants vs. magic numbers, commands vs. update(), why two buttons need no edge detection, try/catch for robots without the arm, and calibrating servo numbers with telemetry. Perfect quiz score unlocks the Extractor subsystem.",
+      "quiz": true,
+      "reward": true
     }
   ]
 }

@@ -1,0 +1,216 @@
+<h1>The Extractor Arm: A Two-Position Servo</h1>
+
+<p>Some robots carry a <strong>pollen extractor arm</strong>. It rides <strong>up</strong>, tucked out of the way, and
+when the driver wants it, it <strong>lowers</strong> in front of the robot. When the job is done, it goes back up. The
+driver decides when: <strong>D-pad down</strong> lowers it, <strong>D-pad up</strong> raises it.</p>
+
+<p>It sounds simple, and it is &mdash; which makes it the perfect place to practice <em>reading</em> code carefully. This
+lesson reuses ideas you already know (enums, switch, named constants, subsystems, positional servos) and asks you to
+explain exactly what each line does.</p>
+
+<p>Not every robot has an extractor, but everyone takes this lesson: &ldquo;a servo with a few named positions&rdquo; is
+one of the most common mechanisms in FTC. Like the last few lessons, <strong>you won't change any code here</strong>.</p>
+
+<div class="blk blk-challenge">
+  <div class="blk-head">&#128274; Earn the code</div>
+  <p>This lesson ends with a reward: <strong>a complete <code>Extractor</code> subsystem</strong>, a calibration tool for
+  finding your servo numbers, and the lines that add it to your <code>Robot</code> and TeleOp. To unlock it you need a
+  <strong>perfect score on the quiz, 10 out of 10</strong>. The quiz is mostly &ldquo;read this code &mdash; what does it
+  do?&rdquo; questions, so read every code block in this lesson slowly. Most people need a few tries, and that's
+  normal.</p>
+</div>
+
+<hr>
+
+<h2>1. Two positions, two names</h2>
+
+<p>The arm can be in exactly two places:</p>
+<ul>
+  <li><strong>STOWED</strong> &mdash; up and tucked in. This is where it starts every match.</li>
+  <li><strong>DEPLOYED</strong> &mdash; lowered in front of the robot, ready to work.</li>
+</ul>
+
+<p>You've seen this before. In the intake lesson, the roller could be <code>FORWARD</code>, <code>OFF</code> or
+<code>REVERSE</code>, and we listed those choices in an <strong>enum</strong>. The arm gets one too:</p>
+
+<pre><code>public enum State {
+    STOWED,     // up, tucked in -- where it starts
+    DEPLOYED    // lowered in front of the robot
+}</code></pre>
+
+<div class="blk blk-key">
+  <div class="blk-head">Enum refresher</div>
+  <ul>
+    <li>An <strong>enum</strong> is a fixed list of named choices. A variable of type <code>State</code> can only ever be
+    <code>State.STOWED</code> or <code>State.DEPLOYED</code> &mdash; nothing else, no typos, no mystery numbers.</li>
+    <li>Why not just a <code>boolean deployed</code>? It would work for two positions. But <code>State.DEPLOYED</code>
+    reads like English, telemetry prints its name (&ldquo;DEPLOYED&rdquo;) instead of &ldquo;true&rdquo;, and if your
+    team later wants a third position (say <code>HALFWAY</code>), you add one word to the list.</li>
+    <li>It's <code>public</code> so the TeleOp can name the type (<code>Extractor.State</code>) to show it on the Driver
+    Hub.</li>
+  </ul>
+</div>
+
+<h2>2. Arm positions vs. servo numbers</h2>
+
+<p>The servo doesn't know the words &ldquo;stowed&rdquo; and &ldquo;deployed&rdquo;. It only understands a number from
+<code>0.0</code> to <code>1.0</code>. So we give each state its own number, as <strong>named constants</strong>:</p>
+
+<pre><code>private static final double STOWED_POS   = 0.10;   // servo number for "up"
+private static final double DEPLOYED_POS = 0.75;   // servo number for "down"</code></pre>
+
+<ul>
+  <li><code>private</code> &mdash; only the <code>Extractor</code> class needs these numbers. Nobody else can see or
+  change them.</li>
+  <li><code>static</code> &mdash; they belong to the class itself; there's just one copy.</li>
+  <li><code>final</code> &mdash; once set, they never change while the program runs.</li>
+</ul>
+
+<p>Writing <code>STOWED_POS</code> instead of <code>0.10</code> everywhere means that when you re-tune the arm, you change
+<strong>one line</strong>, and the code still explains itself. A bare <code>0.10</code> in the middle of the code is
+called a <em>magic number</em>: it works, but nobody remembers why.</p>
+
+<h2>3. The subsystem: commands and update()</h2>
+
+<p><code>Extractor</code> has the same shape as every subsystem you've built. One field remembers what we <em>want</em>:</p>
+
+<pre><code>private State state = State.STOWED;   // starts stowed</code></pre>
+
+<p>The <strong>commands</strong> only change that field. They don't touch the servo:</p>
+
+<pre><code>public void deploy() {
+    state = State.DEPLOYED;
+}
+
+public void stow() {
+    state = State.STOWED;
+}</code></pre>
+
+<p>And <code>update()</code>, which the scheduler calls every loop, turns the state into a servo number with a
+<strong>switch</strong>, exactly like the intake turned its state into motor power:</p>
+
+<pre><code>@Override
+public void update() {
+    if (servo == null) {
+        return;                              // no extractor on this robot
+    }
+    switch (state) {
+        case STOWED:
+            servo.setPosition(STOWED_POS);
+            break;
+        case DEPLOYED:
+            servo.setPosition(DEPLOYED_POS);
+            break;
+    }
+}</code></pre>
+
+<div class="blk blk-key">
+  <div class="blk-head">Read it like a sentence</div>
+  <p>&ldquo;Every loop: if there's no extractor servo, stop. Otherwise, look at the state. If it's STOWED, send the
+  stowed number. If it's DEPLOYED, send the deployed number.&rdquo; The <code>break</code> after each case means
+  &ldquo;done, leave the switch&rdquo;; without it, Java would fall through and run the next case too.</p>
+</div>
+
+<p>Two small &ldquo;getter&rdquo; methods let other code <em>ask</em> about the arm without being able to change it
+directly:</p>
+
+<pre><code>public State getState() {
+    return state;
+}
+
+public boolean isDeployed() {
+    return state == State.DEPLOYED;
+}</code></pre>
+
+<p>Notice <code>==</code> (two equals signs) <em>compares</em>: &ldquo;is the state DEPLOYED?&rdquo; gives back
+<code>true</code> or <code>false</code>. A single <code>=</code> <em>assigns</em>, like in <code>deploy()</code>.</p>
+
+<h2>4. The buttons: D-pad down and up</h2>
+
+<p>In your TeleOp loop, two lines hook the D-pad to the commands:</p>
+
+<pre><code>if (gamepad1.dpad_down) robot.extractor.deploy();
+if (gamepad1.dpad_up)   robot.extractor.stow();</code></pre>
+
+<p>Down lowers the arm, up raises it. The button matches the motion, so drivers don't have to think about it. In the
+simulator, the <code>;</code> key is D-pad up and <code>/</code> is D-pad down.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why two buttons and no edge detection?</div>
+  <p>In the intake lesson, pressing A <em>toggled</em> the roller, so we needed edge detection: holding A for 20 loops
+  would otherwise flip it on and off 20 times. Here each button always means the same thing. Holding D-pad down for 20
+  loops just says &ldquo;deploy&rdquo; 20 times, and the arm is already deployed after the first one. Nothing flips, so
+  no edge detection is needed. And the driver never has to remember which way the arm is right now: up is always up.</p>
+</div>
+
+<h2>5. How is this different from the old dumper?</h2>
+
+<p>An earlier version of this course had a <strong>dumper</strong>: one press ran a whole <em>timed sequence</em>
+(raise, hold for two seconds, lower), using a stopwatch and four states. That's the right tool when a mechanism should
+run a routine on its own.</p>
+
+<p>The extractor is the opposite: the <strong>driver</strong> decides how long it stays down. Lowered during a pickup,
+raised the moment the driver is done. No timers, no extra states, just two positions and two buttons. Picking the
+simplest design that does the job is a big part of engineering.</p>
+
+<h2>6. Safety and robots without an arm</h2>
+
+<p>The constructor finds the servo and puts it in the stowed position right away:</p>
+
+<pre><code>public Extractor(HardwareMap hardwareMap) {
+    Servo found = null;
+    try {
+        found = hardwareMap.get(Servo.class, "extractor");
+    } catch (IllegalArgumentException e) {
+        found = null;   // no "extractor" in the configuration -- run without it
+    }
+    servo = found;
+    if (servo != null) {
+        servo.setPosition(STOWED_POS);   // moves as soon as INIT runs -- hands clear!
+    }
+}</code></pre>
+
+<ul>
+  <li><strong>It moves at INIT.</strong> A positional servo jumps to its position the moment the code starts. Keep hands
+  clear of the arm when you press INIT.</li>
+  <li><strong>try / catch.</strong> If the robot has no servo named <code>extractor</code>, <code>hardwareMap.get</code>
+  throws an error. The <code>catch</code> &ldquo;catches&rdquo; it, we store <code>null</code>, and the rest of the
+  robot keeps working. That's why <code>update()</code> starts with <code>if (servo == null) return;</code>.</li>
+  <li><strong>Wrong direction?</strong> If down and up are backwards, add
+  <code>servo.setDirection(Servo.Direction.REVERSE);</code> in the constructor, or swap the two numbers.</li>
+</ul>
+
+<h2>7. Finding your two numbers</h2>
+
+<p>The numbers <code>0.10</code> and <code>0.75</code> are only placeholders. Every robot's arm is mounted a little
+differently, so you <strong>measure</strong> yours. The reward includes a small tool OpMode,
+<strong>Extractor Calibrate</strong>, that lets you move the servo with the right stick and shows its number on the
+Driver Hub:</p>
+<ol>
+  <li>Run <strong>Extractor Calibrate</strong>. (Hands clear: the arm moves to the middle at START.)</li>
+  <li>Slowly move the arm with the right stick to the perfect <strong>up</strong> spot. Write down the number.</li>
+  <li>Move it to the perfect <strong>down</strong> spot. Write that number down too.</li>
+  <li>Put them into <code>STOWED_POS</code> and <code>DEPLOYED_POS</code>.</li>
+</ol>
+<p>Using telemetry to measure the real robot, then writing the result into a named constant, is how almost every
+mechanism in FTC gets tuned.</p>
+
+<h2>8. Try it in the simulator</h2>
+
+<p>The simulator robot has a servo named <code>extractor</code>, so once you add the code, it compiles and runs. The arm
+isn't drawn yet, so watch the telemetry line instead: press <code>/</code> and it should say <strong>DEPLOYED</strong>;
+press <code>;</code> and it should say <strong>STOWED</strong>.</p>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li>Read every code block above until you can say what each line does, out loud.</li>
+    <li>Take the quiz below. You need a <strong>perfect 10 out of 10</strong> to unlock the Extractor code.</li>
+    <li><strong>Extractor robots:</strong> add the code, run <strong>Extractor Calibrate</strong> to find your two
+    numbers, then test the D-pad in TeleOp.</li>
+  </ul>
+</div>
+
+<hr>
+
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

@@ -1,0 +1,260 @@
+{
+  "title": "The Extractor Arm Quiz",
+  "draw": 10,
+  "pass": 1.0,
+  "intro": "Heads up: this one is all about reading code carefully. To unlock the Extractor code you need a PERFECT score, 10 out of 10. Most people need a few tries, and that's normal.",
+  "questions": [
+    {
+      "q": "What is an enum?",
+      "correct": "A fixed list of named choices",
+      "wrong": ["A number between 0.0 and 1.0", "A method that runs every single loop", "A list that can keep growing forever"],
+      "explain": "An enum lists every choice by name, like STOWED and DEPLOYED. A variable of that type can only hold one of those names."
+    },
+    {
+      "q": "enum State { STOWED, DEPLOYED }  What can a State variable hold?",
+      "correct": "Only STOWED or DEPLOYED",
+      "wrong": ["Any number from 0.0 to 1.0", "Any word the programmer types", "STOWED, DEPLOYED or OFF"],
+      "explain": "An enum is a closed list. Only the names inside the braces are allowed, so there are no typos and no mystery values."
+    },
+    {
+      "q": "Why use an enum instead of a boolean like deployed?",
+      "correct": "It reads like English and is easy to extend",
+      "wrong": ["Booleans aren't allowed anywhere in Java subsystems", "Enums make the servo move a lot faster", "A boolean would need two servos to work"],
+      "explain": "A boolean works for two positions, but State.DEPLOYED is clearer, prints its name on telemetry, and a third position is just one more word."
+    },
+    {
+      "q": "Why is the enum State declared public?",
+      "correct": "So the TeleOp can name it to show it on telemetry",
+      "wrong": ["So any class can move the servo directly", "Because every enum in Java has to be public", "So the servo can read its own position back"],
+      "explain": "Being able to name the type (Extractor.State) is different from being able to change the arm. The state field itself stays private."
+    },
+    {
+      "q": "private static final double STOWED_POS = 0.10;  What does final mean here?",
+      "correct": "The value never changes while the program runs",
+      "wrong": ["It's the last line in the class", "Only the TeleOp can read the value", "The arm moves there at the very end of the match"],
+      "explain": "final means once it's set, it can't be changed. That's what makes it a constant."
+    },
+    {
+      "q": "Why write STOWED_POS instead of typing 0.10 everywhere?",
+      "correct": "One line to retune, and the code explains itself",
+      "wrong": ["Java can't use plain numbers inside methods", "Named constants make the servo a little bit stronger", "Typing 0.10 makes the arm move the wrong way"],
+      "explain": "Change STOWED_POS once and every place that uses it updates. And the name tells the reader what the number means."
+    },
+    {
+      "q": "What is a magic number?",
+      "correct": "A bare number in code with no name explaining it",
+      "wrong": ["A number that changes itself every single loop", "The servo position that unlocks the reward", "A number bigger than 1.0 that servos ignore"],
+      "explain": "0.75 alone doesn't say why it's 0.75. DEPLOYED_POS does. Naming numbers keeps code readable."
+    },
+    {
+      "q": "public void deploy() { state = State.DEPLOYED; }  What does calling deploy() do?",
+      "correct": "Sets state to DEPLOYED; update() moves the servo",
+      "wrong": ["Moves the servo right away and waits for it", "Lowers the arm, waits two seconds, raises it", "Reads where the servo is pointing right now"],
+      "explain": "Commands only change the field. The next update() turns the new state into a servo position, the same pattern as every subsystem."
+    },
+    {
+      "q": "Which method actually sends a number to the servo during the match?",
+      "correct": "update()",
+      "wrong": ["deploy()", "getState()", "isDeployed()"],
+      "explain": "deploy() and stow() only change the state. update() is the one place that calls servo.setPosition(...) every loop."
+    },
+    {
+      "q": "Who calls the Extractor's update() every loop?",
+      "correct": "The scheduler, through robot.update()",
+      "wrong": ["The driver, by pressing D-pad down", "The servo itself, after it finishes moving", "The constructor, once during INIT"],
+      "explain": "Robot keeps a list of subsystems and robot.update() calls each one's update(), every loop."
+    },
+    {
+      "q": "switch (state) { case STOWED: servo.setPosition(STOWED_POS); break; case DEPLOYED: servo.setPosition(DEPLOYED_POS); break; }  If state is DEPLOYED, which number is sent?",
+      "correct": "DEPLOYED_POS",
+      "wrong": ["STOWED_POS", "Both, one after the other", "Nothing; the switch is skipped"],
+      "explain": "The switch jumps to the case that matches the state, here DEPLOYED, and runs it until the break."
+    },
+    {
+      "q": "What does break do at the end of a switch case?",
+      "correct": "Leaves the switch so the next case doesn't run",
+      "wrong": ["Stops the whole OpMode right away and resets it", "Disconnects the servo for safety", "Pauses the robot for one loop"],
+      "explain": "break means 'this case is done, leave the switch.' Without it, Java keeps going into the next case."
+    },
+    {
+      "q": "You forget the break after case STOWED. The state is STOWED. What happens?",
+      "correct": "It falls through and runs the DEPLOYED case too",
+      "wrong": ["Java skips the STOWED case completely and moves on", "The arm stops moving forever after", "Nothing at all changes in how it runs"],
+      "explain": "Without break, Java 'falls through' into the next case. The servo gets DEPLOYED_POS last, so the arm would go down. A sneaky bug!"
+    },
+    {
+      "q": "public boolean isDeployed() { return state == State.DEPLOYED; }  The arm is stowed. What does it return?",
+      "correct": "false",
+      "wrong": ["true", "STOWED", "0.10"],
+      "explain": "== compares. Is STOWED equal to DEPLOYED? No, so the answer is false."
+    },
+    {
+      "q": "What's the difference between = and == in Java?",
+      "correct": "= stores a value; == compares two values",
+      "wrong": ["= is for numbers; == is for words", "They mean exactly the same thing", "== stores the value twice, just to be extra safe"],
+      "explain": "state = State.DEPLOYED puts a value in. state == State.DEPLOYED asks a yes/no question."
+    },
+    {
+      "q": "if (gamepad1.dpad_down) robot.extractor.deploy();  The driver holds D-pad down for 30 loops. What happens?",
+      "correct": "deploy() runs 30 times, and the arm just stays down",
+      "wrong": ["The arm flips down and up 30 times", "The arm lowers a little farther each time, 30 times", "Nothing, because it needs edge detection"],
+      "explain": "Setting the state to DEPLOYED again and again changes nothing after the first time. The arm is already down."
+    },
+    {
+      "q": "Why doesn't the extractor need edge detection like the intake's A button?",
+      "correct": "Each button always means the same thing",
+      "wrong": ["D-pad buttons only work once per match", "Servos ignore repeated commands on their own", "Edge detection only works with motors"],
+      "explain": "Edge detection matters when a button FLIPS something. Here down always means deploy and up always means stow, so repeats don't matter."
+    },
+    {
+      "q": "Why use two buttons (down and up) instead of one toggle button?",
+      "correct": "The driver never has to remember the arm's state",
+      "wrong": ["The gamepad only has two buttons left", "Toggle buttons aren't allowed by the FTC game rules", "One button would need a second servo"],
+      "explain": "With a toggle, the driver must remember if the arm is up or down. With two buttons, up is always up."
+    },
+    {
+      "q": "A team wants LB to toggle the arm instead. What do they need to add?",
+      "correct": "Edge detection, so one press flips it once",
+      "wrong": ["A second servo to move it in the other direction", "A timer that waits two seconds", "Nothing; toggles work on their own"],
+      "explain": "A toggle flips. Without edge detection, holding LB for 20 loops would flip it 20 times. Compare with previousLB, like the intake's A button."
+    },
+    {
+      "q": "Which D-pad button lowers (deploys) the arm?",
+      "correct": "D-pad down",
+      "wrong": ["D-pad up", "D-pad left", "D-pad right"],
+      "explain": "Down lowers it and up raises it, so the button matches the motion."
+    },
+    {
+      "q": "In the simulator, which keyboard key acts as D-pad down?",
+      "correct": "/",
+      "wrong": [";", ",", "."],
+      "explain": "; is D-pad up and / is D-pad down. (, and . are D-pad left and right.)"
+    },
+    {
+      "q": "What does the arm do the moment INIT is pressed?",
+      "correct": "It moves to the stowed position right away",
+      "wrong": ["Nothing at all until the driver presses START", "It lowers to show that it's working", "It slowly searches for its position"],
+      "explain": "The constructor runs at INIT and calls servo.setPosition(STOWED_POS). A positional servo jumps there immediately, so keep hands clear."
+    },
+    {
+      "q": "What does the try/catch in the Extractor constructor do?",
+      "correct": "If there's no extractor servo, store null instead of crashing",
+      "wrong": ["Tries to move the arm twice in case it gets stuck", "Catches the arm if it falls down too fast", "Checks the battery before the servo moves"],
+      "explain": "hardwareMap.get throws an error if the device isn't configured. catch grabs that error so the rest of the robot keeps running."
+    },
+    {
+      "q": "Why does update() begin with if (servo == null) return; ?",
+      "correct": "On a robot without an extractor, skip the servo",
+      "wrong": ["To make the servo move faster each loop", "Because update() must always return a number to Robot", "To stop the robot whenever the arm is down"],
+      "explain": "If the servo wasn't found, it's null, and calling setPosition on null would crash. Returning early skips it safely."
+    },
+    {
+      "q": "What does return; do inside update()?",
+      "correct": "Leaves the method right away",
+      "wrong": ["Sends the servo back to stowed", "Starts the method again from the top", "Returns the arm into the robot"],
+      "explain": "return ends the method. Nothing below it runs this time."
+    },
+    {
+      "q": "On your robot, D-pad down raises the arm instead of lowering it. What's one fix?",
+      "correct": "Add setDirection(REVERSE), or swap the two numbers",
+      "wrong": ["Press D-pad down twice as fast", "Plug the servo into a motor port", "Delete the enum and use a boolean instead of it"],
+      "explain": "Either reverse the servo in the constructor or swap STOWED_POS and DEPLOYED_POS. Both make 'down' go down."
+    },
+    {
+      "q": "What is the Extractor Calibrate OpMode for?",
+      "correct": "Finding the servo numbers for up and down",
+      "wrong": ["Driving the robot during a real match", "Testing the battery before each match", "Making the arm move by itself on a timer"],
+      "explain": "You move the arm with the stick, read its number on telemetry, and write the up and down numbers into the constants."
+    },
+    {
+      "q": "position -= gamepad1.right_stick_y * 0.003;  Pushing the stick all the way up makes right_stick_y = −1. What happens to position?",
+      "correct": "It gets bigger by 0.003 each loop",
+      "wrong": ["It gets smaller by 0.003 each loop", "It jumps straight to 1.0", "It stays exactly the same"],
+      "explain": "−1 × 0.003 = −0.003, and subtracting a negative adds: position goes up by 0.003 every loop."
+    },
+    {
+      "q": "position = Math.max(0.0, Math.min(1.0, position));  If position is 1.2, what is it after this line?",
+      "correct": "1.0",
+      "wrong": ["1.2", "0.0", "0.2"],
+      "explain": "Inside first: Math.min(1.0, 1.2) is 1.0. Then Math.max(0.0, 1.0) is 1.0. The line keeps position between 0 and 1."
+    },
+    {
+      "q": "position = Math.max(0.0, Math.min(1.0, position));  If position is −0.05, what is it after this line?",
+      "correct": "0.0",
+      "wrong": ["−0.05", "1.0", "0.05"],
+      "explain": "Math.min(1.0, −0.05) is −0.05. Then Math.max(0.0, −0.05) is 0.0. Too low gets pulled up to 0."
+    },
+    {
+      "q": "When does the Extractor's constructor run?",
+      "correct": "Once, when Robot builds it with new",
+      "wrong": ["Every loop, right before update()", "Every time D-pad down is pressed", "Only when the arm is deployed"],
+      "explain": "new Extractor(hardwareMap) runs the constructor once, during INIT, to set the object up."
+    },
+    {
+      "q": "Where does the line public final Extractor extractor; go?",
+      "correct": "Robot.java, with the other subsystem fields",
+      "wrong": ["Extractor.java, just above the State enum list", "MecanumDrive.java, inside the loop", "ExtractorCalibrate.java, at the top"],
+      "explain": "Robot holds one field per subsystem so the rest of the code can say robot.extractor."
+    },
+    {
+      "q": "Why does Robot's constructor call subsystems.add(extractor)?",
+      "correct": "So the scheduler calls its update() every loop",
+      "wrong": ["So the servo gets more power from the hub", "So the arm starts in the deployed position", "So the TeleOp can delete it later on"],
+      "explain": "robot.update() loops through the subsystems list. If the extractor isn't on it, its update() never runs and the servo never moves."
+    },
+    {
+      "q": "Why is the servo field declared private?",
+      "correct": "Only Extractor's own code should move it",
+      "wrong": ["Private servos move more smoothly", "So the TeleOp can move it directly", "Because servos can't be public in Java"],
+      "explain": "Keeping the servo private means every move goes through deploy()/stow() and update(), so nothing can confuse the arm behind its back."
+    },
+    {
+      "q": "telemetry.addData(\"Extractor\", robot.extractor.getState());  The arm is deployed. What shows on the Driver Hub?",
+      "correct": "Extractor: DEPLOYED",
+      "wrong": ["Extractor: true", "Extractor: 0.75", "Extractor: 1"],
+      "explain": "getState() gives back the enum value, and telemetry prints an enum by its name. That's one reason enums beat booleans."
+    },
+    {
+      "q": "How is the extractor different from the old dumper?",
+      "correct": "The driver decides when, with no timers",
+      "wrong": ["The extractor runs a timed routine by itself", "The dumper had no servo, the extractor has one", "The extractor needs a stopwatch to work"],
+      "explain": "The dumper ran raise, hold, lower on timers after one press. The extractor just goes where the driver says, when the driver says."
+    },
+    {
+      "q": "When would a timed sequence, like the old dumper's, be the better choice?",
+      "correct": "When one press should run a whole routine",
+      "wrong": ["When the driver wants control of every step", "When the mechanism has only two positions", "When the robot has no servos at all"],
+      "explain": "Timers shine when a mechanism should do several steps on its own. When the driver should decide, simple commands are better."
+    },
+    {
+      "q": "A team adds HALFWAY to the enum. What else must they change in update()?",
+      "correct": "Add a case HALFWAY with its own servo number",
+      "wrong": ["Nothing; the switch handles it automatically", "Delete the STOWED case to make room for it", "Swap the servo for a continuous-rotation one"],
+      "explain": "The switch only knows the cases you write. HALFWAY needs its own case, its own constant (like HALFWAY_POS) and a command to choose it."
+    },
+    {
+      "q": "public State getState() { return state; }  What does getState() do?",
+      "correct": "Gives back the current state without changing it",
+      "wrong": ["Moves the arm to a brand new state and holds it", "Resets the arm back to stowed", "Asks the servo where it really is"],
+      "explain": "A getter just reports. Other code can look at the state, but only deploy() and stow() can change it."
+    },
+    {
+      "q": "The arm is STOWED. In one loop the driver holds BOTH D-pad down and up. The code runs: if (dpad_down) deploy(); then if (dpad_up) stow();  What is the state after that loop?",
+      "correct": "STOWED, because stow() ran last",
+      "wrong": ["DEPLOYED, because deploy() ran first", "Both at once, so it stops halfway", "The program crashes with an error"],
+      "explain": "Lines run in order. deploy() sets DEPLOYED, then stow() sets STOWED. The last one wins."
+    },
+    {
+      "q": "Servo positions in FTC code are numbers between...",
+      "correct": "0.0 and 1.0",
+      "wrong": ["0 and 360", "−1.0 and 1.0", "0 and 100"],
+      "explain": "setPosition takes 0.0 to 1.0. What angle that means depends on the servo and how it's mounted."
+    },
+    {
+      "q": "Why must the servo be named exactly extractor in the robot configuration?",
+      "correct": "The code looks it up by that exact name",
+      "wrong": ["Servos only work with lowercase names", "FTC rules require every servo be named", "The name decides which way it turns"],
+      "explain": "hardwareMap.get(Servo.class, \"extractor\") searches the configuration for that name. A different name means 'not found'."
+    }
+  ]
+}
