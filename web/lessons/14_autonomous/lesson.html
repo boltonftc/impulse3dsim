@@ -78,22 +78,27 @@ plus a <code>heading</code> &mdash; but now you use it to <em>tell the robot whe
 <code>(0, 0)</code>). The heading is which way the robot is pointing when it gets there.</p>
 
 <figure>
-  <img src="images/pose_field_frame.png" alt="A top-down field with the origin at the center, a +X arrow pointing forward and a +Y arrow pointing left. A robot sits at one spot with dashed lines down to its x and y values and a curved arrow showing its heading, labeled Pose(x, y, heading).">
+  <img src="images/pose_field_frame.png" alt="A top-down field seen from the red drivers' wall, with the origin at the center, a +X arrow pointing to the drivers' right and a +Y arrow pointing away from them. A robot sits at one spot with dashed lines down to its x and y values and a curved arrow showing its heading, labeled Pose(x, y, heading).">
   <figcaption>A pose is three numbers: where the robot is (<code>x</code>, <code>y</code>, in field inches) and which way it
   faces (<code>heading</code>).</figcaption>
 </figure>
 
-<p>It uses the exact same field frame you sanity-checked last lesson:</p>
+<p>Every pose uses one <strong>field frame</strong>, the same one the rest of the course uses. Picture the field from where
+the <strong>red drivers</strong> stand, like a sheet of graph paper:</p>
 
 <div class="blk blk-key">
-  <div class="blk-head">+X is forward, +Y is left, +heading is counter-clockwise</div>
+  <div class="blk-head">The field frame: +X is right, +Y is away, +heading is counter-clockwise</div>
   <ul>
-    <li><strong>+X</strong> &rarr; forward &nbsp;(driving forward makes <code>x</code> go up)</li>
-    <li><strong>+Y</strong> &rarr; left &nbsp;(strafing left makes <code>y</code> go up; right makes it go down)</li>
-    <li><strong>heading 0</strong> = facing +X, and turning <strong>counter-clockwise</strong> makes heading go up</li>
+    <li><strong>(0, 0)</strong> &rarr; the center of the field</li>
+    <li><strong>+X</strong> &rarr; to the red drivers' <strong>right</strong></li>
+    <li><strong>+Y</strong> &rarr; <strong>away</strong> from the red drivers</li>
+    <li><strong>heading 0</strong> = facing +X, and turning <strong>counter-clockwise</strong> makes heading go up, so
+    <strong>90&deg;</strong> = facing away from the drivers</li>
   </ul>
-  <p>This is <em>why</em> last lesson's pod fix mattered: if <code>+Y</code> pointed the wrong way, every path would
-  steer sideways into a wall. Same frame, now used to give orders instead of just to read.</p>
+  <p>Our robot starts facing away from the drivers (heading 90&deg;), so driving forward makes <code>y</code> go up and
+  strafing left makes <code>x</code> go down. Last lesson's pod fix still matters: the Pinpoint measures forward and left
+  from the robot's own point of view, and <code>setStartingPose</code> turns those into field directions. If a pod
+  counted backwards, every path would steer sideways into a wall.</p>
 </div>
 
 <div class="blk blk-key">
@@ -129,8 +134,9 @@ both headings are the same, the robot simply keeps facing that way.</p>
 
 <h2>Part A &mdash; Draw the path</h2>
 
-<p>Your path has three poses: the start, 48&nbsp;inches <strong>forward</strong> to <code>pose1</code>, then
-48&nbsp;inches <strong>left</strong> to park at <code>pose2</code>. One <code>PathChain</code> holds both lines.</p>
+<p>Your path has three poses: the start (the red starting spot, <code>(0, &minus;32.4)</code> facing 90&deg;), then
+48&nbsp;inches <strong>forward</strong> (away from the drivers, +Y) to <code>pose1</code>, then 48&nbsp;inches
+<strong>left</strong> (&minus;X) to park at <code>pose2</code>. One <code>PathChain</code> holds both lines.</p>
 
 <span class="act" data-action="open_file" data-arg="SimpleAuto.java|SimpleAuto : Paths">&#9656; SimpleAuto.java : SimpleAuto : Paths</span>
 
@@ -138,8 +144,8 @@ both headings are the same, the robot simply keeps facing that way.</p>
   <div class="blk-head"><span>Type this into <code>SimpleAuto.java</code></span><span class="copybtn">&#10850; Copy</span></div>
   <pre><code>// Each spot on the field is a Pose(x, y, headingRadians).
 Pose startPose = new Pose(START_X_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));
-Pose pose1 = new Pose(12.0, -36.0, Math.toRadians(0.0));   // 48" forward
-Pose pose2 = new Pose(12.0,  12.0, Math.toRadians(0.0));   // then 48" left to park (+Y)
+Pose pose1 = new Pose(  0.0, 15.6, Math.toRadians(90.0));   // 48" away from the drivers (+Y)
+Pose pose2 = new Pose(-48.0, 15.6, Math.toRadians(90.0));   // then 48" to the drivers' left (-X) to park
 
 // A BezierLine is a straight path; a PathChain strings the lines together, in order.
 PathChain chain1 = follower.pathBuilder()
@@ -153,7 +159,7 @@ PathChain chain1 = follower.pathBuilder()
 <div class="blk blk-key">
   <div class="blk-head">Heading in radians, not degrees</div>
   <p>A <code>Pose</code> wants its heading in <strong>radians</strong>, the unit the driving math prefers. You think in
-  degrees, so write <code>Math.toRadians(0.0)</code> and let Java convert. Same trick you used for telemetry, just the
+  degrees, so write <code>Math.toRadians(90.0)</code> and let Java convert. Same trick you used for telemetry, just the
   other direction.</p>
 </div>
 
@@ -172,7 +178,7 @@ loop</strong>: after <code>followPath(...)</code> you keep pumping <code>followe
   <pre><code>// Tell the localizer where the robot is starting (field inches from here on).
 follower.setStartingPose(startPose);
 
-// Follow the whole chain: forward to pose1, then left to pose2.
+// Follow the whole chain: away from the drivers to pose1, then left to pose2.
 follower.followPath(chain1, SPEED, true);
 while (opModeIsActive() &amp;&amp; follower.isBusy()) {
     follower.update();   // drive one step along the path
@@ -239,8 +245,8 @@ Open any captured auto and you'll recognize every piece of it:</p>
     still while the Pinpoint calibrates), then <strong>Start</strong>.</li>
     <li><strong>Watch it drive itself:</strong> the robot should roll forward about 4&nbsp;feet, then strafe left about
     4&nbsp;feet &mdash; following the gray path drawn on the field.</li>
-    <li><strong>Try it:</strong> change <code>pose2</code>'s heading to <code>Math.toRadians(90.0)</code> and run it
-    again. The robot should turn to face left while it strafes.</li>
+    <li><strong>Try it:</strong> change <code>pose2</code>'s heading to <code>Math.toRadians(180.0)</code> and run it
+    again. The robot should turn to face left (&minus;X) while it strafes.</li>
   </ul>
 </div>
 

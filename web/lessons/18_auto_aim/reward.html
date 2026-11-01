@@ -1,0 +1,297 @@
+<p>Turret robots: add these pieces to your code package. You need the <code>Turret</code> and <code>Robot</code>
+changes from lesson 17 first. <strong>Before</strong> you let the turret swing &plusmn;200&deg;, do the wiring check in
+the lesson (section 10).</p>
+<p><strong>No turret?</strong> You can still use the HOME reset and the hand-off from auto: add pieces 3&ndash;7 (leave
+the two auto-aim lines out of piece 6) and skip <code>Turret.java</code> and <code>AutoAim.java</code>.</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>&#128275; 1. Replace your whole <code>Turret.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.PwmControl;
+import com.qualcomm.robotcore.hardware.ServoImplEx;
+
+/*
+ * Turret -- an Axon MAX servo (servo mode) through a 1:3.2 overdrive into a 2.75:1 turret.
+ * 350 deg x 3.2 / 2.75 = ~407 deg of turret across the servo's FULL signal (500..2500 us).
+ * We ask the Control Hub for that full signal, then allow +/-200 deg: more than a full circle,
+ * so the turret can point anywhere, even straight behind the robot.
+ */
+public class Turret implements Subsystem {
+
+    private static final double DEGREES_PER_FULL_RANGE = 407.0;  // turret degrees across position 0..1
+    public  static final double MAX_ANGLE  = 200.0;  // farthest the turret may turn each way (check the wires!)
+    private static final double CENTER     = 0.5;    // servo position that points the turret forward
+    private static final double MIN_POS    = CENTER - MAX_ANGLE / DEGREES_PER_FULL_RANGE;
+    private static final double MAX_POS    = CENTER + MAX_ANGLE / DEGREES_PER_FULL_RANGE;
+    private static final double NUDGE_STEP = 0.002;  // position change per loop while a D-pad button is held
+
+    private final ServoImplEx servo;   // null if this robot has no "turret" configured
+    private double position = CENTER;
+
+    public Turret(HardwareMap hardwareMap) {
+        ServoImplEx found = null;
+        try {
+            found = hardwareMap.get(ServoImplEx.class, "turret");
+        } catch (IllegalArgumentException e) {
+            found = null;   // no "turret" in the configuration -- run without it instead of crashing
+        }
+        servo = found;
+        if (servo != null) {
+            servo.setPwmRange(new PwmControl.PwmRange(500, 2500));   // the servo's full travel, not the hub's default
+            servo.setPosition(position);   // the turret moves to center as soon as INIT runs -- hands clear!
+        }
+    }
+
+    /** False on a robot without a turret: everything else still works, the turret just does nothing. */
+    public boolean hasTurret() {
+        return servo != null;
+    }
+
+    /** Swing a little to the left (counter-clockwise). For testing by hand. */
+    public void nudgeLeft() {
+        setPosition(position + NUDGE_STEP);
+    }
+
+    /** Swing a little to the right (clockwise). For testing by hand. */
+    public void nudgeRight() {
+        setPosition(position - NUDGE_STEP);
+    }
+
+    /** Point at an angle: 0 = forward, + = left. Auto-aim calls this every loop. */
+    public void setAngle(double degrees) {
+        setPosition(CENTER + degrees / DEGREES_PER_FULL_RANGE);
+    }
+
+    /** The angle we're aiming at, in degrees (0 = forward, + = left). */
+    public double getAngle() {
+        return (position - CENTER) * DEGREES_PER_FULL_RANGE;
+    }
+
+    private void setPosition(double p) {
+        position = Math.max(MIN_POS, Math.min(MAX_POS, p));   // never past the safe limits
+    }
+
+    @Override
+    public void update() {
+        if (servo != null) {
+            servo.setPosition(position);
+        }
+    }
+}</code></pre>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>2. New file: <code>AutoAim.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>package org.firstinspires.ftc.teamcode;
+
+/*
+ * AutoAim -- keeps the turret pointed at a hive cell, using where odometry says we are.
+ *
+ * Field coordinates (seen from the RED drivers): (0, 0) is the field center, +X is right,
+ * +Y is away from the drivers, distances in inches. Angles: 0 = +X, counter-clockwise is +.
+ *
+ *     target cell  = the one on the same side of the field as the robot
+ *     turret angle = field angle to the cell - robot heading + trim
+ */
+public class AutoAim {
+
+    // Where the red hive's two cells are, in field inches. MEASURE these on your field!
+    private static final double LEFT_CELL_X  = -11.4;
+    private static final double RIGHT_CELL_X =  10.2;
+    private static final double CELL_Y       = -12.75;
+
+    private static final double DEAD_ZONE  = 6.0;    // inches each side of x = 0 where we keep the current cell
+    private static final double TRIM_MAX   = 20.0;   // the driver's trim can shift the aim at most this far
+    private static final double TRIM_SPEED = 0.5;    // degrees of trim per loop with the stick pushed all the way
+
+    private boolean aimingRight = true;              // the right cell is raised at the start of the match
+    private double trimDeg = 0.0;
+    private String status = "position unknown";
+
+    /** Shift the aim with a stick: push right to aim further right. The trim stays where you leave it. */
+    public void trim(double stick) {
+        trimDeg -= stick * TRIM_SPEED;                              // right on the stick = clockwise = minus
+        trimDeg = Math.max(-TRIM_MAX, Math.min(TRIM_MAX, trimDeg));
+    }
+
+    /** Call every loop: picks the cell, works out the turret angle, and aims. */
+    public void aim(Localization localization, Turret turret) {
+        if (!turret.hasTurret()) {
+            status = "no turret on this robot";
+            return;
+        }
+        // Don't guess! Until we know where we are, point straight ahead and wait.
+        if (!localization.isPoseKnown()) {
+            turret.setAngle(0);
+            status = "position unknown: park at HOME and hold RB";
+            return;
+        }
+
+        double robotX = localization.getXInches();
+        double robotY = localization.getYInches();
+
+        // 0. Which cell? The one on our side. Inside the dead zone, keep the one we had.
+        if (robotX &gt; DEAD_ZONE)  aimingRight = true;
+        if (robotX &lt; -DEAD_ZONE) aimingRight = false;
+        double targetX = aimingRight ? RIGHT_CELL_X : LEFT_CELL_X;
+        double targetY = CELL_Y;
+
+        // 1. The arrow from the robot to the cell: how far over, how far up.
+        double dx = targetX - robotX;
+        double dy = targetY - robotY;
+
+        // 2. Which way does that arrow point on the field?
+        double fieldAngle = Math.toDegrees(Math.atan2(dy, dx));
+
+        // 3. Measure it from the robot's front instead, and add the driver's trim.
+        double turretAngle = fieldAngle - localization.getHeadingDegrees() + trimDeg;
+
+        // 4. Keep it between -180 and 180 (340 deg and -20 deg point the same way).
+        turretAngle = wrapDegrees(turretAngle);
+
+        // 5. Near the back there are TWO ways to point the same direction (like +190 or -170).
+        //    Use the other way if the turret can reach it AND it's a shorter swing from where we are now.
+        double otherWay = (turretAngle &gt; 0) ? turretAngle - 360 : turretAngle + 360;
+        double now = turret.getAngle();
+        if (Math.abs(otherWay) &lt;= Turret.MAX_ANGLE
+                &amp;&amp; Math.abs(otherWay - now) &lt; Math.abs(turretAngle - now)) {
+            turretAngle = otherWay;
+        }
+
+        status = String.format("%s cell, turret %.0f deg", aimingRight ? "RIGHT" : "LEFT", turretAngle);
+        turret.setAngle(turretAngle);
+    }
+
+    private static double wrapDegrees(double degrees) {
+        while (degrees &gt; 180)   degrees -= 360;
+        while (degrees &lt;= -180) degrees += 360;
+        return degrees;
+    }
+
+    public String getStatus() { return status; }
+    public double getTrim()   { return trimDeg; }
+}</code></pre>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>3. In <code>Localization.java</code>, with the other methods</span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>    // HOME: a spot the drivers can find by feel. Back of the robot against the red drivers' wall,
+    // facing away from it, left side on the loading zone's right-hand tape line.
+    // These numbers come from the simulator -- MEASURE your field and your robot!
+    private static final double ROBOT_WIDTH  = 18.0;   // inches, side to side
+    private static final double ROBOT_LENGTH = 18.0;   // inches, front to back
+    private static final double TAPE_X = -22.0;        // the loading zone's right-hand tape line
+    private static final double WALL_Y = -71.0;        // the inside face of the drivers' wall
+    private static final double HOME_X = TAPE_X + ROBOT_WIDTH / 2;    // -13: the robot's CENTER, not its side
+    private static final double HOME_Y = WALL_Y + ROBOT_LENGTH / 2;   // -62
+    private static final double HOME_HEADING = 90.0;                  // facing away from the drivers
+
+    private boolean poseKnown = false;   // stays false until auto hands us a pose, or the driver resets at HOME
+
+    /** Tell the Pinpoint where the robot is right now: field inches, heading in degrees. */
+    public void setPose(double xInches, double yInches, double headingDegrees) {
+        latestPose = new Pose2D(DistanceUnit.INCH, xInches, yInches, AngleUnit.DEGREES, headingDegrees);
+        if (pinpoint != null) {
+            pinpoint.setPosition(latestPose);
+        }
+        poseKnown = true;
+    }
+
+    /** The robot is parked at HOME: that's exactly where we are. */
+    public void setPoseToHome() {
+        setPose(HOME_X, HOME_Y, HOME_HEADING);
+    }
+
+    /** True once we know where we are on the field (from auto, or a HOME reset). */
+    public boolean isPoseKnown() {
+        return poseKnown;
+    }</code></pre>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>4. In your TeleOp (<code>MecanumDrive.java</code>), with the other imports at the top</span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>import com.qualcomm.robotcore.util.ElapsedTime;</code></pre>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>5. In your TeleOp, right after <code>waitForStart();</code></span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>        // Where are we? If auto just ran, it left the robot's position on the blackboard.
+        // remove() uses it up, so a later TeleOp run can't pick up an old, stale position.
+        Object fromAuto = blackboard.remove("autoPose");
+        if (fromAuto instanceof double[]) {
+            double[] p = (double[]) fromAuto;
+            robot.localization.setPose(p[0], p[1], p[2]);
+        }
+        AutoAim aim = new AutoAim();
+        ElapsedTime rbHeld = new ElapsedTime();   // a stopwatch for "hold RB for half a second"
+        boolean homeDone = false;</code></pre>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>6. In your TeleOp, inside the loop</span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>            // HOME reset: park at HOME and hold RB for half a second. Resets field-centric "forward"
+            // (the IMU) AND tells odometry exactly where the robot is. Only press it at HOME!
+            if (!gamepad1.right_bumper) {
+                rbHeld.reset();          // the stopwatch restarts whenever RB is up
+                homeDone = false;
+            } else if (rbHeld.seconds() &gt;= 0.5 &amp;&amp; !homeDone) {
+                imu.resetYaw();
+                robot.localization.setPoseToHome();
+                homeDone = true;
+            }
+            if (homeDone) telemetry.addLine("HOME: position reset. Let go of RB.");
+
+            // Auto-aim: the turret follows the cell on our side of the field; right stick left/right trims.
+            aim.trim(gamepad1.right_stick_x);
+            aim.aim(robot.localization, robot.turret);
+            telemetry.addData("Aim", aim.getStatus());
+            telemetry.addData("Aim trim", "%.1f deg", aim.getTrim());</code></pre>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>7. Hand-written autos only (like <code>SimpleAuto</code>): inside the follow loop, after <code>Pose p = follower.getPose();</code></span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>            // Leave our position for TeleOp. Saved every loop, in case the match timer cuts auto short.
+            blackboard.put("autoPose", new double[] { p.getX(), p.getY(), Math.toDegrees(p.getHeading()) });</code></pre>
+</div>
+<p>Autos saved by <strong>Path Capture</strong> already do this. Re-save older captures so they use the new field
+coordinates.</p>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Then delete these old lines from the loop</div>
+  <ul>
+    <li>The lesson 8 heading reset: <code>if (gamepad1.right_bumper) { imu.resetYaw(); }</code> (RB is the HOME reset
+    now, and it resets the heading too).</li>
+    <li>The lesson 17 D-pad nudges: <code>if (gamepad1.dpad_left) robot.turret.nudgeLeft();</code> and
+    <code>if (gamepad1.dpad_right) robot.turret.nudgeRight();</code> (auto-aim moves the turret now, and the D-pad is free
+    for something else). The methods stay in <code>Turret.java</code> for testing.</li>
+    <li>The lesson 15 hood line: <code>robot.hood.aim(gamepad1.right_stick_x);</code> (the right stick's left/right is
+    the aim trim now).</li>
+  </ul>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Make it yours</div>
+  <ul>
+    <li><strong>Customized lesson 17's Turret?</strong> If you added <code>setDirection(REVERSE)</code> or changed
+    <code>CENTER</code>, put those back into the new file.</li>
+    <li><strong>Measure the turret.</strong> Use <code>setAngle(90)</code> and <code>setAngle(180)</code> and check with a
+    protractor. If they're off, adjust <code>DEGREES_PER_FULL_RANGE</code>.</li>
+    <li><strong>Wires not ready for &plusmn;200&deg;?</strong> Lower <code>MAX_ANGLE</code> (but keep it above 180, or
+    some directions can't be reached).</li>
+    <li><strong>Measure the field.</strong> The cell positions and the HOME spot come from the simulator's field model.
+    Check them on a real field with a tape measure, from the field center.</li>
+    <li><strong>Measure your robot.</strong> Set <code>ROBOT_WIDTH</code> and <code>ROBOT_LENGTH</code> to your robot's
+    real size (to the outside of the bumpers), so HOME lands on the robot's center.</li>
+    <li><strong>A different HOME?</strong> Any spot works if the drivers can find it by feel. Change
+    <code>TAPE_X</code>, <code>WALL_Y</code> and <code>HOME_HEADING</code> to match. If the robot doesn't face away from
+    the drivers there, don't reset the IMU on that button.</li>
+    <li><strong>Trim too slow or too fast?</strong> Change <code>TRIM_SPEED</code>. Need more room? Raise
+    <code>TRIM_MAX</code>.</li>
+    <li><strong>Target switches too eagerly, or not soon enough?</strong> Change <code>DEAD_ZONE</code>. Wider means
+    more driving before it switches.</li>
+    <li><strong>Blue alliance?</strong> This class is for red. Blue needs its own cell positions and its own &ldquo;which
+    side&rdquo; rule, measured from the blue drivers' view.</li>
+  </ul>
+</div>

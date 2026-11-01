@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.12';
+    window.APP_VERSION = '2.8.19';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -1217,7 +1217,8 @@
            generated. If you keep them intact you can hand-edit the file and still reload it; if any marker is removed,
            reordered, or broken, the tool refuses to load it rather than guess and lose your work.</p>
         <ul>
-          <li><code>// CAP:FILE version=1</code> near the top — proves the file came from this tool.</li>
+          <li><code>// CAP:FILE version=2</code> near the top — proves the file came from this tool. (Older
+              <code>version=1</code> files still load; saving them again writes the new field coordinates.)</li>
           <li>a <code>// CAP:POSE seq=N kind=init|pose</code> line immediately above each
               <code>Pose x = new Pose(x, y, Math.toRadians(h));</code> — those three values must stay
               <b>plain numbers</b> (no variables or expressions).</li>
@@ -3279,9 +3280,10 @@
       a.storageViz = [];
       for (let i = 0; i < STORAGE_CAPACITY; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 9), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 })); m.visible = false; m.castShadow = true; scene.add(m); a.storageViz.push(m); }
     }
-    // Turret: Axon MAX (350 deg) x 1:3.2 overdrive / 2.75:1 turret = ~407 deg at the full 500-2500us signal;
-    // the Control Hub's default 600-2400us servo signal reaches ~90% of that. 0.5 = forward, higher = CCW.
-    const TURRET_RANGE_DEG = 367;
+    // Turret: Axon MAX (350 deg) x 1:3.2 overdrive / 2.75:1 turret = ~407 deg across the servo's full 500-2500us signal.
+    // The host sends where the pulse lands in that 500-2500us span (SimServo.getPulseFraction), so the hub's default
+    // 600-2400us range gives ~367 deg and setPwmRange(500, 2500) opens the full ~407. 0.5 = forward, higher = CCW.
+    const TURRET_RANGE_DEG = 407;
     const turretYawRad = p => (Math.max(0, Math.min(1, p == null ? 0.5 : p)) - 0.5) * TURRET_RANGE_DEG * Math.PI / 180;
     function fireShot(a) {                                          // FIFO queue: oldest stored piece leaves first
       const H = handleOf(a);
@@ -5696,10 +5698,14 @@
       const DISC_R = 0.052, DISC_H = 0.019;  // pose marker: a flat "hockey puck" — thickness just over the path-tube diameter (0.016) so the disc reads a hair thicker than the line joining it
       const BADGE_R = 0.026, BADGE_H = 0.016; // action badge: a smaller puck — thickness just over the action-connector tube diameter (0.014)
 
-      // sim (x,z,yaw) -> FTC/Pedro (x,y,heading): an axis relabel (x_ftc=z, y_ftc=x, heading=yaw) that
-      // matches PedroSimDrivetrain/GoBildaPinpointDriverImpl's assumed forward=(sin h, cos h) convention.
-      function toFtc(sx, sz, yaw) { return { x: sz * IN_PER_M, y: sx * IN_PER_M, heading: yaw }; }
-      function fromFtc(xFtc, yFtc, headingRad) { return { sx: yFtc / IN_PER_M, sz: xFtc / IN_PER_M, yaw: headingRad }; }
+      // sim (x,z,yaw) -> FTC field frame (x,y,heading), the course-wide frame from lesson 18: origin = field center, +X =
+      // red drivers' right (sim +X), +Y = away from the red drivers (sim -Z), heading CCW+ with 0 along +X. The sim
+      // Pinpoint tracks relative to the declared start pose, so any consistent frame drives correctly.
+      const wrapRad = a => Math.atan2(Math.sin(a), Math.cos(a));
+      function toFtc(sx, sz, yaw) { return { x: sx * IN_PER_M, y: -sz * IN_PER_M, heading: wrapRad(yaw - Math.PI / 2) }; }
+      function fromFtc(xFtc, yFtc, headingRad) { return { sx: xFtc / IN_PER_M, sz: -yFtc / IN_PER_M, yaw: wrapRad(headingRad + Math.PI / 2) }; }
+      // CAP:FILE version=1 files used the old axis relabel (x = sim z, y = sim x, heading = yaw)
+      function fromFtcV1(xFtc, yFtc, headingRad) { return { sx: yFtc / IN_PER_M, sz: xFtc / IN_PER_M, yaw: headingRad }; }
 
       function currentRobotPose() {
         const p = robot.translation(), q = robot.rotation();
@@ -6097,7 +6103,7 @@
         const L = [], push = s => L.push(s);
         push('package org.firstinspires.ftc.teamcode;');
         push('');
-        push('// CAP:FILE version=1');
+        push('// CAP:FILE version=2');
         push('import com.pedropathing.follower.Follower;');
         push('import com.pedropathing.follower.FollowerConstants;');
         push('import com.pedropathing.control.PIDFCoefficients;');
@@ -6114,6 +6120,10 @@
         push('// below are left in place: don\'t remove/reorder a "// CAP:POSE" line or a "// CAP:ACTION"/"// CAP:ACTION-END"');
         push('// pair. You MAY add your own code between a CAP:ACTION line and its matching CAP:ACTION-END -- that\'s');
         push('// the only region this tool preserves verbatim when the file is loaded back into the capture GUI.');
+        push('//');
+        push('// Coordinates: inches from the field center, seen from the RED drivers: +X = their right, +Y = away from');
+        push('// them, heading in degrees counter-clockwise from +X (90 = facing away from the drivers). TeleOp and');
+        push('// auto-aim use the same frame, so the pose this auto ends at can be handed straight to TeleOp.');
         push('@Autonomous(name = "' + className + '", group = "Captured")');
         push('public class ' + className + ' extends LinearOpMode {');
         push('');
@@ -6197,6 +6207,7 @@
             push('        while (opModeIsActive() && follower.isBusy()) {');
             push('            follower.update();');
             push('            robot.update();');
+            push('            saveForTeleOp(follower);');
             push('            telemetry.addData("Phase", "Chain ' + (si + 1) + '");');
             push('            telemetryPose(follower, '
               + lf.x.toFixed(2) + ', ' + lf.y.toFixed(2) + ', ' + (lf.heading * 180 / Math.PI).toFixed(1) + ');');
@@ -6222,16 +6233,25 @@
         push('        robot.intake.off();');
         push('');
         push('        Pose finalPose = follower.getPose();');
+        push('        saveForTeleOp(follower);');
         push('        telemetry.addData("Status", "COMPLETE");');
         push('        telemetry.addData("Final pose (x,y,h)", "(%.1f, %.1f, %.1f deg)", finalPose.getX(), finalPose.getY(), Math.toDegrees(finalPose.getHeading()));');
         push('        telemetry.update();');
+        push('    }');
+        push('');
+        push('    // Hand the robot\'s position to TeleOp (lesson 18, auto-aim). The SDK\'s blackboard survives from one OpMode');
+        push('    // to the next, so TeleOp starts out knowing where auto left the robot. Saved every loop, not just at the');
+        push('    // end, because the match timer can stop auto partway through a path.');
+        push('    private void saveForTeleOp(Follower follower) {');
+        push('        Pose p = follower.getPose();');
+        push('        blackboard.put("autoPose", new double[] { p.getX(), p.getY(), Math.toDegrees(p.getHeading()) });');
         push('    }');
         push('');
         push('    // shared per-loop telemetry: coordinate legend + tracked pose vs the active target + error');
         push('    private void telemetryPose(Follower follower, double tx, double ty, double thDeg) {');
         push('        Pose p = follower.getPose();');
         push('        double hDeg = Math.toDegrees(p.getHeading());');
-        push('        telemetry.addData("Coords", "FTC/Pedro inches, heading deg CCW+, origin = field center");');
+        push('        telemetry.addData("Coords", "inches from field center, +X = red drivers\' right, +Y = away from them, heading deg CCW+");');
         push('        telemetry.addData("Pinpoint pose (x,y,h)", "(%.1f, %.1f, %.1f)", p.getX(), p.getY(), hDeg);');
         push('        telemetry.addData("Target pose  (x,y,h)", "(%.1f, %.1f, %.1f)", tx, ty, thDeg);');
         push('        telemetry.addData("Error (dx,dy,dh)", "(%.1f, %.1f, %.1f)", tx - p.getX(), ty - p.getY(), thDeg - hDeg);');
@@ -6284,9 +6304,11 @@
       // Fails CLOSED (returns {ok:false, reason}) rather than guessing, whenever the file's shape
       // doesn't match what this tool itself would have emitted -- see the banner comment in generateJava.
       function parseCapturedJava(source) {
-        if (!/\/\/ CAP:FILE version=1\b/.test(source)) {
-          return { ok: false, reason: 'No "// CAP:FILE version=1" marker found -- this file wasn\'t generated by the Path Capture tool (or that line was removed), so it can\'t be re-opened here.' };
+        const ver = (source.match(/\/\/ CAP:FILE version=(\d+)\b/) || [])[1];
+        if (ver !== '1' && ver !== '2') {
+          return { ok: false, reason: 'No "// CAP:FILE version=..." marker found -- this file wasn\'t generated by the Path Capture tool (or that line was removed), so it can\'t be re-opened here.' };
         }
+        const poseFromFtc = ver === '1' ? fromFtcV1 : fromFtc;
 
         const poseRe = /\/\/ CAP:POSE seq=(\d+) kind=(init|pose)\s*\n\s*Pose\s+\w+\s*=\s*new Pose\(\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*Math\.toRadians\(\s*(-?[\d.]+)\s*\)\s*\)\s*;/g;
         const poseItems = [];
@@ -6327,7 +6349,7 @@
         const newEntries = [];
         for (const node of merged) {
           if (node.isPose) {
-            const conv = fromFtc(node.it.fx, node.it.fy, node.it.fh * Math.PI / 180);
+            const conv = poseFromFtc(node.it.fx, node.it.fy, node.it.fh * Math.PI / 180);
             const id = idc++;
             newEntries.push({ id, type: node.it.kind, sx: conv.sx, sz: conv.sz, yaw: conv.yaw });
             lastPoseId = id;
@@ -6361,7 +6383,7 @@
         sel.innerHTML = '<option value="">-- pick a captured auto --</option>';
         if (p) {
           for (const fname of Object.keys(p.files)) {
-            if (typeof p.files[fname] === 'string' && p.files[fname].includes('CAP:FILE version=1')) {
+            if (typeof p.files[fname] === 'string' && /CAP:FILE version=[12]\b/.test(p.files[fname])) {
               const opt = document.createElement('option');
               opt.value = fname; opt.textContent = fname.replace(/\.java$/, '');
               sel.appendChild(opt);
@@ -8501,6 +8523,667 @@
         }
       }
       customElements.define('flywheel-widget', FlywheelWidget);
+    })();
+
+    // <aim-angle-widget> — lesson 18 (auto-aim). Top-down field seen from the red drivers: +X right, +Y up, exactly
+    // like graph paper, so counter-clockwise on screen = counter-clockwise (+) on the field. Drag the robot, set its
+    // heading, trim the aim: the target cell follows the side of the field the robot is on (with a dead zone around
+    // x = 0), and the box shows field angle - heading = turret angle. The turret reaches +/-200 deg, so behind the robot
+    // there are two ways to point; it takes the shorter swing from where it is, and unwinds at 200 (animated at about
+    // the real turret's speed). Cells, start pose, DEAD_ZONE and LIMIT match the lesson 18 reward.
+    (function(){
+      const W = 640, H = 500, FIELD = 144, S = 3.2, CX = W / 2, CY = 250, LIMIT = 200, DEAD_ZONE = 6, SWING_DPS = 600;
+      const IDLE_MS = 4000, WANDER_IPS = 12, WANDER_DPS = 30;   // autopilot: wait 4 s after the last touch; 12 in/s, 30 deg/s
+      const CELLS = { L: { x: -11.4, y: -12.75, name: 'LEFT cell' }, R: { x: 10.2, y: -12.75, name: 'RIGHT cell' } };
+      const wrap = a => ((a + 180) % 360 + 360) % 360 - 180;
+      const toScr = (x, y) => [CX + x * S, CY - y * S];                  // field inches -> canvas px
+      const dirScr = deg => { const r = deg * Math.PI / 180; return [Math.cos(r), -Math.sin(r)]; };
+      const TEMPLATE = `
+      <style>
+        :host{ display:block; font-family:inherit; color:#e2e8f0; }
+        canvas{ width:100%; height:auto; display:block; border:1px solid #223; border-radius:10px; background:#0a0e14; touch-action:none; cursor:grab; }
+        .row{ display:flex; flex-wrap:wrap; gap:14px 22px; align-items:center; margin-top:10px; font-size:.78rem; }
+        .row label{ display:flex; align-items:center; gap:8px; font-weight:700; color:#a9b6c7; }
+        .row input[type=range]{ width:170px; accent-color:#f0a75e; }
+        .math{ margin-top:10px; padding:10px 12px; border-radius:10px; background:#0f1722; border:1px solid #223047;
+               font-family:ui-monospace,monospace; font-size:.82rem; line-height:1.7; }
+        .math .f{ color:#7dd3fc; } .math .h{ color:#e2e8f0; } .math .t{ color:#f0a75e; font-weight:800; } .math .tr{ color:#c084fc; }
+        .status{ display:inline-block; margin-left:8px; padding:1px 8px; border-radius:999px; font-weight:800; font-size:.72rem; }
+        .status.ok{ background:#14532d; color:#86efac; } .status.two{ background:#4a3b0c; color:#fde68a; } .status.no{ background:#4c1515; color:#fca5a5; }
+        .hint{ font-size:.72rem; color:#8291a3; margin-top:6px; }
+        .pilot{ font-size:.74rem; font-weight:800; margin-bottom:6px; padding:4px 10px; border-radius:8px; display:inline-block; }
+        .pilot.auto{ background:#1e293b; color:#7dd3fc; } .pilot.you{ background:#3b2a0b; color:#fde68a; }
+      </style>
+      <div class="pilot auto" id="pilot"></div>
+      <canvas id="cvs" width="${W}" height="${H}"></canvas>
+      <div class="row">
+        <label>Robot heading <input type="range" id="hdg" min="-180" max="180" value="90"><span id="hdgV">90&deg;</span></label>
+        <label>Aim trim <input type="range" id="trim" min="-20" max="20" value="0"><span id="trimV">0&deg;</span></label>
+      </div>
+      <div class="math" id="math"></div>
+      <div class="hint">Drag the robot from one side of the field to the other and watch the target switch. Go slowly through
+      the grey <b>dead zone</b> in the middle. Then slide the heading slowly from one end to the other and watch the turret
+      go into the yellow band behind the robot, then <b>unwind</b>.</div>`;
+
+      class AimFieldBase extends HTMLElement {
+        _ray(x, y, deg, len, color, width, dash){
+          const g = this._g, [sx, sy] = toScr(x, y), [ux, uy] = dirScr(deg);
+          g.save(); g.strokeStyle = color; g.lineWidth = width; g.setLineDash(dash || []);
+          g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + ux * len, sy + uy * len); g.stroke();
+          if (!dash){ const hx = sx + ux * len, hy = sy + uy * len, a = Math.atan2(uy, ux);
+            g.fillStyle = color; g.beginPath(); g.moveTo(hx, hy);
+            g.lineTo(hx - 11 * Math.cos(a - 0.4), hy - 11 * Math.sin(a - 0.4)); g.lineTo(hx - 11 * Math.cos(a + 0.4), hy - 11 * Math.sin(a + 0.4)); g.fill(); }
+          g.restore();
+        }
+        _arc(x, y, from, to, r, color, label){
+          const g = this._g, [sx, sy] = toScr(x, y), n = 40;
+          g.save(); g.strokeStyle = color; g.lineWidth = 2; g.beginPath();
+          for (let i = 0; i <= n; i++){ const [ux, uy] = dirScr(from + (to - from) * i / n); i ? g.lineTo(sx + ux * r, sy + uy * r) : g.moveTo(sx + ux * r, sy + uy * r); }
+          g.stroke();
+          if (label){ const [ux, uy] = dirScr((from + to) / 2); g.fillStyle = color; g.font = '700 12px system-ui'; g.textAlign = 'center'; g.fillText(label, sx + ux * (r + 14), sy + uy * (r + 14) + 4); }
+          g.restore();
+        }
+        _wedge(x, y, from, to, r, fill){
+          const g = this._g, [sx, sy] = toScr(x, y), n = 60;
+          g.save(); g.fillStyle = fill; g.beginPath(); g.moveTo(sx, sy);
+          for (let i = 0; i <= n; i++){ const [ux, uy] = dirScr(from + (to - from) * i / n); g.lineTo(sx + ux * r, sy + uy * r); }
+          g.closePath(); g.fill(); g.restore();
+        }
+        _robot(x, y, hdg){
+          const g = this._g, [sx, sy] = toScr(x, y);
+          g.save(); g.translate(sx, sy); g.rotate(-hdg * Math.PI / 180);
+          g.fillStyle = '#2b3a55'; g.strokeStyle = '#93c5fd'; g.lineWidth = 2;
+          g.fillRect(-9 * S, -9 * S, 18 * S, 18 * S); g.strokeRect(-9 * S, -9 * S, 18 * S, 18 * S); g.restore();
+        }
+        // field, dead-zone strip, middle line, axes and the red hive; activeCell 'L' | 'R' | null
+        _drawField(activeCell, inDead){
+          const g = this._g;
+          g.clearRect(0, 0, W, H);
+          const [fx0, fy0] = toScr(-FIELD / 2, FIELD / 2);
+          g.fillStyle = '#1b222c'; g.fillRect(fx0, fy0, FIELD * S, FIELD * S);
+          { const [lx] = toScr(-DEAD_ZONE, 0), [rx] = toScr(DEAD_ZONE, 0);
+            g.fillStyle = inDead ? 'rgba(148,163,184,.22)' : 'rgba(148,163,184,.12)'; g.fillRect(lx, fy0, rx - lx, FIELD * S); }
+          g.strokeStyle = '#2a3442'; g.lineWidth = 1;
+          for (let i = -72; i <= 72; i += 24){ const [a] = toScr(i, 0), [, b] = toScr(0, i);
+            g.beginPath(); g.moveTo(a, fy0); g.lineTo(a, fy0 + FIELD * S); g.stroke();
+            g.beginPath(); g.moveTo(fx0, b); g.lineTo(fx0 + FIELD * S, b); g.stroke(); }
+          g.strokeStyle = '#5b6678'; g.lineWidth = 2; g.strokeRect(fx0, fy0, FIELD * S, FIELD * S);
+          g.save(); g.strokeStyle = '#cbd5e1'; g.lineWidth = 1.5; g.setLineDash([8, 6]);
+          g.beginPath(); g.moveTo(CX, fy0); g.lineTo(CX, fy0 + FIELD * S); g.stroke(); g.restore();
+          g.fillStyle = '#94a3b8'; g.font = '700 11px system-ui'; g.textAlign = 'center';
+          g.fillText('dead zone', CX, fy0 + 16);
+          g.fillText('\u25C0 LEFT side', CX - 110, fy0 + 16); g.fillText('RIGHT side \u25B6', CX + 110, fy0 + 16);
+          this._ray(0, 0, 0, 52, '#94a3b8', 2); this._ray(0, 0, 90, 52, '#94a3b8', 2);
+          g.fillStyle = '#94a3b8'; g.font = '700 12px system-ui'; g.textAlign = 'center';
+          g.fillText('+X', CX + 66, CY + 4); g.fillText('+Y', CX, CY - 60);
+          g.fillStyle = '#fca5a5'; g.fillText('RED drivers stand here', CX, fy0 + FIELD * S - 8);
+          for (const k of ['L', 'R']){
+            const c = CELLS[k], [sx, sy] = toScr(c.x, c.y), on = k === activeCell;
+            g.fillStyle = on ? '#ef4444' : '#5b2626'; g.fillRect(sx - 16, sy - 12, 32, 24);
+            g.strokeStyle = on ? '#fecaca' : '#7f3b3b'; g.lineWidth = 2; g.strokeRect(sx - 16, sy - 12, 32, 24);
+            g.fillStyle = '#fff'; g.font = '800 12px system-ui'; g.fillText(k, sx, sy + 4);
+          }
+          g.fillStyle = '#fca5a5'; g.font = '700 11px system-ui';
+          { const [sx, sy] = toScr(0, CELLS.R.y); g.fillText('red hive', sx, sy - 20); }
+        }
+      }
+
+      class AimAngleWidget extends AimFieldBase {
+        constructor(){
+          super();
+          const root = this.attachShadow({ mode: 'open' });
+          root.innerHTML = TEMPLATE;
+          this._el = id => root.getElementById(id);
+          this._x = 0; this._y = -32.4; this._hdg = 90; this._cell = 'R'; this._trim = 0;
+          this._turret = 0; this._shown = 0; this._unwinding = false;   // _turret = commanded angle, _shown = where it has swung to
+          this._lastInput = -Infinity; this._everTouched = false; this._wTarget = null; this._wPause = 0;
+          this._g = this._el('cvs').getContext('2d');
+          this._bind();
+          this._update();
+          this._shown = this._turret;
+          this._draw();
+        }
+        connectedCallback(){
+          // autopilot only burns frames while the widget is on screen
+          this._io = new IntersectionObserver(es => { this._visible = es[0].isIntersecting; if (this._visible) this._animate(); });
+          this._io.observe(this);
+        }
+        disconnectedCallback(){
+          if (this._raf){ cancelAnimationFrame(this._raf); this._raf = null; }
+          if (this._io){ this._io.disconnect(); this._io = null; }
+          clearTimeout(this._idleTimer);
+        }
+        _touched(){
+          this._lastInput = performance.now(); this._everTouched = true; this._wTarget = null;
+          clearTimeout(this._idleTimer);
+          this._idleTimer = setTimeout(() => this._animate(), IDLE_MS + 50);   // wake the autopilot once idle
+        }
+        _autopilot(){ return this._visible && !this._drag && performance.now() - this._lastInput > IDLE_MS; }
+        // drift toward a random spot (mostly along the side walls) while slowly turning; pause, then pick another
+        _wanderStep(dt){
+          if (this._wPause > 0){ this._wPause -= dt; return; }
+          if (!this._wTarget){
+            for (let i = 0; i < 50; i++){
+              const x = (Math.random() < 0.5 ? -1 : 1) * (Math.random() < 0.7 ? 30 + Math.random() * 30 : 8 + Math.random() * 22);
+              const y = -58 + Math.random() * 116;
+              if (Math.hypot(x, y + 13) < 30) continue;
+              this._wTarget = { x, y, h: -180 + Math.random() * 360 }; break;
+            }
+            if (!this._wTarget) this._wTarget = { x: 40, y: -40, h: 90 };
+          }
+          const t = this._wTarget, dx = t.x - this._x, dy = t.y - this._y, dist = Math.hypot(dx, dy), stepIn = WANDER_IPS * dt;
+          if (dist > stepIn){ this._x += dx / dist * stepIn; this._y += dy / dist * stepIn; } else { this._x = t.x; this._y = t.y; }
+          const dh = wrap(t.h - this._hdg), turn = Math.max(-WANDER_DPS * dt, Math.min(WANDER_DPS * dt, dh));
+          this._hdg = wrap(this._hdg + turn);
+          this._el('hdg').value = Math.round(this._hdg);
+          if (dist <= stepIn && Math.abs(dh) < 1){ this._wTarget = null; this._wPause = 0.8 + Math.random() * 1.2; }
+          this._update();
+        }
+        _change(){ this._touched(); this._update(); this._animate(); }
+        _animate(){
+          if (this._raf) return;
+          let last = performance.now();
+          const step = t => {
+            const dt = Math.min(0.05, (t - last) / 1000);
+            last = t;
+            const auto = this._autopilot();
+            if (auto) this._wanderStep(dt);
+            const d = this._turret - this._shown, max = SWING_DPS * dt;
+            this._shown += Math.abs(d) <= max ? d : Math.sign(d) * max;
+            const moving = Math.abs(this._turret - this._shown) > 0.01;
+            if (!moving) this._unwinding = false;
+            this._draw();
+            this._raf = (auto || moving) ? requestAnimationFrame(step) : null;
+          };
+          this._raf = requestAnimationFrame(step);
+        }
+        _update(){
+          this._inDead = Math.abs(this._x) <= DEAD_ZONE;
+          if (this._x > DEAD_ZONE) this._cell = 'R';
+          else if (this._x < -DEAD_ZONE) this._cell = 'L';
+          const cell = CELLS[this._cell];
+          this._field = Math.atan2(cell.y - this._y, cell.x - this._x) * 180 / Math.PI;
+          this._raw = this._field - this._hdg + this._trim;
+          this._wrapped = wrap(this._raw);
+          // same rule as AutoAim: the other way around, if reachable AND a shorter swing from the commanded angle
+          const other = this._wrapped > 0 ? this._wrapped - 360 : this._wrapped + 360, now = this._turret;
+          this._useOther = Math.abs(other) <= LIMIT && Math.abs(other - now) < Math.abs(this._wrapped - now);
+          const next = this._useOther ? other : this._wrapped;
+          if (Math.abs(next - now) > 180) this._unwinding = true;
+          this._turret = next;
+        }
+        _bind(){
+          const cvs = this._el('cvs');
+          const toField = e => {
+            const r = cvs.getBoundingClientRect();
+            const px = (e.clientX - r.left) * W / r.width, py = (e.clientY - r.top) * H / r.height;
+            const lim = FIELD / 2 - 9;
+            return [Math.max(-lim, Math.min(lim, (px - CX) / S)), Math.max(-lim, Math.min(lim, (CY - py) / S))];
+          };
+          const move = e => { [this._x, this._y] = toField(e); this._change(); };
+          cvs.addEventListener('pointerdown', e => { this._drag = true; cvs.setPointerCapture(e.pointerId); move(e); });
+          cvs.addEventListener('pointermove', e => { if (this._drag) move(e); });
+          const up = () => { if (this._drag) this._touched(); this._drag = false; };
+          cvs.addEventListener('pointerup', up); cvs.addEventListener('pointercancel', up);
+          this._el('hdg').addEventListener('input', e => { this._hdg = +e.target.value; this._change(); });
+          this._el('trim').addEventListener('input', e => { this._trim = +e.target.value; this._change(); });
+        }
+        _draw(){
+          const g = this._g;
+          const inDead = this._inDead, cell = CELLS[this._cell], field = this._field;
+          this._drawField(this._cell, inDead);
+
+          // robot body (drawn first so the angle arcs sit on top of it)
+          this._robot(this._x, this._y, this._hdg);
+          // reach: every direction (green), and the overlap behind the robot reachable two ways (yellow)
+          this._wedge(this._x, this._y, this._hdg - (360 - LIMIT), this._hdg + (360 - LIMIT), 74, 'rgba(52,211,153,.10)');
+          this._wedge(this._x, this._y, this._hdg + (360 - LIMIT), this._hdg + LIMIT, 74, 'rgba(250,204,21,.28)');
+          // line of sight to the cell + field angle (from the field's +X direction)
+          { const [a, b] = toScr(this._x, this._y), [c, d] = toScr(cell.x, cell.y);
+            g.save(); g.strokeStyle = '#7dd3fc'; g.setLineDash([6, 6]); g.lineWidth = 2; g.beginPath(); g.moveTo(a, b); g.lineTo(c, d); g.stroke(); g.restore(); }
+          this._ray(this._x, this._y, 0, 40, 'rgba(125,211,252,.55)', 1.5, [3, 4]);
+          this._arc(this._x, this._y, 0, field, 30, '#7dd3fc');
+          // robot heading
+          this._ray(this._x, this._y, this._hdg, 62, '#e2e8f0', 3);
+          // turret barrel + turret angle (measured from the robot's front)
+          this._arc(this._x, this._y, this._hdg, this._hdg + this._shown, 50, '#f0a75e');
+          this._ray(this._x, this._y, this._hdg + this._shown, 86, '#f0a75e', 5);
+          g.fillStyle = '#f0a75e'; g.beginPath(); { const [sx, sy] = toScr(this._x, this._y); g.arc(sx, sy, 7, 0, Math.PI * 2); } g.fill();
+
+          const f = v => (v >= 0 ? '+' : '\u2212') + Math.abs(v).toFixed(0) + '\u00b0';
+          const t = this._turret, side = t > 0.5 ? 'left' : t < -0.5 ? 'right' : 'straight ahead';
+          const swinging = Math.abs(this._turret - this._shown) > 1;
+          let status;
+          if (this._unwinding && swinging) status = '<span class="status no">UNWINDING \u2014 out of turret, swinging around the other way</span>';
+          else if (Math.abs(t) > 180) status = '<span class="status two">ON TARGET \u2014 past 180\u00b0, in the overlap</span>';
+          else status = '<span class="status ok">ON TARGET \u2014 turret ' + side + '</span>';
+          this._el('hdgV').textContent = Math.round(this._hdg) + '\u00b0';
+          const auto = this._autopilot() || (!this._everTouched && !this._drag);
+          const pilot = this._el('pilot');
+          pilot.className = 'pilot ' + (auto ? 'auto' : 'you');
+          pilot.textContent = auto ? '\uD83E\uDD16 Autopilot is driving. Grab the robot (or a slider) to take over!'
+                                   : '\u270B You\u2019re driving. Let go for a few seconds and autopilot takes over again.';
+          if (!this._everTouched){
+            const [bx, by] = toScr(this._x, this._y);
+            g.save(); g.font = '800 12px system-ui'; g.textAlign = 'center';
+            const label = '\u270B drag me!', tw = g.measureText(label).width + 14;
+            g.fillStyle = 'rgba(250,204,21,.92)'; g.beginPath(); g.roundRect(bx - tw / 2, by - 62, tw, 20, 10); g.fill();
+            g.fillStyle = '#1c1305'; g.fillText(label, bx, by - 48); g.restore();
+          }
+          this._el('trimV').textContent = f(this._trim);
+          this._el('math').innerHTML =
+            '<span class="h">robot x = ' + (this._x >= 0 ? '+' : '\u2212') + Math.abs(this._x).toFixed(0) + '\u2033 \u2192 ' +
+              (inDead ? 'dead zone \u2192 keeping the ' + cell.name : (this._cell === 'L' ? 'LEFT' : 'RIGHT') + ' side \u2192 ' + cell.name) + '</span><br>' +
+            '<span class="f">field angle to the ' + cell.name + ' = ' + f(field) + '</span><br>' +
+            '<span class="h">\u2212 robot heading = ' + f(this._hdg) + '</span>' +
+            (this._trim ? '<br><span class="tr">+ aim trim = ' + f(this._trim) + '</span>' : '') + '<br>' +
+            '<span class="t">= turret angle ' +
+              (Math.abs(this._raw - this._wrapped) > 0.5 ? f(this._raw) + ' \u2192 same as ' : '') + f(this._wrapped) + '</span>' +
+            (this._useOther ? '<br><span class="t">\u2192 the other way around: ' + f(t) + ' (a shorter swing from where the turret is)</span>' : '') +
+            '<br>' + status;
+        }
+      }
+      customElements.define('aim-angle-widget', AimAngleWidget);
+
+      // <aim-practice-widget levels="rookie,pro"> -- "Be the robot's brain": a random robot pose near a side wall (where
+      // teams shoot from); the cell is the one on the robot's side. The student works the aim math one step at a time
+      // (dx, dy, guess, atan2, field - heading, wrap, two ways), then FIRES with their own answer. Arithmetic steps are
+      // checked with hints; the LAST number is not -- the shot shows whether it was right.
+      const PCELLS = { L: { x: -11, y: -13 }, R: { x: 10, y: -13 } };   // whole inches so the arithmetic is fair
+      const RANKS = [[0, 'Larva', '\uD83E\uDD5A'], [3, 'Worker Bee', '\uD83D\uDC1D'], [6, 'Pollen Pro', '\uD83C\uDF3C'],
+                     [10, 'Hive Sharpshooter', '\uD83C\uDFAF'], [15, 'Queen Bee', '\uD83D\uDC51']];
+      const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+      const num = s => { const v = parseFloat(String(s).replace(/\u2212/g, '-').replace(/\s+/g, '')); return isFinite(v) ? v : null; };
+      const sgn = v => { const r = Math.round(v * 10) / 10; return (r < 0 ? '\u2212' : '') + Math.abs(r); };
+      const paren = v => (v < 0 ? '(' + sgn(v) + ')' : sgn(v));
+      const angDiff = (a, b) => Math.abs(wrap(a - b));
+      const PRACTICE_TEMPLATE = `
+      <style>
+        :host{ display:block; font-family:inherit; color:#e2e8f0; }
+        .top{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; }
+        .lv{ display:inline-flex; border:1px solid #3a4453; border-radius:9px; overflow:hidden; }
+        .lv button{ font:inherit; font-weight:800; font-size:.72rem; color:#cbd5e1; background:#171e28; border:0; padding:6px 11px; cursor:pointer; }
+        .lv button.on{ background:#f59e0b; color:#1c1305; }
+        .score{ display:flex; gap:14px; font-size:.78rem; font-weight:800; }
+        .score .rank{ color:#fde68a; }
+        canvas{ width:100%; height:auto; display:block; border:1px solid #223; border-radius:10px; background:#0a0e14; touch-action:none; }
+        .sheet{ margin-top:10px; padding:8px 10px; border-radius:10px; background:#0f1722; border:1px solid #223047; font-size:.82rem; }
+        .sheet.shake{ animation:shake .35s; }
+        @keyframes shake{ 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+        .row{ display:flex; align-items:center; gap:10px; padding:5px 4px; border-radius:7px; }
+        .row.act{ background:#172235; box-shadow:inset 3px 0 0 #f59e0b; }
+        .row.todo{ opacity:.38; }
+        .row .ic{ width:16px; text-align:center; font-weight:900; color:#f59e0b; }
+        .row.done .ic{ color:#34d399; }
+        .row .lb{ width:118px; flex:none; font-weight:800; color:#a9b6c7; }
+        .row .bd{ font-family:ui-monospace,monospace; display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+        .row .bd b{ color:#fde68a; }
+        input{ width:70px; font:inherit; font-weight:800; color:#fff; background:#0a0e14; border:1px solid #f59e0b; border-radius:6px; padding:3px 6px; }
+        button.go, button.pick, button.ghost, button.machine, button.fire{ font:inherit; font-weight:800; font-size:.74rem; border-radius:7px; padding:4px 10px; cursor:pointer; border:1px solid #3a4453; }
+        button.go{ background:#2563eb; color:#fff; border-color:#3b82f6; }
+        button.go:disabled{ opacity:.4; cursor:default; }
+        button.pick{ background:#1e293b; color:#e2e8f0; }
+        button.pick:hover{ border-color:#f59e0b; }
+        button.ghost{ background:transparent; color:#94a3b8; }
+        button.machine{ background:linear-gradient(180deg,#7c3aed,#5b21b6); color:#fff; border-color:#a78bfa; }
+        button.machine .gear{ display:inline-block; }
+        button.machine.spin .gear{ animation:spin .5s linear infinite; }
+        @keyframes spin{ to{ transform:rotate(360deg); } }
+        button.fire{ font-size:.9rem; padding:6px 18px; background:linear-gradient(180deg,#f97316,#dc2626); color:#fff; border-color:#fdba74; box-shadow:0 0 12px #f9731688; }
+        button.fire:hover{ filter:brightness(1.1); }
+        .msg{ min-height:1.4em; margin-top:8px; font-size:.82rem; font-weight:700; }
+        .msg.bad{ color:#fca5a5; } .msg.good{ color:#86efac; } .msg.warn{ color:#fde68a; }
+      </style>
+      <div class="top">
+        <div class="lv"><button data-lv="rookie" class="on">\uD83D\uDC23 Rookie</button><button data-lv="pro">\uD83D\uDC1D Pro</button><button data-lv="allstar">\uD83D\uDC51 All-Star</button></div>
+        <div class="score"><span class="rank" id="rank"></span><span>\uD83D\uDD25 <span id="streak">0</span></span><span>Best <span id="best">0</span></span><span>\uD83C\uDF6F <span id="pts">0</span></span></div>
+      </div>
+      <canvas id="cvs" width="${W}" height="${H}"></canvas>
+      <div class="sheet" id="sheet"></div>
+      <div class="msg" id="msg"></div>`;
+
+      class AimPracticeWidget extends AimFieldBase {
+        constructor(){
+          super();
+          const root = this.attachShadow({ mode: 'open' });
+          root.innerHTML = PRACTICE_TEMPLATE;
+          this._el = id => root.getElementById(id);
+          this._g = this._el('cvs').getContext('2d');
+          this._level = 'rookie'; this._streak = 0; this._best = 0; this._pts = 0; this._hits = 0;
+          this._parts = [];
+          this._bind();
+        }
+        connectedCallback(){
+          if (this._started) return;
+          this._started = true;
+          const all = ['rookie', 'pro', 'allstar'];
+          let allowed = (this.getAttribute('levels') || all.join(',')).split(',').map(s => s.trim()).filter(s => all.includes(s));
+          if (!allowed.length) allowed = all;
+          const root = this.shadowRoot;
+          root.querySelectorAll('.lv button').forEach(b => {
+            b.style.display = allowed.includes(b.dataset.lv) ? '' : 'none';
+            b.classList.toggle('on', b.dataset.lv === allowed[0]);
+          });
+          root.querySelector('.lv').style.visibility = allowed.length > 1 ? '' : 'hidden';
+          this._level = allowed[0];
+          this._newRound();
+        }
+        disconnectedCallback(){ if (this._raf){ cancelAnimationFrame(this._raf); this._raf = null; } }
+        _bind(){
+          const root = this.shadowRoot;
+          root.querySelectorAll('.lv button').forEach(b => b.addEventListener('click', () => {
+            this._level = b.dataset.lv;
+            root.querySelectorAll('.lv button').forEach(o => o.classList.toggle('on', o === b));
+            this._newRound();
+          }));
+          const sheet = this._el('sheet');
+          sheet.addEventListener('click', e => { const t = e.target.closest('[data-act]'); if (t && !t.disabled) this._act(t.dataset.act); });
+          // keep typing out of the simulator's driving keys (window listeners can't see inside the shadow root)
+          sheet.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && e.target.id === 'ans') this._act('check'); });
+          sheet.addEventListener('keyup', e => e.stopPropagation());
+          const cvs = this._el('cvs');
+          const guessAt = e => {
+            if (this._step() !== 'guess') return;
+            const b = cvs.getBoundingClientRect(), px = (e.clientX - b.left) * W / b.width, py = (e.clientY - b.top) * H / b.height;
+            const [sx, sy] = toScr(this._r.x, this._r.y);
+            if (Math.hypot(px - sx, py - sy) < 8) return;
+            this._guess = Math.round(Math.atan2(sy - py, px - sx) * 180 / Math.PI);
+            this._renderSheet(); this._draw();
+          };
+          cvs.addEventListener('pointerdown', e => { if (this._step() !== 'guess') return; this._drag = true; cvs.setPointerCapture(e.pointerId); guessAt(e); });
+          cvs.addEventListener('pointermove', e => { if (this._drag) guessAt(e); });
+          const up = () => { this._drag = false; };
+          cvs.addEventListener('pointerup', up); cvs.addEventListener('pointercancel', up);
+        }
+        _gen(){
+          const lv = this._level, wantWrap = Math.random() < 0.4;
+          for (let tries = 0; tries < 2000; tries++){
+            const x = (Math.random() < 0.5 ? -1 : 1) * (Math.random() < 0.75 ? ri(44, 62) : ri(24, 43));   // mostly near a side wall
+            const y = lv === 'rookie' ? ri(-58, -22) : ri(-56, 56);
+            const hdg = lv === 'rookie' ? 90 : ri(-35, 36) * 5;
+            if (Math.hypot(x, y + 13) < 30) continue;                         // keep clear of the hive
+            const cell = x > 0 ? 'R' : 'L', c = PCELLS[cell];
+            const dx = c.x - x, dy = c.y - y;
+            const field = Math.atan2(dy, dx) * 180 / Math.PI, fieldR = Math.round(field);
+            const raw = fieldR - hdg, wrapped = wrap(raw), needWrap = raw !== wrapped;
+            if (Math.abs(wrapped) === 180) continue;
+            if (lv === 'rookie' && (needWrap || Math.abs(wrapped) > 90)) continue;
+            if (lv === 'pro' && (Math.abs(wrapped) > 150 || needWrap !== wantWrap || (needWrap && Math.abs(raw) < 220))) continue;
+            if (lv === 'allstar' && (Math.abs(wrapped) < 160 || Math.abs(wrapped) > 178)) continue;
+            const other = wrapped > 0 ? wrapped - 360 : wrapped + 360;
+            let start = 0;
+            if (lv === 'allstar') start = Math.random() < 0.5 ? Math.sign(other) * ri(168, 185) : Math.sign(wrapped) * ri(110, 150);
+            return { x, y, hdg, cell, dx, dy, field, fieldR, raw, wrapped, needWrap, other, start, level: lv };
+          }
+          return { x: 37, y: -45, hdg: 90, cell: 'R', dx: -27, dy: 32, field: 130, fieldR: 130, raw: 40, wrapped: 40, needWrap: false, other: -320, start: 0, level: lv };
+        }
+        _newRound(){
+          const r = this._r = this._gen();
+          this._steps = ['dx', 'dy', 'guess', 'atan2', 'turret'];
+          if (r.needWrap) this._steps.push('wrap');
+          if (r.level === 'allstar') this._steps.push('ways');
+          this._steps.push('fire');
+          this._final = r.level === 'allstar' ? 'ways' : (r.needWrap ? 'wrap' : 'turret');
+          this._i = 0; this._tries = 0; this._assisted = false; this._vals = { cell: r.cell };
+          this._guess = null; this._guessOff = null; this._spinning = false;
+          this._shown = r.start; this._phase = null; this._fired = false; this._ball = null; this._result = null;
+          this._msg('');
+          this._render();
+        }
+        _step(){ return this._steps[this._i]; }
+        _msg(text, kind){ const m = this._el('msg'); m.innerHTML = text; m.className = 'msg' + (kind ? ' ' + kind : ''); }
+        _bad(text){
+          this._msg(text, 'bad');
+          const s = this._el('sheet'); s.classList.remove('shake'); void s.offsetWidth; s.classList.add('shake');
+        }
+        _advance(keepMsg){
+          this._i++; this._tries = 0;
+          if (!keepMsg) this._msg('');
+          this._render();
+          const a = this._el('ans'); if (a) a.focus({ preventScroll: true });
+        }
+        _expected(st){ const r = this._r; return { dx: r.dx, dy: r.dy, turret: r.raw, wrap: r.wrapped }[st]; }
+        _hint(st, v){
+          const r = this._r, exp = this._expected(st);
+          if (Math.abs(v - exp) <= (st === 'dx' || st === 'dy' ? 0.5 : 1)) return null;
+          if (st === 'dx' || st === 'dy'){
+            if (Math.abs(v + exp) < 0.5) return 'Backwards! The arrow starts at the robot: cell \u2212 robot, not robot \u2212 cell.';
+            return 'Not quite. ' + (st === 'dx' ? 'dx = cell x \u2212 robot x' : 'dy = cell y \u2212 robot y') + '. Careful with the minus signs: subtracting a negative is adding.';
+          }
+          if (st === 'turret'){
+            if (Math.abs(v - (r.fieldR + r.hdg)) <= 1) return 'You added the heading. It\u2019s field angle MINUS heading.';
+            if (Math.abs(v + exp) <= 1) return 'Flipped! It\u2019s field \u2212 heading, not heading \u2212 field.';
+            return 'Not quite: turret = field angle \u2212 heading.';
+          }
+          if (Math.abs(v - r.raw) <= 1) return 'That\u2019s outside \u2212180\u2026180. ' + (r.raw > 180 ? 'More than 180? Subtract 360.' : '\u2212180 or less? Add 360.');
+          return 'Not quite. ' + (r.raw > 180 ? 'Subtract 360 from ' : 'Add 360 to ') + sgn(r.raw) + '.';
+        }
+        _act(a){
+          const st = this._step(), r = this._r;
+          if (a === 'next') return this._newRound();
+          if (a === 'retry'){
+            this._i = this._steps.indexOf(this._final); delete this._vals[this._final];
+            this._assisted = true; this._guessOff = null; this._fired = false; this._ball = null; this._result = null; this._shown = r.start;
+            this._msg('Try that last step again. (A retry scores half.)', 'warn');
+            this._render();
+            const inp = this._el('ans'); if (inp) inp.focus({ preventScroll: true });
+            return;
+          }
+          if (st === 'guess' && (a === 'lock' || a === 'skip')){ if (a === 'skip') this._guess = null; this._vals.guess = this._guess; this._advance(); return; }
+          if (st === 'atan2' && a === 'atan2'){
+            if (this._spinning) return;
+            this._spinning = true; this._renderSheet();
+            setTimeout(() => {
+              this._spinning = false; this._vals.atan2 = r.fieldR;
+              if (this._guess != null){
+                this._guessOff = Math.round(angDiff(this._guess, r.field));
+                this._msg(this._guessOff <= 10
+                  ? 'You guessed ' + sgn(this._guess) + '\u00b0 and the machine says ' + sgn(r.fieldR) + '\u00b0: only ' + this._guessOff + '\u00b0 off! \uD83C\uDFAF +50 bonus'
+                  : 'You guessed ' + sgn(this._guess) + '\u00b0, the machine says ' + sgn(r.fieldR) + '\u00b0 (' + this._guessOff + '\u00b0 off). Your eye will get better!', this._guessOff <= 10 ? 'good' : 'warn');
+              }
+              this._advance(true);
+            }, 850);
+            return;
+          }
+          if (st === 'ways' && (a === 'way-0' || a === 'way-1')){ this._vals.ways = a === 'way-0' ? r.wrapped : r.other; this._advance(); return; }
+          if (st === 'fire' && a === 'fire'){ if (!this._fired) this._fire(); return; }
+          if (a === 'check'){
+            const inp = this._el('ans'), v = num(inp ? inp.value : '');
+            if (v === null) return this._bad('Type a number first.');
+            if (st === this._final){ this._vals[st] = v; this._advance(); return; }
+            const hint = this._hint(st, v);
+            if (!hint){ this._vals[st] = v; this._advance(); return; }
+            if (++this._tries >= 2){
+              const exp = this._expected(st);
+              this._vals[st] = exp; this._assisted = true;
+              this._msg(hint + ' The answer is ' + sgn(exp) + '. Keep going! (This shot scores half.)', 'warn');
+              this._advance(true);
+              return;
+            }
+            this._bad(hint);
+          }
+        }
+        _fire(){
+          const v = this._vals[this._final];
+          this._aim = Math.max(-LIMIT, Math.min(LIMIT, v));
+          this._clamped = Math.abs(v) > LIMIT;
+          this._fired = true; this._phase = 'swing';
+          this._msg('Swinging the turret to ' + sgn(this._aim) + '\u00b0\u2026');
+          this._renderSheet();
+          this._loop();
+        }
+        _loop(){
+          if (this._raf) return;
+          let last = performance.now();
+          const step = t => {
+            const dt = Math.min(0.05, (t - last) / 1000); last = t;
+            if (this._phase === 'swing'){
+              const d = this._aim - this._shown, m = SWING_DPS * dt;
+              this._shown += Math.abs(d) <= m ? d : Math.sign(d) * m;
+              if (Math.abs(this._aim - this._shown) < 0.01){ this._phase = 'fly'; this._u = 0; }
+            } else if (this._phase === 'fly'){
+              this._u = Math.min(1, this._u + dt / 0.6);
+              if (this._u >= 1){ this._phase = null; this._land(); }
+            }
+            for (const p of this._parts){ p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 260 * dt; p.life -= dt; }
+            this._parts = this._parts.filter(p => p.life > 0);
+            this._draw();
+            this._raf = (this._phase || this._parts.length) ? requestAnimationFrame(step) : null;
+          };
+          this._raf = requestAnimationFrame(step);
+        }
+        _shotEnd(){
+          const r = this._r, c = PCELLS[r.cell], dist = Math.hypot(c.x - r.x, c.y - r.y), [ux, uy] = dirScr(r.hdg + this._aim);
+          const [sx, sy] = toScr(r.x, r.y);
+          return [sx, sy, sx + ux * dist * S, sy + uy * dist * S];
+        }
+        _land(){
+          const r = this._r, v = this._vals[this._final];
+          const hit = !this._clamped && angDiff(r.hdg + this._aim, r.field) <= 4;
+          const long = hit && r.level === 'allstar' && Math.abs(this._aim - r.start) > 180;
+          const [, , ex, ey] = this._shotEnd();
+          let gain = 0, text, kind;
+          if (hit){
+            gain = this._assisted ? 50 : 100;
+            if (long) gain = Math.round(gain / 2);
+            if (this._guessOff != null && this._guessOff <= 10) gain += 50;
+            const before = RANKS.filter(k => this._hits >= k[0]).pop();
+            this._hits++;
+            if (!this._assisted && !long) this._streak++;
+            gain += 10 * Math.min(this._streak, 10);
+            this._best = Math.max(this._best, this._streak);
+            const after = RANKS.filter(k => this._hits >= k[0]).pop();
+            text = long
+              ? '\uD83C\uDF6F Hit\u2026 but the LONG way around: the turret swung ' + Math.round(Math.abs(this._aim - r.start)) + '\u00b0. The shorter swing scores more. +' + gain
+              : '\uD83C\uDF6F HIT! +' + gain + (this._streak >= 3 ? ' \u2014 ' + this._streak + ' in a row! \uD83D\uDD25' : '');
+            if (after !== before) text += '<br>' + after[2] + ' Rank up: <b>' + after[1] + '</b>!';
+            kind = long ? 'warn' : 'good';
+            for (let i = 0; i < 34; i++){
+              const a = Math.random() * Math.PI * 2, s = 60 + Math.random() * 160;
+              this._parts.push({ x: ex, y: ey, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 120, life: 0.9 + Math.random() * 0.6,
+                                 color: ['#facc15', '#f59e0b', '#fde68a', '#fb923c'][i % 4], hex: true });
+            }
+          } else {
+            this._streak = 0;
+            const t = r.hdg + this._aim;
+            let why;
+            if (this._clamped) why = 'The turret can only turn \u00b1' + LIMIT + '\u00b0, so ' + sgn(v) + '\u00b0 stopped at ' + sgn(this._aim) + '\u00b0. Wrap it into \u2212180\u2026180 first!';
+            else if (Math.abs(v - (r.fieldR + r.hdg)) <= 1) why = 'You added the heading. It\u2019s field angle MINUS heading.';
+            else if (Math.abs(v + r.wrapped) <= 1) why = 'Right size, wrong side! + is LEFT (counter-clockwise), \u2212 is RIGHT.';
+            else if (Math.abs(v - (r.hdg - r.fieldR)) <= 1) why = 'Flipped! It\u2019s field \u2212 heading, not heading \u2212 field.';
+            else why = 'You aimed ' + Math.round(angDiff(t, r.field)) + '\u00b0 away from the cell. Check: turret = field angle \u2212 heading.';
+            text = '\uD83D\uDCA8 MISS. ' + why;
+            kind = 'bad';
+            for (let i = 0; i < 12; i++){
+              const a = Math.random() * Math.PI * 2, s = 30 + Math.random() * 60;
+              this._parts.push({ x: ex, y: ey, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 40, life: 0.5 + Math.random() * 0.4, color: '#94a3b8' });
+            }
+          }
+          this._pts += gain;
+          this._result = { hit, long };
+          this._i = this._steps.length;
+          this._msg(text, kind);
+          this._render();
+          this._loop();
+        }
+        _render(){
+          const rk = RANKS.filter(k => this._hits >= k[0]).pop();
+          this._el('rank').textContent = rk[2] + ' ' + rk[1];
+          this._el('streak').textContent = this._streak;
+          this._el('best').textContent = this._best;
+          this._el('pts').textContent = this._pts;
+          this._renderSheet();
+          this._draw();
+        }
+        _renderSheet(){
+          const r = this._r, rook = r.level === 'rookie', c = PCELLS[r.cell];
+          const row = (k, label, body) => {
+            const i = this._steps.indexOf(k), st = i < this._i ? 'done' : i === this._i ? 'act' : 'todo';
+            return '<div class="row ' + st + '"><span class="ic">' + (st === 'done' ? '\u2713' : st === 'act' ? '\u25B6' : '\u00b7') +
+                   '</span><span class="lb">' + label + '</span><span class="bd">' + body(st) + '</span></div>';
+          };
+          const input = (unit) => '<input id="ans" inputmode="decimal" autocomplete="off" spellcheck="false">' + (unit || '') + '<button class="go" data-act="check">Check</button>';
+          const val = (k, unit) => '<b>' + sgn(this._vals[k]) + (unit || '') + '</b>';
+          let h = '<div class="row done"><span class="ic">\uD83C\uDFAF</span><span class="lb">Target</span><span class="bd">robot x = ' + sgn(r.x) +
+            ' \u2192 ' + (r.cell === 'L' ? 'LEFT' : 'RIGHT') + ' side \u2192 aim at the <b>' + (r.cell === 'L' ? 'LEFT' : 'RIGHT') + ' cell (' + sgn(c.x) + ', ' + sgn(c.y) + ')</b></span></div>';
+          h += row('dx', 'How far over?', st => 'dx = cell x \u2212 robot x' + (rook && st !== 'todo' ? ' = ' + sgn(c.x) + ' \u2212 ' + paren(r.x) : '') +
+            ' = ' + (st === 'done' ? val('dx') : st === 'act' ? input() : '?'));
+          h += row('dy', 'How far up?', st => 'dy = cell y \u2212 robot y' + (rook && st !== 'todo' ? ' = ' + sgn(c.y) + ' \u2212 ' + paren(r.y) : '') +
+            ' = ' + (st === 'done' ? val('dy') : st === 'act' ? input() : '?'));
+          h += row('guess', 'Guess the angle', st => st === 'act'
+            ? 'drag on the field from the robot toward the cell' + (this._guess != null ? ' \u2192 <b>' + sgn(this._guess) + '\u00b0</b>' : '') +
+              '<button class="go" data-act="lock"' + (this._guess == null ? ' disabled' : '') + '>Lock it in</button><button class="ghost" data-act="skip">skip</button>'
+            : st === 'done' ? (this._guess != null ? 'you guessed <b>' + sgn(this._guess) + '\u00b0</b>' : 'skipped') : 'eyeball it first');
+          h += row('atan2', 'Which way?', st => 'field angle = atan2(dy, dx)' + (st !== 'todo' ? ' = atan2(' + sgn(r.dy) + ', ' + sgn(r.dx) + ')' : '') + ' = ' +
+            (st === 'done' ? '<b>' + sgn(r.fieldR) + '\u00b0</b>'
+              : st === 'act' ? '<button class="machine' + (this._spinning ? ' spin' : '') + '" data-act="atan2"><span class="gear">\u2699</span> Run the atan2 machine</button>' : '?'));
+          h += row('turret', 'Turret angle', st => 'turret = field \u2212 heading' + (rook && st !== 'todo' ? ' = ' + sgn(r.fieldR) + ' \u2212 ' + paren(r.hdg) : '') +
+            ' = ' + (st === 'done' ? val('turret', '\u00b0') : st === 'act' ? input('\u00b0') : '?'));
+          if (r.needWrap) h += row('wrap', 'Wrap it', st => st === 'todo' ? 'keep it between \u2212180 and 180'
+            : sgn(r.raw) + '\u00b0 is outside \u2212180\u2026180 \u2192 ' + (st === 'done' ? val('wrap', '\u00b0') : input('\u00b0')));
+          if (r.level === 'allstar') h += row('ways', 'Two ways!', st => st === 'todo' ? 'which way around?'
+            : 'turret is at <b>' + sgn(r.start) + '\u00b0</b> now. Send ' + (st === 'done' ? val('ways', '\u00b0')
+              : '<button class="pick" data-act="way-0">' + sgn(r.wrapped) + '\u00b0</button> or <button class="pick" data-act="way-1">' + sgn(r.other) + '\u00b0</button>?'));
+          h += row('fire', 'Shoot!', st => st === 'act'
+            ? (this._fired ? 'aiming at ' + sgn(this._aim) + '\u00b0\u2026' : '<button class="fire" data-act="fire">\uD83D\uDD25 FIRE</button> with your answer')
+            : st === 'done' ? '<button class="go" data-act="next">Next shot \u25B6</button>' + (this._result && !this._result.hit ? '<button class="ghost" data-act="retry">\u21BA retry this shot</button>' : '')
+            : 'the turret uses YOUR answer');
+          this._el('sheet').innerHTML = h;
+        }
+        _draw(){
+          const g = this._g, r = this._r, c = PCELLS[r.cell], done = k => this._vals[k] !== undefined;
+          this._drawField(done('cell') ? r.cell : null, false);
+          g.font = '700 11px system-ui'; g.textAlign = 'center'; g.fillStyle = '#fecaca';
+          for (const k of ['L', 'R']){ const [sx, sy] = toScr(CELLS[k].x, CELLS[k].y); g.fillText('(' + sgn(PCELLS[k].x) + ', ' + sgn(PCELLS[k].y) + ')', sx, sy + 26); }
+          this._robot(r.x, r.y, r.hdg);
+          const [rx, ry] = toScr(r.x, r.y);
+          // the triangle: dx over, then dy up
+          if (done('dx')){
+            const [ax] = toScr(c.x, r.y);
+            g.save(); g.strokeStyle = '#22d3ee'; g.lineWidth = 3; g.beginPath(); g.moveTo(rx, ry); g.lineTo(ax, ry); g.stroke();
+            g.fillStyle = '#22d3ee'; g.font = '800 12px system-ui'; g.fillText('dx = ' + sgn(r.dx), (rx + ax) / 2, ry + (r.dy >= 0 ? 16 : -8)); g.restore();
+          }
+          if (done('dy')){
+            const [ax, ay] = toScr(c.x, r.y), [, cy] = toScr(c.x, c.y);
+            g.save(); g.strokeStyle = '#a3e635'; g.lineWidth = 3; g.beginPath(); g.moveTo(ax, ay); g.lineTo(ax, cy); g.stroke();
+            g.fillStyle = '#a3e635'; g.font = '800 12px system-ui'; g.textAlign = r.dx >= 0 ? 'left' : 'right';
+            g.fillText('dy = ' + sgn(r.dy), ax + (r.dx >= 0 ? 8 : -8), (ay + cy) / 2 + 4); g.restore();
+          }
+          if (this._guess != null) this._ray(r.x, r.y, this._guess, 100, '#facc15', 2, [5, 5]);
+          if (done('atan2')){
+            const [cx, cy] = toScr(c.x, c.y);
+            g.save(); g.strokeStyle = '#7dd3fc'; g.setLineDash([6, 6]); g.lineWidth = 2; g.beginPath(); g.moveTo(rx, ry); g.lineTo(cx, cy); g.stroke(); g.restore();
+            this._ray(r.x, r.y, 0, 40, 'rgba(125,211,252,.55)', 1.5, [3, 4]);
+            this._arc(r.x, r.y, 0, r.fieldR, 30, '#7dd3fc', sgn(r.fieldR) + '\u00b0');
+          }
+          this._ray(r.x, r.y, r.hdg, 62, '#e2e8f0', 3);
+          { const [ux, uy] = dirScr(r.hdg); g.fillStyle = '#e2e8f0'; g.font = '700 11px system-ui'; g.textAlign = 'center';
+            g.fillText('heading ' + sgn(r.hdg) + '\u00b0', rx + ux * 80, ry + uy * 80 + 4); }
+          g.fillStyle = '#93c5fd'; g.font = '800 12px system-ui'; g.textAlign = 'center';
+          g.fillText('robot (' + sgn(r.x) + ', ' + sgn(r.y) + ')', rx, ry + 44);
+          if (Math.abs(this._shown) > 0.5) this._arc(r.x, r.y, r.hdg, r.hdg + this._shown, 50, '#f0a75e');
+          this._ray(r.x, r.y, r.hdg + this._shown, 86, '#f0a75e', 5);
+          g.fillStyle = '#f0a75e'; g.beginPath(); g.arc(rx, ry, 7, 0, Math.PI * 2); g.fill();
+          if (this._phase === 'fly'){
+            const [sx, sy, ex, ey] = this._shotEnd(), u = this._u, bx = sx + (ex - sx) * u, by = sy + (ey - sy) * u, lift = Math.sin(Math.PI * u);
+            g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.arc(bx, by, 5, 0, Math.PI * 2); g.fill();
+            g.fillStyle = '#facc15'; g.beginPath(); g.arc(bx, by - 18 * lift, 5 + 4 * lift, 0, Math.PI * 2); g.fill();
+          }
+          for (const p of this._parts){
+            g.globalAlpha = Math.max(0, Math.min(1, p.life)); g.fillStyle = p.color; g.beginPath();
+            if (p.hex){ for (let k = 0; k < 6; k++){ const a = k * Math.PI / 3; g[k ? 'lineTo' : 'moveTo'](p.x + 5 * Math.cos(a), p.y + 5 * Math.sin(a)); } g.closePath(); }
+            else g.arc(p.x, p.y, 4, 0, Math.PI * 2);
+            g.fill();
+          }
+          g.globalAlpha = 1;
+          if (this._result && !this._phase){
+            g.font = '900 34px system-ui'; g.textAlign = 'center'; g.lineWidth = 6; g.strokeStyle = '#0a0e14';
+            const t = this._result.hit ? 'HIT!' : 'MISS';
+            g.strokeText(t, CX, 70); g.fillStyle = this._result.hit ? '#facc15' : '#f87171'; g.fillText(t, CX, 70);
+          }
+        }
+      }
+      customElements.define('aim-practice-widget', AimPracticeWidget);
     })();
   </script>
 </body>

@@ -153,14 +153,14 @@
       "explain": "Pose x and y are field inches measured from the origin at the center of the field. That's why the start pose must match where you place the robot."
     },
     {
-      "q": "A pose of (12, -36, 0°) means the robot is...",
-      "correct": "12 in toward +X, 36 in toward -Y (right), facing +X",
+      "q": "A pose of (12, -36, 90°) means the robot is...",
+      "correct": "12 in to the drivers' right, 36 in toward them, facing away",
       "wrong": [
-        "12 in to the left and 36 in forward, facing to the left",
+        "12 in to the left and 36 in away from the drivers, facing left",
         "12 feet forward and 36 feet right, with no heading at all",
-        "Told to drive 12 in, then turn 36°, then stop facing 0°"
+        "Told to drive 12 in, then turn 36°, then stop facing 90°"
       ],
-      "explain": "x = 12 is 12 inches toward +X, y = -36 is 36 inches toward -Y (right, since +Y is left), and heading 0° faces +X."
+      "explain": "x = 12 is 12 inches toward +X (the red drivers' right), y = -36 is 36 inches toward -Y (toward the drivers), and heading 90° faces +Y, away from the drivers."
     },
     {
       "q": "What does a PathChain do?",

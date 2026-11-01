@@ -1,0 +1,617 @@
+<h1>Auto-Aim: A Turret That Never Looks Away</h1>
+
+<p>Ever used a <strong>compass in Minecraft</strong>? Run anywhere, spin around, jump off a cliff &mdash; the needle
+keeps pointing at your spawn point. Lots of games have the same thing: a <strong>waypoint arrow</strong> that always
+points at the next objective, no matter which way you turn. By the end of this lesson your turret will be that arrow:
+the robot drives, spins and wiggles all over the field, and the shooter <strong>stays pointed at the hive</strong>.
+Nobody has to aim. The driver drives; the robot aims.</p>
+
+<p>Here's the surprising part: the compass doesn't <em>see</em> your spawn point. The game simply knows
+<strong>where you are</strong> and <strong>where spawn is</strong>, and works out the direction between them. Our robot
+can't see the hive either (there's no camera in this lesson), but it knows the same two things:</p>
+<ul>
+  <li><strong>Where it is:</strong> the Pinpoint has been tracking that since the localization lesson.</li>
+  <li><strong>Where the hive is:</strong> it doesn't move, so we measure it once and write it down.</li>
+</ul>
+<p>Turning those two facts into a turret angle takes a little math. Not all of trigonometry &mdash; just three ideas,
+one at a time.</p>
+
+<div class="blk blk-challenge">
+  <div class="blk-head">&#128274; Earn the code</div>
+  <p>This lesson ends with a reward: <strong>a complete <code>AutoAim</code> class</strong>, an upgraded
+  <code>Turret</code> that can point <strong>anywhere</strong>, a new <code>setPose()</code> method for
+  <code>Localization</code>, and the TeleOp lines that put it all together. It unlocks when you <strong>pass the
+  quiz</strong> at the bottom (8 out of 10).</p>
+</div>
+
+<hr>
+
+<h2>1. The field is graph paper</h2>
+
+<p>A compass only works if everyone agrees where things are. So we lay a sheet of <strong>graph paper</strong>
+over the field, seen from where the <strong>red drivers</strong> stand:</p>
+<ul>
+  <li><code>(0, 0)</code> is the <strong>center of the field</strong>.</li>
+  <li><strong>+X</strong> points to the drivers' <strong>right</strong>.</li>
+  <li><strong>+Y</strong> points <strong>away</strong> from the drivers, toward the far wall.</li>
+  <li>Distances are in <strong>inches</strong>. The field is 144&Prime; across, so every wall is 72&Prime; from the
+  center.</li>
+</ul>
+
+<figure>
+  <img src="images/field_graph_paper.png" alt="A top-down FTC field drawn as graph paper. The center is marked (0, 0). An arrow labeled +X points right and an arrow labeled +Y points away from the red drivers standing at the bottom. The red hive sits just below the center with two cells; the robot is below it at (0, -32).">
+  <figcaption>Field coordinates: the center is <code>(0, 0)</code>, +X is right, +Y is away from the red drivers.</figcaption>
+</figure>
+
+<p>The red hive has two cells. On our graph paper they're at:</p>
+<ul>
+  <li><strong>Left cell:</strong> <code>(&minus;11.4, &minus;12.75)</code></li>
+  <li><strong>Right cell:</strong> <code>(10.2, &minus;12.75)</code></li>
+</ul>
+<p>(These come from the simulator's field model. On a real field, <strong>measure them</strong> with a tape measure
+before you trust them.) Teams usually shoot from along the <strong>left or right wall</strong>, and the robot aims at
+the cell on <strong>its own side</strong> of the field: left side, left cell; right side, right cell.</p>
+
+<h2>2. Angles: a protractor on the field</h2>
+
+<p>Now imagine a giant protractor lying on the field. Every direction gets a number, and the rules are the same
+everywhere:</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">The angle rules</div>
+  <ul>
+    <li><strong>0&deg;</strong> points along <strong>+X</strong> (to the drivers' right).</li>
+    <li>Angles grow <strong>counter-clockwise</strong>: <strong>90&deg;</strong> is straight away from the drivers,
+    <strong>180&deg;</strong> is left, and <strong>&minus;90&deg;</strong> is toward the drivers.</li>
+    <li>The robot's <strong>heading</strong> is just the angle its front is pointing.</li>
+    <li>The turret uses the same rule: <strong>+ is left</strong> (counter-clockwise), <strong>&minus; is right</strong>
+    (clockwise). That's why lesson 17 said &ldquo;+ = left&rdquo;.</li>
+  </ul>
+</div>
+
+<p>Why counter-clockwise? Mathematicians have measured angles that way for hundreds of years, so every math tool
+(including Java's <code>Math</code> class) expects it.</p>
+
+<h2>3. Idea #1: the arrow to the target</h2>
+
+<p>In Minecraft you might tell a friend &ldquo;the base is 10 blocks east and 20 blocks north of you.&rdquo; Our robot
+does the same thing: to get from the robot to the cell, how far do you go <strong>over</strong>, and how far
+<strong>up</strong>?</p>
+<ul>
+  <li><strong>dx</strong> &mdash; how far <strong>over</strong>: <code>dx = cell x &minus; robot x</code></li>
+  <li><strong>dy</strong> &mdash; how far <strong>up</strong>: <code>dy = cell y &minus; robot y</code></li>
+</ul>
+<p>Always <strong>target minus robot</strong>: the arrow starts at the robot and ends at the cell. Do it backwards and
+the arrow points the wrong way!</p>
+
+<h2>4. Idea #2: atan2, the direction machine</h2>
+
+<p>We have &ldquo;over&rdquo; and &ldquo;up&rdquo;. We want a <strong>direction</strong> &mdash; an angle on the
+protractor. Java has a machine for exactly that: <code>Math.atan2(dy, dx)</code>. Think of it like a vending machine:
+<strong>put in &ldquo;how far up&rdquo; and &ldquo;how far over&rdquo;, and out pops the direction</strong>. You don't
+need to know how the gears inside work. (It answers in radians, so we wrap it in <code>Math.toDegrees</code>.)</p>
+
+<figure>
+  <img src="images/aim_arrow_atan2.png" alt="A robot and a target on graph paper, with an arrow between them. The arrow is broken into a horizontal leg labeled dx, how far over, and a vertical leg labeled dy, how far up. A friendly machine labeled atan2 takes dy and dx as inputs and outputs an angle measured from the +X direction.">
+  <figcaption>The arrow to the target is &ldquo;dx over, dy up&rdquo;. <code>atan2(dy, dx)</code> turns that into the
+  arrow's direction.</figcaption>
+</figure>
+
+<p>Why atan2 and not the <code>tan&#8315;&sup1;</code> button on a calculator? The calculator only looks at one number
+(dy &divide; dx), so it can't tell &ldquo;up and right&rdquo; from &ldquo;down and left&rdquo;. The &ldquo;2&rdquo; in
+atan2 means it looks at <strong>both</strong> numbers and their signs, so it always knows which way the arrow really
+points. Its answer is always between <strong>&minus;180&deg; and +180&deg;</strong>.</p>
+
+<h2>5. Idea #3: field angle minus heading = turret angle</h2>
+
+<p>atan2 tells us the direction <strong>on the field</strong>. But the turret doesn't measure from the field's +X. It
+measures from <strong>the robot's front</strong>. That's like the difference between &ldquo;the hive is to the
+northeast&rdquo; and &ldquo;the hive is a little to your right.&rdquo; To turn one into the other, you need to know
+which way the robot is facing: its heading.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">The one formula</div>
+  <p><strong>turret angle = field angle &minus; robot heading</strong></p>
+</div>
+
+<figure>
+  <img src="images/field_vs_turret_angle.png" alt="Two protractors side by side. Left, the field protractor: zero along +X, with the arrow to the hive at 63 degrees and the robot's heading at 90 degrees. Right, the robot protractor: zero at the robot's front, with the turret swung 27 degrees to the right. A banner reads field angle minus heading equals turret angle.">
+  <figcaption>The field angle is measured from +X. The turret angle is measured from the robot's front. Subtracting the
+  heading moves you from one to the other.</figcaption>
+</figure>
+
+<h3>One last tidy-up: wrapping</h3>
+
+<p>Angles go around in a circle, like a clock. On a clock, 13 o'clock is the same as 1 o'clock. On our protractor,
+<strong>340&deg; and &minus;20&deg; point the same way</strong> &mdash; and turning 20&deg; right is a lot quicker than
+turning 340&deg; left. So if the subtraction lands outside &minus;180&deg;&hellip;180&deg;, we
+<strong>wrap</strong> it:</p>
+<ul>
+  <li>More than 180&deg;? <strong>Subtract 360&deg;.</strong> (340&deg; &rarr; &minus;20&deg;)</li>
+  <li>&minus;180&deg; or less? <strong>Add 360&deg;.</strong> (&minus;200&deg; &rarr; 160&deg;)</li>
+</ul>
+
+<h2>6. Worked examples</h2>
+
+<p><strong>Example 1:</strong> the robot is at the starting spot <code>(0, &minus;32.4)</code>, facing away from the
+drivers (heading <strong>90&deg;</strong>). It's aiming at the right cell <code>(10.2, &minus;12.75)</code>.</p>
+
+<table>
+  <tr><th>Step</th><th>Math</th><th>Answer</th></tr>
+  <tr><td>How far over?</td><td>dx = 10.2 &minus; 0</td><td><strong>10.2</strong></td></tr>
+  <tr><td>How far up?</td><td>dy = &minus;12.75 &minus; (&minus;32.4)</td><td><strong>19.65</strong></td></tr>
+  <tr><td>Which way? (atan2)</td><td>atan2(19.65, 10.2)</td><td><strong>63&deg;</strong></td></tr>
+  <tr><td>Turret angle</td><td>63 &minus; 90</td><td><strong>&minus;27&deg;</strong> (27&deg; to the right)</td></tr>
+</table>
+
+<p>Sanity check: the arrow goes up more than it goes over, so it should be steeper than 45&deg;. 63&deg; fits. And the
+cell is a bit to the right of where the robot is facing, so the turret turning a bit right makes sense.</p>
+
+<p><strong>Example 2:</strong> the robot is along the right wall at <code>(56, 20)</code>, facing the middle of the
+field (heading <strong>180&deg;</strong>). It's on the right side, so it aims at the right cell.</p>
+
+<table>
+  <tr><th>Step</th><th>Math</th><th>Answer</th></tr>
+  <tr><td>How far over?</td><td>dx = 10.2 &minus; 56</td><td><strong>&minus;45.8</strong> (to the left)</td></tr>
+  <tr><td>How far up?</td><td>dy = &minus;12.75 &minus; 20</td><td><strong>&minus;32.75</strong> (toward the drivers)</td></tr>
+  <tr><td>Which way? (atan2)</td><td>atan2(&minus;32.75, &minus;45.8)</td><td><strong>&minus;144&deg;</strong></td></tr>
+  <tr><td>Turret angle</td><td>&minus;144 &minus; 180</td><td>&minus;324&deg; &hellip; outside the range!</td></tr>
+  <tr><td>Wrap it</td><td>&minus;324 + 360</td><td><strong>+36&deg;</strong> (36&deg; to the left)</td></tr>
+</table>
+
+<p>Sanity check: the robot faces left across the field. The cell is ahead of it and a bit toward the drivers, which,
+from the robot's point of view, is to its <em>left</em>. +36&deg; is left. &#10004;</p>
+
+<h2>7. Your turn: be the robot's brain</h2>
+
+<p>Now <em>you</em> do the robot's math. Each round puts the robot somewhere new, usually along a side wall, where teams
+really shoot from. Work through the steps, then hit <strong>FIRE</strong>: the turret aims with <em>your</em> answer.
+Get it right and it's a hit. Get it wrong and you'll see exactly where your shot went.</p>
+<ul>
+  <li><strong>&#128035; Rookie:</strong> the robot always faces 90&deg;, and the numbers are filled in for you.</li>
+  <li><strong>&#128029; Pro:</strong> any heading, and sometimes you'll need to wrap the answer.</li>
+</ul>
+<p>Cell positions are rounded to whole inches here, so the arithmetic comes out even. Build a streak and climb from
+&#129370; Larva to &#128081; Queen Bee!</p>
+
+<div class="blk blk-widget">
+  <aim-practice-widget levels="rookie,pro"></aim-practice-widget>
+</div>
+
+<hr>
+
+<h2>8. Now do it 50 times a second</h2>
+
+<p>That took you a minute or so per shot. Here's the cool part: the robot does the <strong>exact same steps</strong>
+&mdash; dx, dy, atan2, subtract the heading, wrap &mdash; every single time through the run loop. That's about
+<strong>50 times every second</strong>.</p>
+
+<p>Think about what that means. Every 20 milliseconds the Pinpoint reports a fresh position and heading, the math runs,
+and the turret gets a fresh angle. The driver can race along the wall, spin the robot around, get bumped by another
+robot &mdash; and 50 times a second, the turret quietly corrects itself. It never looks away from the hive. That's
+exactly how the compass in a game works: every frame, the game re-does the math, so the needle always points home.
+&#129517;</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">The big idea</div>
+  <p>A small piece of math, run over and over in the loop, turns into a <strong>behavior</strong>: &ldquo;always point
+  at the hive.&rdquo; You never write &ldquo;follow the hive&rdquo; anywhere in the code. It happens because the answer
+  is recalculated faster than the robot can move.</p>
+</div>
+
+<h3>See it in action</h3>
+
+<p>Here's that loop running. When nobody's touching it, the robot drives itself around on <strong>autopilot</strong>.
+But it's interactive: <strong>grab the robot and drag it</strong> anywhere on the field, or slide its heading, and you're
+in control. Let go for a few seconds and autopilot takes over again. Watch the box: the
+<span style="color:#7dd3fc">field angle</span>, minus the heading, gives the
+<span style="color:#f0a75e">turret angle</span>, recalculated every time anything moves. The orange turret never leaves
+the dashed line to the cell.</p>
+
+<div class="blk blk-widget">
+  <aim-angle-widget></aim-angle-widget>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Things to try</div>
+  <ul>
+    <li><strong>Turn the robot without moving it.</strong> The field angle stays the same. Only the turret angle changes.
+    That's the subtraction at work.</li>
+    <li><strong>Drive along the side wall.</strong> Drag the robot up and down the right wall and watch the turret
+    track the cell the whole way.</li>
+    <li><strong>Creep across the middle.</strong> Drag the robot slowly from the right side into the grey strip. The target
+    stays on the right cell until you come out the <em>other</em> side. (More on that in section 9.)</li>
+    <li><strong>Spin the robot all the way around.</strong> Drag the heading slider slowly from one end to the other.
+    The turret goes <em>past</em> 180&deg; into the yellow band behind the robot, then, at 200&deg;,
+    <strong>unwinds</strong>. (Section 11 explains why.)</li>
+  </ul>
+</div>
+
+<hr>
+
+<h2>Making it real</h2>
+
+<p>The math is the heart of it. But a real robot on a real field needs a few more details before it works. Each one is a
+small idea of its own.</p>
+
+<h2>9. Which cell? The one on your side</h2>
+
+<p>The robot aims at <strong>the cell on the same side of the field as the robot</strong>. The line down the middle,
+from the red drivers through the center of the hive, is <code>x = 0</code>:</p>
+<ul>
+  <li>Robot on the <strong>left</strong> (x is negative) &rarr; aim at the <strong>left cell</strong>.</li>
+  <li>Robot on the <strong>right</strong> (x is positive) &rarr; aim at the <strong>right cell</strong>.</li>
+</ul>
+
+<p>The hive is a seesaw, so sometimes the cell on your side is tipped down. That's fine. The turret still points at it
+while you collect pollen, and the driver simply doesn't shoot. When the driver wants a shot, they drive to the side with
+the raised cell, and the turret swings over to it on its own. No buttons needed.</p>
+
+<h3>The dead zone</h3>
+
+<p>What if the robot sits right on the line? Odometry wobbles by a fraction of an inch, so x would flip between +0.1 and
+&minus;0.1, and the turret would whip back and forth between the two cells. To stop that, there's a
+<strong>dead zone</strong>: a strip 6&Prime; wide on each side of the line.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Dead zone: inside it, change nothing</div>
+  <ul>
+    <li>x more than <strong>+6</strong> &rarr; right cell.</li>
+    <li>x less than <strong>&minus;6</strong> &rarr; left cell.</li>
+    <li>Anywhere in between &rarr; <strong>keep the cell you already had</strong>.</li>
+  </ul>
+  <p>To switch, the robot has to come all the way out the <em>other</em> side of the strip. A home thermostat works the
+  same way: it doesn't flip the heat on and off every time the temperature wiggles by a tenth of a degree.</p>
+</div>
+
+<p>The robot starts at <code>x = 0</code>, right in the dead zone, so auto-aim needs a first choice. It starts on the
+<strong>right</strong> cell, because that's the one raised at the start of the match.</p>
+
+<h2>10. Opening up the turret: &plusmn;200&deg;</h2>
+
+<p>In lesson 17 we limited the turret to about &plusmn;128&deg; to protect the wires. That leaves a blind spot behind
+the robot. But remember the math from lesson 17: through the overdrive and the turret gears, the servo's
+<strong>full signal</strong> gives about <strong>407&deg;</strong> of turret travel. That's more than a full circle, so
+the turret can point <strong>anywhere</strong>, even straight back over the robot.</p>
+
+<p>Two changes unlock it, and they're both in the reward's new <code>Turret.java</code>:</p>
+<ul>
+  <li><strong>Ask for the full signal.</strong> The Control Hub normally sends 600&ndash;2400&nbsp;&micro;s, which only
+  reaches about 367&deg;. One line asks for the servo's full 500&ndash;2500&nbsp;&micro;s:
+  <code>servo.setPwmRange(new PwmControl.PwmRange(500, 2500));</code> Now <code>DEGREES_PER_FULL_RANGE</code> is
+  <strong>407</strong>.</li>
+  <li><strong>Widen the limits to &plusmn;200&deg;.</strong> That's 400&deg; of travel, just inside the 407&deg; the
+  hardware can do.</li>
+</ul>
+
+<div class="blk blk-challenge">
+  <div class="blk-head">&#9888; Check the wires first</div>
+  <p>&plusmn;200&deg; means the cables to the shooter twist through <strong>400&deg;</strong>. Before auto-aim is allowed to
+  swing that far on a real robot:</p>
+  <ul>
+    <li>Give the cables a <strong>service loop</strong> (or a cable carrier) long enough to follow the turret from
+    &minus;200&deg; to +200&deg; without pulling tight.</li>
+    <li>Make sure nothing can <strong>snag</strong>: no zip-tie tails, no loose wires near the gears.</li>
+    <li>Test it slowly first with <code>setAngle(180)</code> and <code>setAngle(-180)</code>, watching the wires, before
+    you let auto-aim drive it.</li>
+  </ul>
+</div>
+
+<h2>11. Behind the robot: two ways to point the same way</h2>
+
+<p>Since the turret can go past 180&deg;, some directions can be reached <strong>two ways</strong>. Pointing straight
+back-left could be <strong>+190&deg;</strong> (turn left, a little past halfway) or <strong>&minus;170&deg;</strong>
+(turn right, almost halfway). Both point the same way. That overlap is the yellow band in the widget: the 40&deg; slice
+straight behind the robot, 20&deg; each side of dead-back.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">The &ldquo;two ways&rdquo; rule</div>
+  <p>When there are two ways to point at the cell, use <strong>the one that's the shorter swing from where the turret is
+  now</strong> &mdash; as long as it stays within &plusmn;200&deg;.</p>
+</div>
+
+<p>Why does this matter? Picture the cell slowly passing behind the robot. With only one way to point (&minus;180&deg; to
+180&deg;), the moment the answer crossed 180&deg; it would jump to &minus;180&deg;, and the turret would whip all the
+way around even though the cell barely moved. With the two-ways rule, the turret simply keeps going a little past
+180&deg;. The 40&deg; of overlap gives it room, so a cell wobbling behind the robot never makes it flip.</p>
+
+<h3>Unwinding</h3>
+
+<p>What if the driver keeps spinning the robot the same direction, around and around? The turret follows to 200&deg;,
+and then there's only one way left. It has to <strong>unwind</strong>: swing all the way around to the other side and
+carry on from there. Like a phone cord that's twisted as far as it goes, the only fix is to untwist it. The turret is
+fast (about half a second for the full swing), so this costs a moment once in a while &mdash; never a missed
+direction.</p>
+
+<h3>All-Star practice</h3>
+
+<p>Try the hardest rounds: the cell is behind the robot, so you'll have to pick which way around to send the turret.
+Pick the shorter swing!</p>
+
+<div class="blk blk-widget">
+  <aim-practice-widget levels="allstar"></aim-practice-widget>
+</div>
+
+<h2>12. Trim: the driver's fine-tune</h2>
+
+<p>Odometry is good, but not perfect. The wheels slip a little, the cell numbers might be off by an inch, and a shot can
+drift. So the driver gets a <strong>trim</strong>: push the <strong>right stick left or right</strong> to shift the aim
+a little.</p>
+
+<p>This is different from lesson 17's D-pad nudge. The nudge moved the turret <em>itself</em>. But auto-aim sets the
+turret 50 times a second, so a nudge would be wiped out right away. Instead, the trim is an <strong>offset</strong>
+that auto-aim adds on top of its answer:</p>
+<p><strong>turret angle = field angle &minus; heading + trim</strong></p>
+<ul>
+  <li>The trim <strong>stays</strong> where the driver leaves it, all match.</li>
+  <li>It's limited to <strong>&plusmn;20&deg;</strong>, so a bumped stick can't send the aim somewhere silly.</li>
+  <li>The right stick's up/down still trims the flywheel speed, like before.</li>
+</ul>
+
+<p>Our robot doesn't have a hood anymore, so the old hood line on the right stick goes away to make room. And since
+auto-aim moves the turret now, the D-pad is free.</p>
+
+<h2>13. Where am I? Starting and staying found</h2>
+
+<p>A game's compass only works because the game always knows where you are. Our robot has to earn that. The Pinpoint
+resets to <code>(0, 0)</code> facing 0&deg; every time an OpMode starts &mdash; it has no idea where on the field it
+is until somebody tells it. There are three ways that happens.</p>
+
+<h3>1. Auto leaves a note for TeleOp</h3>
+
+<p>Autonomous knows exactly where the robot is the whole time: it's driving paths in field coordinates. So every loop,
+it writes the robot's position on the <strong>blackboard</strong>, a place in the FTC software that survives from one
+OpMode to the next. It's like leaving a note on the fridge: &ldquo;I parked at (&minus;48, 16), facing 90&deg;.&rdquo;
+Right after START, TeleOp reads the note and calls <code>setPose</code> with it, and auto-aim works from the very first
+second.</p>
+
+<pre><code>// in auto, every loop:
+blackboard.put("autoPose", new double[] { p.getX(), p.getY(), Math.toDegrees(p.getHeading()) });
+
+// in TeleOp, right after START:
+Object fromAuto = blackboard.remove("autoPose");
+if (fromAuto instanceof double[]) {
+    double[] p = (double[]) fromAuto;
+    robot.localization.setPose(p[0], p[1], p[2]);
+}</code></pre>
+
+<ul>
+  <li>Auto writes the note <strong>every loop</strong>, not just at the end, because the match timer can stop auto
+  partway through a path.</li>
+  <li>TeleOp uses <code>remove</code>, which reads the note and throws it away. If you stop and restart TeleOp later in
+  practice, it won't trust an old note from a robot that may have been carried somewhere else.</li>
+  <li>Autos saved by the simulator's <strong>Path Capture</strong> tool already write the note. A hand-written auto
+  needs the one line above.</li>
+  <li>Wait until after START to call <code>setPose</code>. The Pinpoint spends a moment calibrating after INIT, and a
+  pose sent during that moment can get erased.</li>
+</ul>
+
+<h3>2. Nobody told us? Don't guess</h3>
+
+<p>If there's no note (you ran TeleOp by itself, or the robot was restarted), the robot doesn't know where it is. A
+guess would be worse than nothing: the turret would aim confidently at the wrong spot, and the driver might shoot. So
+auto-aim points the turret <strong>straight forward</strong> and the telemetry says <strong>&ldquo;position unknown:
+park at HOME and hold RB.&rdquo;</strong></p>
+
+<h3>3. HOME: a reset button you can find by feel</h3>
+
+<p><strong>HOME</strong> is one spot right in front of the drivers, next to the loading zone, that the robot can be put
+in exactly, without measuring:</p>
+<ul>
+  <li><strong>Back against the drivers' wall</strong> &mdash; that pins down how far from the drivers it is (y).</li>
+  <li><strong>Facing straight away from the wall</strong> &mdash; that pins down the heading: 90&deg;.</li>
+  <li><strong>Left side on the loading zone's right-hand tape line</strong> &mdash; that pins down x.</li>
+</ul>
+
+<figure>
+  <img src="images/home_spot.png" alt="The red drivers' wall with a red-taped loading zone beside it. The robot mascot is backed against the wall, facing away from it, with its left side on the loading zone's right-hand tape line. Callouts point out the wall, the heading and the tape line, and a gamepad shows the RB bumper with a half-second stopwatch.">
+  <figcaption>HOME: back on the wall, facing away, left side on the tape. Then hold RB for half a second.</figcaption>
+</figure>
+
+<p>The position is the robot's <em>center</em>, so we add half the robot's size: with an 18&Prime; &times; 18&Prime;
+robot, HOME is at <strong>x = &minus;22 + 9 = &minus;13</strong> and <strong>y = &minus;71 + 9 = &minus;62</strong>,
+facing <strong>90&deg;</strong>.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Hold RB for half a second at HOME</div>
+  <p>One button fixes <em>both</em> of the robot's &ldquo;which way am I facing&rdquo; answers at once:</p>
+  <ul>
+    <li>It resets the <strong>IMU</strong>, so field-centric driving knows &ldquo;forward&rdquo; is away from the
+    drivers (like before).</li>
+    <li>It tells the <strong>Pinpoint</strong> it's at HOME, so auto-aim knows exactly where the robot is.</li>
+  </ul>
+  <p>At HOME both are true at the same moment, so one button can do both. <strong>The rule: only press RB at
+  HOME.</strong> Press it anywhere else and the robot will believe it's at HOME when it isn't, and every shot will miss
+  until you reset properly.</p>
+</div>
+
+<p>Why <strong>hold</strong> for half a second instead of a quick press? So a bumped button in the middle of a match
+can't move the robot's idea of where it is. The code uses a stopwatch (<code>ElapsedTime</code>) that restarts every
+time RB is up; only when it reaches 0.5 seconds does the reset happen.</p>
+
+<p>HOME is also the fix for <strong>drift</strong>. Odometry is very good, but after two minutes of bumping into robots
+it can be off by an inch or two. Since the robot parks near the drivers anyway, a quick hold of RB at HOME wipes the
+slate clean. (Coming up in a future lesson: the <strong>Limelight</strong> camera can spot AprilTags on the field walls
+and correct the position automatically.)</p>
+
+<h2>14. The code: your worksheet, in Java</h2>
+
+<p>Here's the heart of the <code>AutoAim</code> class you'll unlock. It's the same worksheet you filled in during
+practice, one step at a time. Let's walk through it, then see it all together. Along the way you'll meet four small
+Java tools that make it short: <code>? :</code>, <code>while</code>, <code>Math.abs</code> and <code>&amp;&amp;</code>.</p>
+
+<h3>Before anything: don't guess</h3>
+
+<pre><code>if (!localization.isPoseKnown()) {
+    turret.setAngle(0);      // point straight ahead
+    return;                  // and skip all the math below
+}</code></pre>
+
+<p>The <code>!</code> means &ldquo;not&rdquo;, so this reads: <em>if the position is NOT known, face forward and stop
+here.</em> <code>return</code> leaves the method early, so none of the steps below run until auto or a HOME reset tells
+the robot where it is (section 13).</p>
+
+<h3>Step 0: which cell?</h3>
+
+<pre><code>if (robotX &gt; DEAD_ZONE)  aimingRight = true;
+if (robotX &lt; -DEAD_ZONE) aimingRight = false;
+double targetX = aimingRight ? RIGHT_CELL_X : LEFT_CELL_X;</code></pre>
+
+<p>The first two lines are the dead zone from section 9. Right of +6? Aim right. Left of &minus;6? Aim left. In between,
+neither line runs, so <code>aimingRight</code> keeps whatever it already was.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">New Java tool: the <code>? :</code> shortcut</div>
+  <p><code>question ? answerIfYes : answerIfNo</code> is a one-line if/else that <em>gives back a value</em>. So
+  <code>aimingRight ? RIGHT_CELL_X : LEFT_CELL_X</code> means &ldquo;if we're aiming right, use the right cell's x;
+  otherwise use the left cell's x.&rdquo; It's the same as:</p>
+  <pre><code>double targetX;
+if (aimingRight) targetX = RIGHT_CELL_X;
+else             targetX = LEFT_CELL_X;</code></pre>
+</div>
+
+<h3>Steps 1 and 2: the arrow, and which way it points</h3>
+
+<pre><code>double dx = targetX - robotX;                               // how far over
+double dy = targetY - robotY;                               // how far up
+double fieldAngle = Math.toDegrees(Math.atan2(dy, dx));     // which way is the arrow?</code></pre>
+
+<p>Exactly sections 3 and 4: target minus robot, then the atan2 machine. <code>Math.atan2</code> answers in radians, so
+<code>Math.toDegrees</code> converts it to degrees, the unit the rest of our code uses.</p>
+
+<h3>Step 3: from the robot's front</h3>
+
+<pre><code>double turretAngle = fieldAngle - localization.getHeadingDegrees() + trimDeg;</code></pre>
+
+<p>The one formula from section 5, plus the driver's trim from section 12. The heading comes from the Pinpoint, the same
+sensor that gave us <code>robotX</code> and <code>robotY</code>.</p>
+
+<h3>Step 4: wrap it into &minus;180&hellip;180</h3>
+
+<pre><code>turretAngle = wrapDegrees(turretAngle);
+
+private static double wrapDegrees(double degrees) {
+    while (degrees &gt; 180)   degrees -= 360;
+    while (degrees &lt;= -180) degrees += 360;
+    return degrees;
+}</code></pre>
+
+<p>This is the wrapping rule from section 5, written as a little helper method so the main code stays readable.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">New Java tool: <code>while</code></div>
+  <p>A <code>while</code> loop repeats its line <strong>as long as</strong> the condition is true. So
+  &ldquo;<code>while (degrees &gt; 180) degrees -= 360;</code>&rdquo; means: <em>still too big? Take away 360. Check
+  again. Repeat until it isn't.</em> (<code>-= 360</code> is short for &ldquo;subtract 360 from it&rdquo;.)</p>
+  <ul>
+    <li><strong>340</strong> &rarr; more than 180, subtract 360 &rarr; <strong>&minus;20</strong>. Done.</li>
+    <li><strong>&minus;324</strong> (Example 2 in section 6) &rarr; the second loop adds 360 &rarr; <strong>36</strong>.</li>
+    <li><strong>700</strong> &rarr; 340 &rarr; &minus;20. Two trips around! That's why it's a <code>while</code> and
+    not just an <code>if</code>: it keeps going until the answer is in range, however far off it started.</li>
+  </ul>
+  <p>Why <code>&gt; 180</code> on top but <code>&lt;= -180</code> on the bottom? 180&deg; and &minus;180&deg; point the
+  same way, so we pick just one of them (180) to keep. Otherwise a direction could have two answers.</p>
+</div>
+
+<h3>Step 5: the other way around</h3>
+
+<pre><code>double otherWay = (turretAngle &gt; 0) ? turretAngle - 360 : turretAngle + 360;
+double now = turret.getAngle();
+if (Math.abs(otherWay) &lt;= Turret.MAX_ANGLE
+        &amp;&amp; Math.abs(otherWay - now) &lt; Math.abs(turretAngle - now)) {
+    turretAngle = otherWay;
+}</code></pre>
+
+<p>This is the &ldquo;two ways&rdquo; rule from section 11, one line at a time:</p>
+<ol>
+  <li><strong>Find the other way around.</strong> Every direction has a twin that's 360&deg; away. If the answer is
+  positive, its twin is 360 less; if it's negative, 360 more. That's the <code>? :</code> shortcut again: &minus;170
+  becomes +190, and +170 becomes &minus;190.</li>
+  <li><strong>Where is the turret now?</strong> <code>turret.getAngle()</code> tells us where it's currently pointed.</li>
+  <li><strong>Is the twin worth using?</strong> Only if both of these are true:
+    <ul>
+      <li>The turret can <strong>reach</strong> it: no more than 200&deg; either way.</li>
+      <li>It's a <strong>shorter swing</strong> from where the turret is now.</li>
+    </ul>
+  If so, use the twin instead.</li>
+</ol>
+
+<div class="blk blk-key">
+  <div class="blk-head">New Java tools: <code>Math.abs</code> and <code>&amp;&amp;</code></div>
+  <ul>
+    <li><code>Math.abs(x)</code> is the <strong>size</strong> of a number, ignoring its sign: <code>Math.abs(-190)</code>
+    is 190. So <code>Math.abs(otherWay) &lt;= 200</code> means &ldquo;no more than 200&deg; to the left <em>or</em> the
+    right&rdquo;, and <code>Math.abs(otherWay - now)</code> is <strong>how far the turret would swing</strong> to get
+    there, whichever direction that is.</li>
+    <li><code>&amp;&amp;</code> means <strong>AND</strong>: the <code>if</code> only runs when the part before it
+    <em>and</em> the part after it are both true.</li>
+  </ul>
+</div>
+
+<p><strong>Try it with numbers.</strong> The answer from step 4 is <strong>&minus;170&deg;</strong>, so the twin is
+<strong>+190&deg;</strong>.</p>
+<table>
+  <tr><th>Turret is now at&hellip;</th><th>Reachable? |190| &le; 200</th><th>Swing to +190</th><th>Swing to &minus;170</th><th>Use</th></tr>
+  <tr><td><strong>+175&deg;</strong></td><td>yes</td><td>|190 &minus; 175| = <strong>15</strong></td><td>|&minus;170 &minus; 175| = 345</td><td><strong>+190&deg;</strong> (the twin)</td></tr>
+  <tr><td><strong>&minus;130&deg;</strong></td><td>yes</td><td>|190 + 130| = 320</td><td>|&minus;170 + 130| = <strong>40</strong></td><td><strong>&minus;170&deg;</strong> (keep it)</td></tr>
+</table>
+<p>Same direction either way &mdash; the rule just picks the one that gets there fastest. And when the twin is past
+200&deg;, the first check fails, the turret has to take the only way left, and that's the unwind.</p>
+
+<h3>Step 6: aim!</h3>
+
+<pre><code>turret.setAngle(turretAngle);</code></pre>
+
+<p>Hand the answer to the <code>Turret</code> from lesson 17. It turns degrees into a servo position, and the next
+<code>robot.update()</code> sends it to the servo.</p>
+
+<h3>All together</h3>
+
+<p>Here's the whole thing in one piece. This is the inside of <code>AutoAim</code>'s <code>aim()</code> method. Every line
+is one row of your practice worksheet, and the robot runs all of it 50 times a second.</p>
+
+<pre><code>if (!localization.isPoseKnown()) {                                // don't guess
+    turret.setAngle(0);
+    return;
+}
+if (robotX &gt; DEAD_ZONE)  aimingRight = true;                       // 0. which cell? (dead zone: no change)
+if (robotX &lt; -DEAD_ZONE) aimingRight = false;
+double targetX = aimingRight ? RIGHT_CELL_X : LEFT_CELL_X;
+
+double dx = targetX - robotX;                                     // 1. how far over
+double dy = targetY - robotY;                                     //    how far up
+double fieldAngle = Math.toDegrees(Math.atan2(dy, dx));           // 2. which way is the arrow?
+double turretAngle = fieldAngle - localization.getHeadingDegrees() + trimDeg;   // 3. from the robot's front
+turretAngle = wrapDegrees(turretAngle);                           // 4. keep it in -180..180
+
+double otherWay = (turretAngle &gt; 0) ? turretAngle - 360 : turretAngle + 360;   // 5. the other way around
+double now = turret.getAngle();
+if (Math.abs(otherWay) &lt;= Turret.MAX_ANGLE
+        &amp;&amp; Math.abs(otherWay - now) &lt; Math.abs(turretAngle - now)) {
+    turretAngle = otherWay;                                       //    reachable AND a shorter swing
+}
+turret.setAngle(turretAngle);                                     // 6. aim!</code></pre>
+
+<p><code>wrapDegrees()</code> isn't in this block because it's a separate little method. In Java you can't write one
+method inside another, so it lives just below <code>aim()</code> in <code>AutoAim.java</code>, and <code>aim()</code>
+<em>calls</em> it in step 4. You'll see both, plus the cell positions and other constants, in the complete file you
+unlock with the quiz.</p>
+
+<p>Notice what it <em>doesn't</em> need: no sine, no cosine, no triangles to solve by hand. <code>atan2</code> does the
+hard part, and the rest is subtraction.</p>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li>Get a streak going in the practice until you can <strong>predict</strong> the turret angle before you press
+    FIRE.</li>
+    <li>Take the quiz below. Pass it (8 out of 10) to <strong>unlock the AutoAim code</strong>.</li>
+    <li><strong>Turret robots:</strong> check the wiring and add the code to your package. Then either run an auto
+    first, or drive to HOME and hold RB. Drive around: the turret should stay locked on the cell, like a compass
+    needle.</li>
+  </ul>
+</div>
+
+<hr>
+
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

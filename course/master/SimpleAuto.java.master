@@ -55,13 +55,14 @@ public class SimpleAuto extends LinearOpMode {
 
     // ── SET YOUR STARTING POSITION HERE ──────────────────────────────────
     // Before the match you PLACE the robot on the field, then tell the code
-    // exactly where you put it. X/Y are inches from the field ORIGIN; HEADING
-    // is the way the robot points (degrees, counter-clockwise positive, 0 =
-    // facing +X = "forward"). If this does not match where you set the robot
-    // down, every path is shifted by the difference.
-    private static final double START_X_IN        = -36.0;
-    private static final double START_Y_IN        = -36.0;
-    private static final double START_HEADING_DEG = 0.0;   // facing +X (forward)
+    // exactly where you put it. X/Y are inches from the CENTER of the field,
+    // seen from the red drivers: +X = their right, +Y = away from them.
+    // HEADING is the way the robot points (degrees, counter-clockwise positive,
+    // 0 = facing +X, 90 = facing away from the drivers). If this does not match
+    // where you set the robot down, every path is shifted by the difference.
+    private static final double START_X_IN        = 0.0;
+    private static final double START_Y_IN        = -32.4;
+    private static final double START_HEADING_DEG = 90.0;  // facing away from the drivers
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -103,15 +104,15 @@ public class SimpleAuto extends LinearOpMode {
         // ===============================================
         // @fill(14_autonomous)
         // Each spot on the field is a Pose(x, y, headingRadians). Units are
-        // inches; heading 0 = facing +X, counter-clockwise positive.
+        // inches from the field center; heading 0 = facing +X, counter-clockwise positive.
         Pose startPose = new Pose(START_X_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG));
-        Pose pose1 = new Pose(12.0, -36.0, Math.toRadians(0.0));   // 48" forward
-        Pose pose2 = new Pose(12.0,  12.0, Math.toRadians(0.0));   // then 48" left to park (+Y)
+        Pose pose1 = new Pose(  0.0, 15.6, Math.toRadians(90.0));   // 48" away from the drivers (+Y)
+        Pose pose2 = new Pose(-48.0, 15.6, Math.toRadians(90.0));   // then 48" to the drivers' left (-X) to park
 
         // A BezierLine is a straight path from one pose to the next. A PathChain
         // strings the lines together, in order, into one path for the Follower.
         // Linear heading interpolation turns the robot smoothly from one pose's
-        // heading to the next's (here both are 0, so it keeps facing forward).
+        // heading to the next's (here all are 90, so it keeps facing away from the drivers).
         PathChain chain1 = follower.pathBuilder()
                 .addPath(new BezierLine(startPose, pose1))
                 .setLinearHeadingInterpolation(startPose.getHeading(), pose1.getHeading())
@@ -137,7 +138,7 @@ public class SimpleAuto extends LinearOpMode {
         // it powered on."
         follower.setStartingPose(startPose);
 
-        // Follow the whole chain: forward to pose1, then left to pose2.
+        // Follow the whole chain: away from the drivers to pose1, then left to pose2.
         follower.followPath(chain1, SPEED, true);
         while (opModeIsActive() && follower.isBusy()) {
             follower.update();   // drive one step along the path

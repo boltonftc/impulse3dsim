@@ -21,12 +21,20 @@ public class Turret implements Subsystem {
     private static final double MAX_POS    = 0.85;
     private static final double NUDGE_STEP = 0.002;  // position change per loop while a D-pad button is held
 
-    private final Servo servo;
+    private final Servo servo;   // null if this robot has no "turret" configured
     private double position = CENTER;
 
     public Turret(HardwareMap hardwareMap) {
-        servo = hardwareMap.get(Servo.class, "turret");
-        servo.setPosition(position);   // the turret moves to center as soon as INIT runs -- hands clear!
+        Servo found = null;
+        try {
+            found = hardwareMap.get(Servo.class, "turret");
+        } catch (IllegalArgumentException e) {
+            found = null;   // no "turret" in the configuration -- run without it instead of crashing
+        }
+        servo = found;
+        if (servo != null) {
+            servo.setPosition(position);   // the turret moves to center as soon as INIT runs -- hands clear!
+        }
     }
 
     /** Swing a little to the left (counter-clockwise). Call every loop while D-pad left is held. */
@@ -55,7 +63,9 @@ public class Turret implements Subsystem {
 
     @Override
     public void update() {
-        servo.setPosition(position);
+        if (servo != null) {
+            servo.setPosition(position);
+        }
     }
 }</code></pre>
 </div>

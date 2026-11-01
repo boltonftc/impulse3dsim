@@ -40,6 +40,8 @@
     { "id": "16_auto_actions",  "title": "Actions in Autonomous: Make It Shoot", "tier": "advanced",  "code": false, "html": true, "folder": "16_auto_actions",
       "description": "How an OpMode really runs: the run loop, commands vs. robot.update(), why sleep() freezes the robot, for loops as a stopwatch, and opModeIsActive(). Then mark a shot in Path Capture -- and pass the quiz to unlock the shooting code." },
     { "id": "17_turret",        "title": "The Turret: Gears, Servos and Aiming", "tier": "advanced",  "code": false, "html": true, "folder": "17_turret",
-      "description": "Gear ratios, why a servo can't spin forever (and how a 1:3.2 overdrive fixes it), turning a servo position into a turret angle, and D-pad manual aiming -- the first step toward auto-aim with Limelight or odometry. Pass the quiz to unlock the Turret subsystem." }
+      "description": "Gear ratios, why a servo can't spin forever (and how a 1:3.2 overdrive fixes it), turning a servo position into a turret angle, and D-pad manual aiming -- the first step toward auto-aim with Limelight or odometry. Pass the quiz to unlock the Turret subsystem." },
+    { "id": "18_auto_aim",      "title": "Auto-Aim: Pointing the Turret with Odometry", "tier": "advanced",  "code": false, "html": true, "folder": "18_auto_aim",
+      "description": "Field coordinates as graph paper, atan2 as 'which way does the arrow point?', and the one formula: field angle minus heading = turret angle. Wrapping, opening the turret to ±200° (two ways to point behind you, and unwinding), driver trim, aiming at the cell on your side (with a dead zone), and setting the start pose. Pass the quiz to unlock AutoAim." }
   ]
 }

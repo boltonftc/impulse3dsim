@@ -1,0 +1,228 @@
+{
+  "title": "The Auto-Aim Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "In our field coordinates, where is (0, 0)?",
+      "correct": "The center of the field",
+      "wrong": ["The red drivers' corner", "Wherever the robot starts", "The middle of the red hive"],
+      "explain": "Field coordinates put (0, 0) at the field center, so everyone agrees where everything is. The robot's start spot is NOT (0, 0) anymore."
+    },
+    {
+      "q": "Seen from the red drivers, which way does +Y point?",
+      "correct": "Away from the drivers",
+      "wrong": ["Toward the drivers", "To the drivers' right", "To the drivers' left"],
+      "explain": "+X is to the drivers' right, and +Y is away from them, toward the far wall, just like graph paper."
+    },
+    {
+      "q": "Which direction is 0° on the field?",
+      "correct": "Along +X, to the drivers' right",
+      "wrong": ["Along +Y, away from the drivers", "Toward the red drivers", "Wherever the robot faces"],
+      "explain": "Angles start at +X and grow counter-clockwise: 90° is away from the drivers, 180° is left, −90° is toward them."
+    },
+    {
+      "q": "Which way do angles grow (get bigger) on the field?",
+      "correct": "Counter-clockwise",
+      "wrong": ["Clockwise", "Toward the hive", "Toward the drivers"],
+      "explain": "Counter-clockwise is +. That's the math convention, so Java's Math functions agree with us."
+    },
+    {
+      "q": "A turret angle of +30° means the turret points...",
+      "correct": "30° to the left of the front",
+      "wrong": ["30° to the right of the front", "30° away from the drivers", "30° above the floor"],
+      "explain": "+ is counter-clockwise, which is to the left. Negative turret angles point right."
+    },
+    {
+      "q": "The robot is at (0, −32.4) and the cell is at (10.2, −12.75). What is dx?",
+      "correct": "10.2",
+      "wrong": ["−10.2", "19.65", "−19.65"],
+      "explain": "dx = targetX − robotX = 10.2 − 0 = 10.2. It's how far OVER the target is."
+    },
+    {
+      "q": "The robot is at (0, −32.4) and the cell is at (10.2, −12.75). What is dy?",
+      "correct": "19.65",
+      "wrong": ["−19.65", "10.2", "−45.15"],
+      "explain": "dy = targetY − robotY = −12.75 − (−32.4) = 19.65. Subtracting a negative is adding."
+    },
+    {
+      "q": "What question does Math.atan2(dy, dx) answer?",
+      "correct": "Which direction does the arrow point?",
+      "wrong": ["How long is the arrow?", "How fast should the turret turn?", "Where is the robot on the field?"],
+      "explain": "atan2 takes 'how far up' and 'how far over' and gives the arrow's direction. (Math.hypot gives the length.)"
+    },
+    {
+      "q": "Why atan2 instead of a math function that takes just one number?",
+      "correct": "It uses both signs, so it knows all four directions",
+      "wrong": ["It is faster for the Control Hub to calculate", "It returns degrees instead of radians", "It works only for targets in front of the robot"],
+      "explain": "The '2' means two inputs. With both signs, atan2 can tell up-right from down-left, and gives −180° to 180°."
+    },
+    {
+      "q": "Math.atan2 gives its answer in radians. How do we get degrees?",
+      "correct": "Wrap it in Math.toDegrees()",
+      "wrong": ["Multiply it by 360", "Wrap it in Math.abs()", "Divide it by Math.PI"],
+      "explain": "Math.toDegrees(Math.atan2(dy, dx)) gives the direction in degrees."
+    },
+    {
+      "q": "What is the auto-aim formula (before trim)?",
+      "correct": "turret angle = field angle − robot heading",
+      "wrong": ["turret angle = field angle + robot heading", "turret angle = robot heading − field angle", "turret angle = field angle × robot heading"],
+      "explain": "The field angle is measured from +X; the turret measures from the robot's front. Subtracting the heading converts one to the other."
+    },
+    {
+      "q": "The cell is at a field angle of 63°. The robot's heading is 90°. What turret angle aims at it?",
+      "correct": "−27° (27° to the right)",
+      "wrong": ["+27° (27° to the left)", "+153° (behind on the left)", "+63° (63° to the left)"],
+      "explain": "63 − 90 = −27. Negative means clockwise, which is to the right."
+    },
+    {
+      "q": "The robot spins in place but doesn't move. What happens to the field angle to the cell?",
+      "correct": "It stays the same",
+      "wrong": ["It changes by the same amount", "It flips to the other side", "It resets to zero"],
+      "explain": "The field angle only depends on where the robot and cell ARE. Spinning changes the heading, so only the turret angle changes."
+    },
+    {
+      "q": "The subtraction gives 340°. What turret angle should we send?",
+      "correct": "−20°",
+      "wrong": ["340°", "20°", "160°"],
+      "explain": "340° and −20° point the same way. Wrapping: more than 180, so subtract 360 → −20°. A short turn right instead of a long turn left."
+    },
+    {
+      "q": "Why can our turret point in ANY direction, even straight behind the robot?",
+      "correct": "It turns about 407°, more than a full circle",
+      "wrong": ["Its servo is in continuous mode, so it spins forever", "The Pinpoint turns the turret around when needed", "The wires are attached to a spinning slip ring"],
+      "explain": "350° × 3.2 ÷ 2.75 ≈ 407° across the servo's full 500–2500 µs signal. We allow ±200°, which covers every direction."
+    },
+    {
+      "q": "What does servo.setPwmRange(new PwmControl.PwmRange(500, 2500)) do?",
+      "correct": "Asks for the servo's full signal range",
+      "wrong": ["Makes the servo spin 500 to 2500 times faster", "Limits the turret to a safe range of motion", "Switches the servo into continuous rotation mode"],
+      "explain": "The hub's default 600–2400 µs only reaches about 90% of the travel (367°). The full 500–2500 µs gives about 407°."
+    },
+    {
+      "q": "The turret is at +185°. The answer is −175°, so the other way is +185°. Which does auto-aim use?",
+      "correct": "+185°, the shorter swing from where it is",
+      "wrong": ["−175°, because it's between −180 and 180", "0°, it goes back to center first", "Neither, it waits for the driver"],
+      "explain": "Both point the same way. +185° is 0° away from where the turret is now; −175° would be a 360° swing. Pick the shorter one."
+    },
+    {
+      "q": "Why does auto-aim allow ±200° instead of just ±180°?",
+      "correct": "The overlap stops flips when the cell wobbles behind",
+      "wrong": ["Because 200 is easier to type than 180", "So the trim has more room on the sides", "Because the servo is more accurate past 180°"],
+      "explain": "With exactly ±180°, a cell wobbling straight behind would jump between +180 and −180, swinging the turret all the way around. The extra 20° each way gives room to keep going."
+    },
+    {
+      "q": "The driver keeps spinning the robot the same direction. What eventually happens to the turret?",
+      "correct": "At 200° it unwinds all the way around to the other side",
+      "wrong": ["It keeps turning forever in the same direction", "It stops and the cell can't be reached any more", "It breaks the wires, so the code shuts it off"],
+      "explain": "Past 200° there's only one way left, so the turret swings around (like untwisting a phone cord) and keeps aiming from the other side."
+    },
+    {
+      "q": "Before letting a real turret swing ±200°, what must you check?",
+      "correct": "The cables can twist 400° without snagging",
+      "wrong": ["The battery is charged above 13 volts", "The Pinpoint is mounted on the turret", "The flywheel is spinning at full speed"],
+      "explain": "±200° twists the shooter's cables through 400°. Give them a service loop or cable carrier, and test slowly with setAngle(±180) first."
+    },
+    {
+      "q": "Why does auto-aim use a trim instead of lesson 17's D-pad nudge?",
+      "correct": "Auto-aim sets the turret every loop, wiping out a nudge",
+      "wrong": ["The D-pad is broken on most gamepads", "A nudge moves the turret much too far", "Trim is the only way to move a servo"],
+      "explain": "The trim is an offset added to auto-aim's answer, so it lasts. A nudge would be overwritten on the very next loop."
+    },
+    {
+      "q": "Why is the trim limited to ±20°?",
+      "correct": "So a bumped stick can't send the aim somewhere silly",
+      "wrong": ["Because the servo can only turn 20°", "Because FTC rules limit turret movement", "So the flywheel speed stays the same"],
+      "explain": "Trim is for small fixes (a slipped wheel, a cell an inch off). A limit keeps it from wandering far away."
+    },
+    {
+      "q": "How does auto-aim choose which cell to aim at?",
+      "correct": "The cell on the same side of the field as the robot",
+      "wrong": ["Whichever cell is raised, using the hive's tip sensor", "The driver picks it each time with the D-pad", "Always the right cell, for the whole match"],
+      "explain": "Left of the middle line (x negative) aims at the left cell; right of it aims at the right cell. The driver decides whether to shoot."
+    },
+    {
+      "q": "The robot is at x = +3, inside the dead zone, and was aiming at the left cell. What does it aim at now?",
+      "correct": "Still the left cell",
+      "wrong": ["The right cell", "Nothing until it leaves the zone", "Halfway between the two"],
+      "explain": "Inside the dead zone nothing changes. It only switches to the right cell once x is more than +6."
+    },
+    {
+      "q": "Why have a dead zone in the middle of the field at all?",
+      "correct": "So the turret doesn't flip between cells on the line",
+      "wrong": ["So the robot can't drive under the hive by accident", "Because odometry stops working near the center", "Because shots from the middle never go in"],
+      "explain": "Right on the line, a tiny wobble in x would flip the target back and forth. The dead zone means you must clearly cross before it switches."
+    },
+    {
+      "q": "Why does TeleOp call setPose() at all?",
+      "correct": "So odometry reports real field positions",
+      "wrong": ["So the turret centers itself", "So the IMU calibrates its gyro", "So the hive knows which cell is up"],
+      "explain": "The Pinpoint zeroes itself at INIT. setPose tells it where it really is, so its numbers match the field and the cell positions."
+    },
+    {
+      "q": "Why call setPose() right after START instead of during INIT?",
+      "correct": "The Pinpoint calibrates after INIT and could erase it",
+      "wrong": ["The robot isn't allowed to know its pose before START", "setPose() only works while the robot is driving", "Telemetry can't show the pose until START"],
+      "explain": "The Pinpoint spends a moment calibrating after its reset in INIT. Sending the pose after START makes sure it sticks."
+    },
+    {
+      "q": "Auto just ended. How does TeleOp find out where the robot is?",
+      "correct": "Auto left its position on the blackboard",
+      "wrong": ["The Pinpoint keeps it, even through INIT", "TeleOp assumes it's still at the start spot", "The drivers type it into the Driver Station"],
+      "explain": "The blackboard survives from one OpMode to the next. Auto writes its position every loop; TeleOp reads it right after START and calls setPose."
+    },
+    {
+      "q": "Why does auto write its position every loop, not just at the end?",
+      "correct": "The match timer can stop auto partway through",
+      "wrong": ["The blackboard forgets anything older than one loop", "TeleOp reads it while auto is still running", "Writing it only once would wear out the Pinpoint"],
+      "explain": "If time runs out mid-path, the code at the end of auto never runs. Saving every loop means the note is always up to date."
+    },
+    {
+      "q": "TeleOp starts and nobody has told it where the robot is. What does the turret do?",
+      "correct": "Points straight forward and waits",
+      "wrong": ["Aims at the cell from the starting spot", "Spins slowly, searching for the hive", "Keeps aiming wherever auto last pointed it"],
+      "explain": "Don't guess! A wrong guess would aim confidently at nothing. The turret faces forward until auto's note or a HOME reset tells it where it is."
+    },
+    {
+      "q": "What does holding RB for half a second at HOME do?",
+      "correct": "Resets field-centric forward AND the robot's position",
+      "wrong": ["Only resets which way is forward for driving", "Spins up the flywheel and fires one shot", "Saves the position for the next match"],
+      "explain": "At HOME the robot faces away from the drivers at a known spot, so one button can reset the IMU and tell the Pinpoint it's at HOME."
+    },
+    {
+      "q": "Why do you have to HOLD RB instead of just tapping it?",
+      "correct": "So a bumped button can't move the robot's position",
+      "wrong": ["The IMU needs half a second to wake up", "Tapping RB is already used to shoot", "The Pinpoint only listens every half second"],
+      "explain": "A quick accidental bump mid-match would tell the robot it's at HOME when it isn't. Requiring a half-second hold makes it deliberate."
+    },
+    {
+      "q": "A driver holds RB in the middle of the field. What goes wrong?",
+      "correct": "The robot thinks it's at HOME, so shots miss",
+      "wrong": ["Nothing, RB works anywhere on the field", "The turret unwinds all the way around", "Field-centric driving turns off for good"],
+      "explain": "RB says 'I'm at HOME right now.' Press it anywhere else and odometry jumps to the wrong spot until a proper reset at HOME."
+    },
+    {
+      "q": "What does wrapDegrees() turn 700° into?",
+      "correct": "−20°",
+      "wrong": ["340°", "700°", "20°"],
+      "explain": "The while loop keeps subtracting 360 while the angle is over 180: 700 → 340 → −20."
+    },
+    {
+      "q": "Why does wrapDegrees() use while instead of if?",
+      "correct": "One subtraction of 360 might not be enough",
+      "wrong": ["A while loop runs faster than an if", "An if can't subtract numbers in Java", "It only needs to run when the robot moves"],
+      "explain": "A while loop repeats until the angle is in range. 700° needs two trips around; an if would stop after one, at 340°."
+    },
+    {
+      "q": "double targetX = aimingRight ? RIGHT_CELL_X : LEFT_CELL_X; — what if aimingRight is false?",
+      "correct": "targetX gets LEFT_CELL_X",
+      "wrong": ["targetX gets RIGHT_CELL_X", "The line is skipped entirely", "targetX is set to zero"],
+      "explain": "question ? ifYes : ifNo is a one-line if/else. aimingRight is false, so it gives back the value after the colon."
+    },
+    {
+      "q": "In the two-ways rule, what does Math.abs(otherWay - now) measure?",
+      "correct": "How far the turret would swing",
+      "wrong": ["Where the turret is pointing now", "How far away the hive is", "Which cell the robot is aiming at"],
+      "explain": "otherWay - now is the change in angle, and Math.abs drops the sign. So it's how big the swing is, in either direction."
+    }
+  ]
+}

@@ -273,7 +273,7 @@ public class OpModeHost {
                     // models the RPM from it). This closes the loop the encoder + PID lessons depend on.
                     shooter.setVelocity(simFlywheelTicks(s));
                     double shooterPow = Math.max(-1.0, Math.min(1.0, shooter.getEffectivePower()));
-                    mech(s, intake.getEffectivePower(), feeder.getEffectivePower(), shooterPow, hood.getPosition(), dumpServo.getPosition(), turret.getEffectivePosition());
+                    mech(s, intake.getEffectivePower(), feeder.getEffectivePower(), shooterPow, hood.getPosition(), dumpServo.getPosition(), turret.getPulseFraction());
 
                     samples++;
                     // ~60 Hz control rate; under CheerpJ this loop shares the browser main thread, so a tighter sleep starves rendering.

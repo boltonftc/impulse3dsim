@@ -4,7 +4,12 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
+import java.util.HashMap;
+
 public abstract class OpMode {
+    /** FTC SDK 10.3+: survives from one OpMode to the next (not across robot restarts) -- e.g. auto -> TeleOp. */
+    public static final HashMap<String, Object> blackboard = new HashMap<>();
+
     public Gamepad gamepad1 = new Gamepad();
     public Gamepad gamepad2 = new Gamepad();
     public Telemetry telemetry;
