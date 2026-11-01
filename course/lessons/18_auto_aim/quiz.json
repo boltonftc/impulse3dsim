@@ -1,6 +1,8 @@
 {
   "title": "The Auto-Aim Quiz",
   "draw": 10,
+  "pass": 1.0,
+  "intro": "Heads up: this is advanced code, and your robot will really run it. To unlock it you need a PERFECT score, 10 out of 10. Most people need a few tries, and that's normal.",
   "questions": [
     {
       "q": "In our field coordinates, where is (0, 0)?",
@@ -223,6 +225,138 @@
       "correct": "How far the turret would swing",
       "wrong": ["Where the turret is pointing now", "How far away the hive is", "Which cell the robot is aiming at"],
       "explain": "otherWay - now is the change in angle, and Math.abs drops the sign. So it's how big the swing is, in either direction."
+    },
+    {
+      "q": "What is a constructor?",
+      "correct": "Code that runs once when an object is made with new",
+      "wrong": ["A method the scheduler calls every single loop", "A list of all the parts a robot is built from", "A comment that explains what a class does"],
+      "explain": "new Turret(hardwareMap) runs Turret's constructor once, to set the object up: find the servo, set its starting position, and so on."
+    },
+    {
+      "q": "What's the difference between public and private?",
+      "correct": "public can be used by other classes; private only inside its own class",
+      "wrong": ["public code runs faster; private code uses less of the robot's memory", "public is for TeleOp code; private is only for autonomous code", "public values can change; private values can never change at all"],
+      "explain": "private hides a detail inside its class (like Turret's servo). public is what other classes are allowed to use (like setAngle())."
+    },
+    {
+      "q": "In if (!localization.isPoseKnown()), what does the ! mean?",
+      "correct": "NOT: it flips true to false and false to true",
+      "wrong": ["Important: Java should run this line first", "Factorial: multiply by every number below it", "Error: stop the whole program if it's false"],
+      "explain": "! means NOT. So the line reads: if the position is NOT known, face forward and stop here."
+    },
+    {
+      "q": "Which file has the line public final Turret turret; (the robot's turret field)?",
+      "correct": "Robot.java",
+      "wrong": ["Turret.java", "MecanumDrive.java", "AutoAim.java"],
+      "explain": "Robot holds one field for every subsystem (drive, intake, flywheel, turret...), so the rest of the code can say robot.turret."
+    },
+    {
+      "q": "Where do turret = new Turret(hardwareMap); and subsystems.add(turret); go?",
+      "correct": "In the Robot constructor",
+      "wrong": ["In Turret's update() method", "Inside the TeleOp's while loop", "In AutoAim's aim() method"],
+      "explain": "Robot's constructor builds every subsystem once, during INIT, and adds it to the list the scheduler updates every loop."
+    },
+    {
+      "q": "In our field coordinates, what are the coordinates of the center of the field?",
+      "correct": "(0, 0)",
+      "wrong": ["(72, 72)", "(144, 144)", "(0, −72)"],
+      "explain": "The origin is the center of the field. Every wall is 72 inches away from it, so the corners are at (±72, ±72)."
+    },
+    {
+      "q": "What servo position is the turret's center, pointing straight forward?",
+      "correct": "0.5",
+      "wrong": ["0.0", "1.0", "200"],
+      "explain": "Servo positions go from 0.0 to 1.0. The turret is assembled with the servo at 0.5, so the middle is forward with equal travel both ways."
+    },
+    {
+      "q": "What does Math.max(-12, 7) give?",
+      "correct": "7",
+      "wrong": ["−12", "−5", "19"],
+      "explain": "Math.max gives back the bigger of the two numbers. 7 is bigger than −12."
+    },
+    {
+      "q": "trimDeg = Math.max(-20, Math.min(20, 35)); What is trimDeg?",
+      "correct": "20",
+      "wrong": ["35", "−20", "15"],
+      "explain": "Work from the inside out: Math.min(20, 35) is 20, then Math.max(−20, 20) is 20. This is how the trim gets clamped to ±20."
+    },
+    {
+      "q": "The robot is at (−50, 20) and is aiming at the right cell at (10, −13). What is dx?",
+      "correct": "60",
+      "wrong": ["−60", "−40", "−33"],
+      "explain": "dx = cell x − robot x = 10 − (−50) = 60. Subtracting a negative is adding."
+    },
+    {
+      "q": "The robot is at (45, −40) and is aiming at the left cell at (−11, −13). What is dx?",
+      "correct": "−56",
+      "wrong": ["56", "34", "27"],
+      "explain": "dx = cell x − robot x = −11 − 45 = −56. Negative means the cell is to the left of the robot."
+    },
+    {
+      "q": "The robot is at (−30, −55) and is aiming at the right cell at (10, −13). What is dx?",
+      "correct": "40",
+      "wrong": ["−40", "−20", "42"],
+      "explain": "dx = cell x − robot x = 10 − (−30) = 40. (42 is dy: −13 − (−55).)"
+    },
+    {
+      "q": "The robot is at (52, 30) and is aiming at the right cell at (10, −13). What is dy?",
+      "correct": "−43",
+      "wrong": ["43", "17", "−42"],
+      "explain": "dy = cell y − robot y = −13 − 30 = −43. Negative means the cell is toward the drivers from the robot."
+    },
+    {
+      "q": "The robot is at (−48, −60) and is aiming at the left cell at (−11, −13). What is dy?",
+      "correct": "47",
+      "wrong": ["−47", "−73", "37"],
+      "explain": "dy = cell y − robot y = −13 − (−60) = 47. (37 is dx: −11 − (−48).)"
+    },
+    {
+      "q": "The robot is at (20, −13) and is aiming at the right cell at (10, −13). What is dy?",
+      "correct": "0",
+      "wrong": ["−26", "−10", "26"],
+      "explain": "dy = cell y − robot y = −13 − (−13) = 0. The robot is level with the cell, so the arrow points straight sideways."
+    },
+    {
+      "q": "int speed = (score > 10) ? 5 : 2;  If score is 12, what is speed?",
+      "correct": "5",
+      "wrong": ["2", "12", "10"],
+      "explain": "question ? ifYes : ifNo. Is 12 > 10? Yes, so speed gets the value before the colon: 5."
+    },
+    {
+      "q": "double otherWay = (turretAngle > 0) ? turretAngle - 360 : turretAngle + 360;  If turretAngle is −150, what is otherWay?",
+      "correct": "210",
+      "wrong": ["−510", "−150", "150"],
+      "explain": "Is −150 > 0? No, so use the part after the colon: −150 + 360 = 210. The same direction, the other way around."
+    },
+    {
+      "q": "String side = (x < 0) ? \"LEFT\" : \"RIGHT\";  If x is 25, what is side?",
+      "correct": "\"RIGHT\"",
+      "wrong": ["\"LEFT\"", "25", "x"],
+      "explain": "Is 25 < 0? No, so side gets the value after the colon: \"RIGHT\"."
+    },
+    {
+      "q": "What is the point of a subsystem class like Turret or Intake?",
+      "correct": "It keeps one mechanism's code together in one place",
+      "wrong": ["It makes the robot drive faster during autonomous", "It lets two robots run the very same code at once", "It replaces the run loop so you don't need one"],
+      "explain": "Each mechanism gets its own class with its own commands and update(). TeleOp and auto just call its methods, without knowing the details inside."
+    },
+    {
+      "q": "What is a Java class?",
+      "correct": "A blueprint that bundles data and methods together",
+      "wrong": ["A single line of code that runs only once", "A kind of loop that repeats forever until stopped", "A folder where the robot keeps its photos"],
+      "explain": "A class describes what an object holds (fields, like position) and what it can do (methods, like setAngle). new makes an object from it."
+    },
+    {
+      "q": "What does static mean on a field like public static final double MAX_ANGLE = 200;?",
+      "correct": "It belongs to the class itself, shared by everyone",
+      "wrong": ["Other classes are never allowed to read it", "It changes a little every time the loop runs", "It's saved on the robot after it powers off"],
+      "explain": "A static field belongs to the class, not to one object. There's just one MAX_ANGLE, no matter how many Turret objects exist."
+    },
+    {
+      "q": "AutoAim uses Turret.MAX_ANGLE, writing the class name instead of a turret object. Why does that work?",
+      "correct": "MAX_ANGLE is static, so it belongs to the class",
+      "wrong": ["Every field in Java can be used that way", "AutoAim and Turret are in the same file", "MAX_ANGLE is private, so anyone can use it"],
+      "explain": "static fields are reached through the class name: Turret.MAX_ANGLE. A non-static field needs an object, like robot.turret."
     }
   ]
 }

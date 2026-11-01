@@ -324,7 +324,8 @@ def report_carry(failures):
 
 # -- quiz checker -------------------------------------------------------------
 # A lesson may ship a quiz.json beside its lesson.html. Schema:
-#   { "draw": 10, "questions": [ { "q", "correct", "wrong": [3 items], "explain" }, ... ] }
+#   { "draw": 10, "pass": 0.8 (optional, default 0.8), "intro": "..." (optional),
+#     "questions": [ { "q", "correct", "wrong": [3 items], "explain" }, ... ] }
 # The engine draws `draw` questions at random from the pool and shuffles each question's options,
 # so the pool must be at least `draw` long. Each question is 1 correct + exactly 3 wrong = 4 options.
 QUIZ_WRONG = 3
@@ -358,6 +359,9 @@ def check_quizzes(module):
         draw = data.get("draw", QUIZ_MIN_POOL)
         if len(qs) < max(QUIZ_MIN_POOL, draw):
             failures.append((lid, f"pool has {len(qs)} question(s); need at least {max(QUIZ_MIN_POOL, draw)} to draw {draw}"))
+        pass_frac = data.get("pass")
+        if pass_frac is not None and not (isinstance(pass_frac, (int, float)) and 0 < pass_frac <= 1):
+            failures.append((lid, f"'pass' must be a number in (0, 1], got {pass_frac!r}"))
         longest = correct_words = wrong_words = valid = 0   # answer-length balance stats
         for i, q in enumerate(qs):
             where = f"Q{i + 1}"

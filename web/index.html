@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.19';
+    window.APP_VERSION = '2.8.20';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -5359,10 +5359,15 @@
       }
       const pool = data.questions || [];
       const n = Math.min(data.draw || 10, pool.length);
-      quizState = { lessonId, title: data.title || (meta.title + ' Quiz'), n, pool, idx: 0, wrong: 0, questions: drawQuestions(pool, n) };
+      // a quiz.json may raise (or lower) the bar with "pass": 0..1, e.g. 1 = a perfect score is required
+      const pass = (typeof data.pass === 'number' && data.pass > 0 && data.pass <= 1) ? data.pass : QUIZ_PASS;
+      quizState = { lessonId, title: data.title || (meta.title + ' Quiz'), n, pool, pass, idx: 0, wrong: 0, questions: drawQuestions(pool, n) };
       el('quiz-intro-title').textContent = quizState.title;
-      el('quiz-intro-sub').textContent = 'Answer ' + n + ' questions and get ' + Math.ceil(QUIZ_PASS * n)
-        + ' or more right to earn your checkmark. Miss a few? No stress \u2014 you\u2019ll see exactly why, then you can try again.';
+      const need = Math.ceil(pass * n);
+      el('quiz-intro-sub').textContent = (data.intro ? data.intro + ' ' : '')
+        + (need >= n ? 'Answer ' + n + ' questions and get every one right to earn your checkmark.'
+                     : 'Answer ' + n + ' questions and get ' + need + ' or more right to earn your checkmark.')
+        + ' Miss a few? No stress \u2014 you\u2019ll see exactly why, then you can try again.';
       const st = quizStats[lessonId];
       el('quiz-best').textContent = st && st.passed ? '\u2605 You already passed this one \u2014 go again anytime.'
         : (st && st.attempts ? 'Best so far: ' + (st.best || 0) + '/' + n : '');
@@ -5434,7 +5439,7 @@
     function quizNext(){ const S = quizState; if (S.idx + 1 >= S.n){ quizFinish(); return; } S.idx++; quizRenderQuestion(); }
     function quizFinish(){
       const S = quizState, correct = S.n - S.wrong;
-      const need = Math.ceil(QUIZ_PASS * S.n);          // e.g. 8 of 10 at 80%
+      const need = Math.ceil((S.pass || QUIZ_PASS) * S.n);   // e.g. 8 of 10 at 80%
       const passed = correct >= need, perfect = S.wrong === 0;
       const prev = quizStats[S.lessonId] || { attempts: 0, best: 0, passed: false };
       quizStats[S.lessonId] = { attempts: prev.attempts + 1, best: Math.max(prev.best || 0, correct), passed: prev.passed || passed };
