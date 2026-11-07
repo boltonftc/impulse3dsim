@@ -19,7 +19,40 @@ The moment the robot spins around, forward looks backward to the driver. In the 
 heading to make forward always mean <em>away from the driver</em> &mdash; <strong>field-centric</strong>
 driving. First we need the heading itself.</p>
 
-<h2>1 &mdash; Initialize the IMU</h2>
+<h2>1 &mdash; Import the IMU tools</h2>
+
+<p>Same move as the motors in <em>Tank Drive</em>: before you can use a class by its short name, you
+<code>import</code> it. The IMU code in this lesson uses <strong>three</strong> new classes, so it needs three
+new import lines. Add them first, so the code in the next steps compiles as you type it.</p>
+
+<table>
+  <tr><th>Class</th><th>What it's for</th><th>Where it lives</th></tr>
+  <tr><td><code>IMU</code></td><td>The sensor itself: you fetch it from the hardware map and read the heading from it.</td>
+      <td><code>com.qualcomm.robotcore.hardware</code> &mdash; same section as <code>DcMotor</code></td></tr>
+  <tr><td><code>RevHubOrientationOnRobot</code></td><td>Describes how the Control Hub is bolted onto your robot (which way the logo and the USB ports face).</td>
+      <td><code>com.qualcomm.hardware.rev</code> &mdash; the REV hardware section</td></tr>
+  <tr><td><code>AngleUnit</code></td><td>Lets you say which units you want the angle in: <code>AngleUnit.RADIANS</code> or <code>AngleUnit.DEGREES</code>.</td>
+      <td><code>org.firstinspires.ftc.robotcore.external.navigation</code> &mdash; FIRST's navigation tools</td></tr>
+</table>
+
+<span class="act" data-action="scroll_to" data-arg="import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode">&#9656; MecanumDrive.java : the imports</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type these lines with the other imports</span><span class="copybtn">&#10697; Copy</span></div>
+<pre><code>import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import com.qualcomm.robotcore.hardware.IMU;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;</code></pre>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Hint</div>
+  <p>Notice the first part of each name tells you who wrote it: <code>com.qualcomm</code> is the FTC robot library,
+  <code>org.firstinspires</code> is <em>FIRST</em>'s own code. Missing one of these imports gives the same kind of
+  error as before: <em>"IMU cannot be resolved to a type"</em>. Pressed <strong>Reset to Start</strong>? These
+  three are already in the starting code &mdash; check that they're there and move on.</p>
+</div>
+
+<h2>2 &mdash; Initialize the IMU</h2>
 
 <p>Just like a motor, you fetch the IMU from the hardware map by name (<code>"imu"</code>) during INIT, then
 initialize it. Open <code>MecanumDrive.java</code> and jump to the setup spot:</p>
@@ -128,17 +161,7 @@ compiles, the robot drives, and the numbers just don't make sense.</p>
   </ol>
 </div>
 
-<p>This code uses three new classes, so add their imports at the very top of the file, with the other
-<code>import</code> lines (if you pressed <strong>Reset to Start</strong>, they're already there):</p>
-
-<div class="blk blk-code">
-  <div class="blk-head"><span>Type these lines at the top of the file</span><span class="copybtn">&#10697; Copy</span></div>
-<pre><code>import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
-import com.qualcomm.robotcore.hardware.IMU;
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;</code></pre>
-</div>
-
-<h2>2 &mdash; Read the heading every loop</h2>
+<h2>3 &mdash; Read the heading every loop</h2>
 
 <p>Now read the heading inside the run loop, show it on the Driver Hub in both radians and degrees, and let
 the driver re-zero it with the right bumper. Jump to the loop spot:</p>

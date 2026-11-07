@@ -18,7 +18,53 @@ side moves faster than the other. To spin in place, the two sides move in opposi
 <p>Our robot has four mecanum wheels, but for now we'll ignore the fancy sideways stuff and drive it
 like a tank: the left stick controls everything &mdash; push forward to go forward, push sideways to spin.</p>
 
-<h2>Step 1 &mdash; Set up the four motors</h2>
+<h2>Step 1 &mdash; Import the motor tool</h2>
+
+<p>Back in <em>Your Code Package</em> you met the <code>import</code> lines at the top of the file, and we promised
+that each new feature would bring one more. This is the first one. Driving means motors, and in the FTC library a
+motor is a <code>DcMotor</code>. Before you can use that name anywhere in your file, you have to tell Java where to
+find it.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">What an import really is</div>
+  <p>Every class in Java has a full name that says exactly where it lives, like a full mailing address:</p>
+<pre><code>com.qualcomm.robotcore.hardware.DcMotor
+\____________________________/ \_____/
+   the folder (the "package")   the class</code></pre>
+  <p>Read it left to right like an address: the company that wrote it (<code>com.qualcomm</code>), the robot
+  library (<code>robotcore</code>), the hardware section (<code>hardware</code>), and finally the class itself
+  (<code>DcMotor</code>). An <code>import</code> line is like saving a contact in your phone: you write the full
+  address once at the top, and after that you can just say <code>DcMotor</code> everywhere else.</p>
+  <p>Without it, Java has no idea what <code>DcMotor</code> means. Every line that uses it turns red, and the build
+  fails with <em>"DcMotor cannot be resolved to a type"</em>. That's why the import comes first: add it now, and the
+  motor code in the next step compiles as soon as you type it.</p>
+</div>
+
+<p>Jump to the imports at the top of <code>MecanumDrive.java</code> and add one more line under the ones already
+there:</p>
+
+<span class="act" data-action="scroll_to" data-arg="import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode">&#9656; MecanumDrive.java : the imports</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this line with the other imports</span><span class="copybtn">&#10697; Copy</span></div>
+<pre><code>import com.qualcomm.robotcore.hardware.DcMotor;</code></pre>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Import rules of thumb</div>
+  <ul>
+    <li>Imports go at the top: after the <code>package</code> line, before the class. One per line, each ending in
+      <code>;</code>. Their order doesn't matter.</li>
+    <li>You need one import for each <em>outside</em> class you use by name. You'll add more in later lessons
+      (for example, the IMU lesson adds three).</li>
+    <li>Pressed <strong>Reset to Start</strong>? The lesson's starting code already has this import &mdash; check that
+      it's there and move on.</li>
+    <li>On a real team laptop in Android Studio, click a red class name and press <strong>Alt+Enter</strong> to add the
+      import for you. In OnBot Java and here, you type it.</li>
+  </ul>
+</div>
+
+<h2>Step 2 &mdash; Set up the four motors</h2>
 
 <p>The robot has four motors, one at each corner: <code>frontLeft</code> and <code>backLeft</code> on the left
 side, <code>frontRight</code> and <code>backRight</code> on the right. For tank drive, both left motors always
@@ -50,21 +96,7 @@ frontLeft.setDirection(DcMotor.Direction.REVERSE);
 backLeft.setDirection(DcMotor.Direction.REVERSE);</code></pre>
 </div>
 
-<div class="blk blk-code">
-  <div class="blk-head"><span>Also type this line at the very top of the file, with the other <code>import</code> lines</span><span class="copybtn">&#10697; Copy</span></div>
-<pre><code>import com.qualcomm.robotcore.hardware.DcMotor;</code></pre>
-</div>
-
-<div class="blk blk-key">
-  <div class="blk-head">Why the new <code>import</code> line?</div>
-  <p>An <strong>import</strong> tells Java where to find a class you use &mdash; here, the FTC SDK's
-  <code>DcMotor</code>. Without it, Java doesn't know what <code>DcMotor</code> means and the code won't compile
-  (you'd see an error like <em>"DcMotor cannot be resolved to a type"</em>). Earlier lessons didn't need it because
-  they didn't use any motors. Put it up with the other <code>import</code> lines, right under the
-  <code>package</code> line. (If you pressed <strong>Reset to Start</strong>, it's already there.)</p>
-</div>
-
-<h2>Step 2 &mdash; Read the joystick</h2>
+<h2>Step 3 &mdash; Read the joystick</h2>
 
 <p>The left stick gives us two values we care about:</p>
 <ul>
@@ -84,7 +116,7 @@ faster the wheels go.</p>
   we negate it with a minus sign so that "stick up" means "drive forward."</p>
 </div>
 
-<h2>Step 3 &mdash; The tank math, then power</h2>
+<h2>Step 4 &mdash; The tank math, then power</h2>
 
 <p>We combine <code>drive</code> and <code>spin</code> into a power for each side:</p>
 <ul>
