@@ -64,6 +64,11 @@ public class Drivebase implements Subsystem {
         double forward = drive;
         double right   = strafe;
 
+        // ===============================================
+        // Field-Centric : Rotate
+        // Do not remove this comment
+        // Field-centric lesson: the rotation goes here, between the two lines above and the mix below
+        // ===============================================
         // @fill(10_field_centric)
         // FIELD-CENTRIC: rotate the driver's request by the negative of the robot's heading so
         // "away from the driver" always means the same direction, no matter which way we face.

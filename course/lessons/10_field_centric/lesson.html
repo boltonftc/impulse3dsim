@@ -114,22 +114,65 @@ un-turning the request. If the robot is rotated one way, we rotate the driver's 
 by the same amount, and the two cancel out. That leftover is a push measured in robot terms, which is exactly
 what the wheels need.</p>
 
-<p>Open <code>Drivebase.java</code> and find the spot just before the mecanum mix, where <code>forward</code> and
-<code>right</code> are set from the raw sticks.</p>
+<p>Open <code>Drivebase.java</code> and scroll down to <code>driveFieldCentric</code>, the method that runs every loop.</p>
 
 <span class="act" data-action="open_file" data-arg="Drivebase.java|Drivebase : Loop">&#9656; Drivebase.java : Drivebase : Loop</span>
+
+<h3>Exactly where the new code goes</h3>
+
+<p>Inside <code>driveFieldCentric</code> you'll find two lines that copy the raw stick values into
+<code>forward</code> and <code>right</code>, and right below them the <code>MECANUM MIX</code> that turns those
+into wheel powers. The rotation goes <strong>in between</strong>: after those two lines, before the mix. Don't
+delete or change anything that's already there.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Before &rarr; after (the new lines are marked NEW)</div>
+<pre><code>        double forward = drive;          // KEEP: start with the raw stick values
+        double right   = strafe;         // KEEP
+
+        // ===============================================
+        // Field-Centric : Rotate
+        // Do not remove this comment
+        // Field-centric lesson: the rotation goes here, ...
+        // ===============================================          (no marker in your file? that's OK)
+        double cos = Math.cos(-headingRadians);   // NEW
+        double sin = Math.sin(-headingRadians);   // NEW
+        right   = strafe * cos - drive * sin;     // NEW: overwrites right
+        forward = strafe * sin + drive * cos;     // NEW: overwrites forward
+
+        // MECANUM MIX: each wheel is forward +/- strafe +/- turn, ...
+        double fl = forward + right + turn;      // unchanged: now uses the rotated values
+        ...</code></pre>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why don't the new <code>right</code> and <code>forward</code> lines start with <code>double</code>?</div>
+  <p>Because those variables already exist &mdash; the two <code>KEEP</code> lines just above created them. Writing
+  <code>double</code> in front of a name means <em>&ldquo;make a brand-new variable&rdquo;</em>; leaving it off means
+  <em>&ldquo;put a new value into the variable that's already there.&rdquo;</em> Think of the variable boxes from
+  <em>Hello, Telemetry</em>: the first two lines fill the boxes with the raw stick values, the new lines empty them
+  and refill them with the rotated values, and the mix just reads whatever is in the boxes last.</p>
+  <ul>
+    <li>Add <code>double</code> to those two lines and Java complains: <em>&ldquo;variable right is already
+      defined.&rdquo;</em></li>
+    <li>Delete the two <code>KEEP</code> lines and Java complains the other way: <em>&ldquo;cannot find symbol:
+      right.&rdquo;</em></li>
+  </ul>
+  <p><code>cos</code> and <code>sin</code> <em>do</em> get <code>double</code>, because they're brand-new variables.</p>
+</div>
 
 <div class="blk blk-todo">
   <div class="blk-head">To Do</div>
   <ul>
-    <li>Add the rotation below <em>above</em> the mecanum mix, where the comment marks it.</li>
+    <li>Click at the end of the <code>double right = strafe;</code> line and press Enter to make a blank line.</li>
+    <li>Type the four lines below there, <em>above</em> the <code>MECANUM MIX</code> comment.</li>
     <li><strong>Build &amp; Init</strong>, <strong>Start</strong>, spin the robot, then push the stick away from yourself.</li>
     <li>It should drive away from <em>you</em> every time, even facing sideways.</li>
   </ul>
 </div>
 
 <div class="blk blk-code">
-  <div class="blk-head"><span>Type this code</span><span class="copybtn">&#10850; Copy</span></div>
+  <div class="blk-head"><span>Type this code (between the KEEP lines and the MECANUM MIX)</span><span class="copybtn">&#10850; Copy</span></div>
   <pre><code>// cos and sin capture how far the robot is turned. We use -headingRadians to spin the
 // driver's request the OPPOSITE way, which cancels out the robot's rotation.
 double cos = Math.cos(-headingRadians);
