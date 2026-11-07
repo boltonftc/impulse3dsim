@@ -83,14 +83,14 @@
       "explain": "Holds don't need edge detection; you want it to feed the whole time X is held. Edge detection is for toggles, where one press flips a state once."
     },
     {
-      "q": "What is a logic guard like if (feeder == null) return;?",
-      "correct": "A check that handles a special case and returns early",
+      "q": "How can you tell public Indexer(HardwareMap hardwareMap) is a constructor and not a normal method?",
+      "correct": "It has the same name as the class and no return type",
       "wrong": [
-        "A command that spins the feeder at full speed",
-        "A line that prints the feeder's current state",
-        "A loop that waits for the feeder to warm up"
+        "It starts with the word public",
+        "It has something inside its parentheses",
+        "It ends with a semicolon"
       ],
-      "explain": "A guard checks a special case first (here, no feeder configured) and returns early so the rest of the method is safely skipped. It prevents crashes."
+      "explain": "A constructor always has exactly the class's name (Indexer) and no return type, not even void. Normal methods like feed() or isFeeding() have a return type (void, boolean)."
     },
     {
       "q": "What does the ternary feeding ? FEED_POWER : 0.0 do?",
