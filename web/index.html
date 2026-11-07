@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.24';
+    window.APP_VERSION = '2.8.25';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -298,9 +298,17 @@
     #ghpick select{width:100%;background:#0b1220;border:1px solid #263244;color:#e2e8f0;border-radius:6px;padding:5px 6px;font-size:13px}
     #ghpick .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
     /* Pit test-stand viewport (M6c) — bench now lives inside the drawer */
-    #bench-wrap{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+    #bench-wrap{flex:1 1 300px;display:flex;flex-direction:column;min-width:240px;min-height:0;height:100%;align-self:flex-start}
     #bench-head{font-size:11px;color:#94a3b8;margin-bottom:4px}
-    #bench{flex:1;width:100%;display:block;background:#0b0f14;border:1px solid #1e2733;border-radius:8px;min-height:0}
+    #bench-stage{flex:1;position:relative;min-height:240px}
+    #bench{position:absolute;inset:0;width:100%;height:100%;display:block;background:#0b0f14;border:1px solid #1e2733;border-radius:8px;cursor:grab;touch-action:none}
+    #bench:active{cursor:grabbing}
+    #bench-hud{position:absolute;left:8px;bottom:8px;pointer-events:none;background:rgba(5,7,10,.72);border:1px solid #1e2733;border-radius:6px;padding:5px 8px;font:10.5px/1.4 ui-monospace,Consolas,monospace;color:#cbd5e1;white-space:pre}
+    #bench-hud.off{display:none}
+    #bench-hud b{color:#93c5fd;font-weight:600}
+    #bench-views{position:absolute;right:8px;top:8px;display:flex;gap:4px}
+    #bench-views button{background:#0f1720;border:1px solid #2a3646;color:#8aa0bd;border-radius:5px;padding:2px 8px;font-size:.68rem;cursor:pointer}
+    #bench-views button.on{background:#1d4ed8;color:#fff;border-color:#3b82f6}
 
     /* ===== Pit redesign: clean Deploy/Import toolbar ===== */
     .pit-tb{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
@@ -321,7 +329,7 @@
     .pkg-menu button.danger{color:#f87171}
 
     /* ===== Pit redesign: bottom drawer (IDE panel) ===== */
-    #pit-drawer{flex:0 0 auto;margin-top:8px;border:1px solid #24303f;border-radius:10px 10px 0 0;background:#0d1219;display:flex;flex-direction:column;overflow:hidden;transition:height .18s ease}
+    #pit-drawer{flex:0 1 auto;min-height:40px;margin-top:8px;border:1px solid #24303f;border-radius:10px 10px 0 0;background:#0d1219;display:flex;flex-direction:column;overflow:hidden;transition:height .18s ease}
     #pit-drawer.peek{height:40px}
     #pit-drawer.full{height:min(82vh,860px)}
     #pit-drawer-handle{flex:0 0 40px;display:flex;align-items:center;gap:10px;padding:0 12px;cursor:pointer;background:#111823;border-bottom:1px solid #1c2733;user-select:none}
@@ -337,7 +345,7 @@
     #pit-drawer .snaps{margin-left:auto;display:flex;gap:4px}
     #pit-drawer .snaps button{background:#0f1720;border:1px solid #2a3646;color:#8aa0bd;border-radius:5px;padding:2px 9px;font-size:.68rem;cursor:pointer}
     #pit-drawer .snaps button.on{background:#1d4ed8;color:#fff;border-color:#3b82f6}
-    #pit-drawer-body{flex:1;min-height:0;display:flex;gap:16px;padding:14px;overflow:auto}
+    #pit-drawer-body{flex:1;min-height:0;display:flex;flex-wrap:wrap;gap:16px;padding:14px;overflow:auto}
     #pit-drawer.peek #pit-drawer-body{display:none}
     #pit-dh{width:340px;flex:0 0 auto}
     #pit-tele{margin:.5rem;min-height:4rem;max-height:22vh;overflow:auto;background:#05070a;border:1px solid #222933;border-radius:6px;padding:.5rem;color:#86efac;font-size:.72rem;white-space:pre-wrap}
@@ -1147,8 +1155,14 @@
               <div class="dh-gp">gamepad&nbsp;1 &nbsp; <span id="pit-gp">—</span></div>
             </div>
             <div id="bench-wrap">
-              <div id="bench-head">Test stand — INIT then ▶ on the Driver Hub, then drive / hold F / V to see the mechanisms move</div>
-              <canvas id="bench"></canvas>
+              <div id="bench-head">Test stand — INIT then ▶ on the Driver Hub, then drive / hold F / V to see the mechanisms move · drag to orbit, scroll to zoom, double-click to reset</div>
+              <div id="bench-stage">
+                <canvas id="bench"></canvas>
+                <div id="bench-hud"></div>
+                <div id="bench-views">
+                  <button data-v="iso" class="on">3/4</button><button data-v="front">Front</button><button data-v="side">Side</button><button data-v="top">Top</button><button id="bench-hud-btn" class="on" title="Show / hide the live readout">Data</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2048,6 +2062,12 @@
       const N_ROLL = 9;                                           // 2 more than before, spread across the now-longer shaft
       for (let i = 0; i < N_ROLL; i++) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.03, 12), intakeMat); r.position.y = -shaftLen*0.42 + i*(shaftLen*0.84/(N_ROLL-1)); intakeRoller.add(r); }
       intakePivot.add(intakeRoller);
+      // NECTAR gate: a crossbar just ahead of the roller whose bottom edge sits ~3 in off the tiles -- 2.8 in POLLEN roll
+      // under it into the intake, 3.6 in NECTAR hit it and are never taken in (see stepShooterOne)
+      { const gateY = F + 0.082, gateZ = half + 0.03;
+        const gate = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, FR * 0.94, 10), metalMat);
+        gate.rotation.z = Math.PI / 2; gate.position.set(0, gateY, gateZ); group.add(gate);
+        for (const sx of [-1, 1]) bx(rail, 0.012, 0.036, sx * (half - rail / 2), gateY, half + 0.012, chMat); }
 
       // ---- DUMP BED: an inclined bed pivoting at the rear (~14"), low toward the front intake (~1.5").
       // At rest it slopes down to the front so balls collect against the front lip; dump() tilts it up
@@ -2255,8 +2275,9 @@
     benchRenderer.setPixelRatio(devicePixelRatio);
     const benchScene = new THREE.Scene();
     benchScene.background = new THREE.Color(0x0b0f14);
-    benchScene.add(new THREE.HemisphereLight(0xbfd4ff, 0x1a2030, 1.0));
-    const benchSun = new THREE.DirectionalLight(0xffffff, 1.0); benchSun.position.set(2, 5, 3); benchScene.add(benchSun);
+    benchScene.add(new THREE.HemisphereLight(0xbfd4ff, 0x1a2030, 1.5));
+    const benchSun = new THREE.DirectionalLight(0xffffff, 1.6); benchSun.position.set(2, 5, 3); benchScene.add(benchSun);
+    { const fill = new THREE.DirectionalLight(0xdbe7ff, 0.8); fill.position.set(-3, 2, -2); benchScene.add(fill); }   // rim/fill so the far side isn't black
     const benchCam = new THREE.PerspectiveCamera(45, 1, 0.02, 20);
     benchCam.position.set(0.62, 0.5, 0.72); benchCam.lookAt(0, CH*0.25, 0);
     // a raised stand: chassis rests on a narrow platform; the wheels overhang the edges and spin freely
@@ -2269,6 +2290,50 @@
       leg.position.set(sx*CUBE*0.28, -CH - 0.13, sz*CUBE*0.28); benchScene.add(leg);
     }
     const benchRobot = buildRobot(benchScene);
+    // camera orbits the robot: target + radius come from its bounding sphere (benchFit); the distance is solved so the
+    // sphere fits the narrower of the two fields of view, so it stays whole and centered at any panel size / aspect
+    const BENCH_VIEWS = { iso: [0.7, 0.42], front: [0, 0.12], side: [Math.PI / 2, 0.12], top: [0, 1.5] };
+    const benchView = { theta: 0.7, phi: 0.42, zoom: 1, target: new THREE.Vector3(0, 0, 0), radius: 0.4 };
+    function benchFit() {
+      const box = new THREE.Box3().setFromObject(benchRobot.group);
+      // always cover the extractor bar at both ends of its swing (stowed straight up and fully down), whatever it is doing now
+      const downF = EXTRACTOR.PIVOT_Z + EXTRACTOR.ARM_L * Math.sin(EXTRACTOR.ANG_MAX), upY = -CH + EXTRACTOR.PIVOT_Y + EXTRACTOR.ARM_L;
+      for (const sx of [-1, 1]) { box.expandByPoint(new THREE.Vector3(sx * EXTRACTOR.BAR_HX, -CH, downF + 0.01)); box.expandByPoint(new THREE.Vector3(sx * EXTRACTOR.BAR_HX, upY, EXTRACTOR.PIVOT_Z)); }
+      box.expandByPoint(new THREE.Vector3(0, -CH - 0.07, 0));                  // show the top of the stand under the wheels
+      const s = box.getBoundingSphere(new THREE.Sphere());
+      if (!isFinite(s.radius) || s.radius <= 0) return;
+      benchView.target.copy(s.center); benchView.radius = s.radius * 0.95;   // a box's bounding sphere is generous
+      placeBenchCam();
+    }
+    function placeBenchCam() {
+      const vf = benchCam.fov * Math.PI / 180, hf = 2 * Math.atan(Math.tan(vf / 2) * benchCam.aspect);
+      const d = benchView.radius / Math.sin(Math.min(vf, hf) / 2) * benchView.zoom, { theta, phi } = benchView;
+      benchCam.position.set(benchView.target.x + d * Math.cos(phi) * Math.sin(theta), benchView.target.y + d * Math.sin(phi),
+                            benchView.target.z + d * Math.cos(phi) * Math.cos(theta));
+      benchCam.lookAt(benchView.target);
+    }
+    function setBenchView(name) {
+      const v = BENCH_VIEWS[name]; if (!v) return;
+      benchView.theta = v[0]; benchView.phi = v[1]; benchView.zoom = 1; placeBenchCam();
+      document.querySelectorAll('#bench-views button[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === name));
+    }
+    document.querySelectorAll('#bench-views button[data-v]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); setBenchView(b.dataset.v); }));
+    { const hb = document.getElementById('bench-hud-btn');
+      if (hb) hb.addEventListener('click', e => { e.stopPropagation(); const off = document.getElementById('bench-hud').classList.toggle('off'); hb.classList.toggle('on', !off); }); }
+    { let drag = null;
+      benchCanvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY }; benchCanvas.setPointerCapture(e.pointerId); });
+      benchCanvas.addEventListener('pointermove', e => {
+        if (!drag) return;
+        benchView.theta -= (e.clientX - drag.x) * 0.01;
+        benchView.phi = Math.max(-0.15, Math.min(1.5, benchView.phi + (e.clientY - drag.y) * 0.01));
+        drag = { x: e.clientX, y: e.clientY }; placeBenchCam();
+        document.querySelectorAll('#bench-views button[data-v]').forEach(b => b.classList.remove('on'));
+      });
+      benchCanvas.addEventListener('pointerup', () => { drag = null; });
+      benchCanvas.addEventListener('wheel', e => { e.preventDefault(); benchView.zoom = Math.max(0.35, Math.min(3, benchView.zoom * (1 + Math.sign(e.deltaY) * 0.1))); placeBenchCam(); }, { passive: false });
+      benchCanvas.addEventListener('dblclick', () => setBenchView('iso'));
+    }
+    loadTurretParts().then(() => setTimeout(benchFit, 0));   // the CAD turret adds height once it loads
     let benchW = 0, benchH = 0;
     function resizeBench(){
       const w = benchCanvas.clientWidth, h = benchCanvas.clientHeight;
@@ -2276,6 +2341,7 @@
       benchW = w; benchH = h;
       benchRenderer.setSize(w, h, false);
       benchCam.aspect = w/h; benchCam.updateProjectionMatrix();
+      benchFit();
     }
 
 
@@ -3600,10 +3666,11 @@
         for (let i = balls.length - 1; i >= 0; i--) {
           const b = balls[i];
           if (b.state !== 'field') continue;                     // in-flight shots aren't collectible yet
+          if (b.type === 'nectar') continue;                     // the NECTAR gate bar across the intake only lets POLLEN under
           const t = b.body.translation(), dx = t.x - mouth.x, dz = t.z - mouth.z;
           if (dx*dx + dz*dz < 0.08 && t.y < 0.22) {
             touchedBall = true;
-            if (enqueueStored(a, { type: b.type, alliance: b.alliance })) { removeBall(i); a.captureCd = 0.25; capturedThisCycle = true; break; }   // keep nectar's alliance colour through storage
+            if (enqueueStored(a, { type: b.type })) { removeBall(i); a.captureCd = 0.25; capturedThisCycle = true; break; }
             debugStorageState(a, 'blocked-by-capacity');
           }
         }
@@ -3858,6 +3925,26 @@
       return errs;
     }
 
+    // Pit test-stand readout: what the student's code is sending, next to what it does to the mechanism (~8 Hz)
+    let benchHudT = 0;
+    function updateBenchHud(now) {
+      if (now - benchHudT < 120) return; benchHudT = now;
+      const el = document.getElementById('bench-hud'); if (!el) return;
+      const M = sim.mech, deg = r => (r * 180 / Math.PI).toFixed(0) + '\u00b0', n = (v, d = 2) => (v == null ? 0 : v).toFixed(d);
+      const intake = M.intake < -0.15 ? 'IN' : M.intake > 0.15 ? 'OUT' : 'off';
+      const elev = SH.ELEV_MIN + Math.max(0, Math.min(1, M.hood)) * (SH.ELEV_MAX - SH.ELEV_MIN);
+      const ex = sim.exAng == null ? extractorAngle(M.extractor == null ? EXTRACTOR.POS_UP : M.extractor) : sim.exAng;
+      const held = sim.stored.map(s => s.type[0].toUpperCase()).join('') || '-';
+      el.innerHTML =
+        `<b>intake   </b> power ${n(M.intake)}  ${intake}\n` +
+        `<b>feeder   </b> power ${n(M.feeder)}\n` +
+        `<b>flywheel </b> power ${n(M.shooter)}  ${sim.sh.rpm.toFixed(0)} rpm\n` +
+        `<b>hood     </b> servo ${n(M.hood, 3)}  ${deg(elev)} launch\n` +
+        `<b>turret   </b> pulse ${n(M.turret, 3)}  ${deg(turretYawRad(M.turret))}\n` +
+        `<b>extractor</b> servo ${n(M.extractor, 3)}  arm ${deg(ex)}  ${sim.barLow ? 'DOWN' : 'up'}\n` +
+        `<b>held     </b> ${sim.stored.length}/${STORAGE_CAPACITY}  ${held}`;
+    }
+
     // ================= render + force controller =================
     const el = id => document.getElementById(id);
     let last = performance.now(), frames = 0, fpsT = last, lastCalls = 0;
@@ -3912,6 +3999,7 @@
         const bv = localVel(robot);
         spinWheels(benchRobot, bv.fwd, bv.strafe, bv.turn, dt);
         renderStore(benchRobot, sim.captured);
+        updateBenchHud(now);
         if (benchW && benchH) benchRenderer.render(benchScene, benchCam);
       }
 
@@ -6732,6 +6820,7 @@
       const LOT_HALF = 220, LOT_MARGIN = 32;               // open square parking lot half-extent (mecanum)
       const STALL_LEN = 46, STALL_SPACING = 40;            // painted stall-line geometry (mecanum)
       const ARROW_MAX = 44, ARROW_EPS = 0.03;
+      const STICK = { CX: 98, CY: 150, R: 34 };            // left-stick well center + knob travel (SVG units; well r=40, knob r=24)
       function roundRect(ctx, x, y, w, h, r){
         ctx.beginPath();
         ctx.moveTo(x + r, y);
@@ -6744,11 +6833,11 @@
       <style>
         :host{ --left:#50c070; --right:#f0883e; --accent:#38bdf8; --turn:#c084fc; --dim:#3a4150;
                display:block; font-family:inherit; color:#e2e8f0; }
-        .stage{ display:flex; align-items:stretch; height:300px; border:1px solid var(--dim);
+        .stage{ display:flex; align-items:stretch; height:380px; border:1px solid var(--dim);
                border-radius:10px; overflow:hidden; background:#0b0f16; }
         .pane{ display:flex; flex-direction:column; min-height:0; min-width:0; }
-        .pane.game{ flex:1 1 auto; min-width:240px; }
-        .pane.pad{ flex:0 0 auto; width:198px; background:#0d121a; }
+        .pane.game{ flex:1 1 auto; min-width:220px; }
+        .pane.pad{ flex:0 0 auto; width:min(340px, 52%); background:#0d121a; }
         .divider{ flex:0 0 1px; background:var(--dim); }
         .pane-label{ font-size:.58rem; text-transform:uppercase; letter-spacing:.09em; color:#7c8699;
                padding:6px 10px 5px; border-bottom:1px solid #171e28; white-space:nowrap; }
@@ -6840,10 +6929,10 @@
               <circle cx="265" cy="70" r="12" fill="#552323"/><text x="265" y="73">B</text>
               <circle cx="245" cy="90" r="12" fill="#234a2c"/><text x="245" y="93">A</text>
             </g>
-            <circle cx="222" cy="150" r="32" fill="#1c2430" stroke="#333d4a" stroke-width="2" opacity=".55"/>
-            <circle cx="222" cy="150" r="18" fill="#333d4a" opacity=".55"/>
-            <circle cx="98" cy="150" r="32" fill="#171e29" stroke="var(--accent)" stroke-width="3"/>
-            <circle id="knob" cx="98" cy="150" r="18" fill="var(--accent)" class="stick-knob pulsing" tabindex="0"
+            <circle cx="222" cy="150" r="40" fill="#1c2430" stroke="#333d4a" stroke-width="2" opacity=".55"/>
+            <circle cx="222" cy="150" r="24" fill="#333d4a" opacity=".55"/>
+            <circle id="well" cx="98" cy="150" r="40" fill="#171e29" stroke="var(--accent)" stroke-width="3" style="cursor:grab"/>
+            <circle id="knob" cx="98" cy="150" r="24" fill="var(--accent)" class="stick-knob pulsing" tabindex="0"
                     role="slider" aria-label="Left stick"/>
           </svg>
         </div>
@@ -6984,8 +7073,8 @@
           step();
         }
         _bindPointer(){
-          const knob = this._el('knob');
-          const CX = 98, CY = 150, R = 28;   // drag radius, slightly inside the 32px well
+          const knob = this._el('knob'), well = this._el('well');
+          const CX = STICK.CX, CY = STICK.CY, R = STICK.R;   // drag radius, slightly inside the well
           const toStick = (svg, clientX, clientY) => {
             const pt = svg.createSVGPoint(); pt.x = clientX; pt.y = clientY;
             const p = pt.matrixTransform(svg.getScreenCTM().inverse());
@@ -6999,15 +7088,19 @@
             const s = toStick(knob.ownerSVGElement, e.clientX, e.clientY);
             this._sx = s.sx; this._sy = s.sy; this._updateValues();
           };
-          const onUp = () => { this._dragging = false; this._showNumbers = false; this._springBack(); };
-          knob.addEventListener('pointerdown', (e) => {
-            this._stopPulsing(knob);
-            this._dragging = true; this._showNumbers = true; knob.setPointerCapture(e.pointerId);
-            cancelAnimationFrame(this._springRaf); onMove(e);
-          });
-          knob.addEventListener('pointermove', onMove);
-          knob.addEventListener('pointerup', onUp);
-          knob.addEventListener('pointercancel', onUp);
+          const onUp = () => { if (!this._dragging) return; this._dragging = false; this._showNumbers = false; this._springBack(); };
+          // grab the knob OR anywhere in its well: the stick jumps to the pointer and follows it
+          for (const el of [knob, well]) {
+            if (!el) continue;
+            el.addEventListener('pointerdown', (e) => {
+              this._stopPulsing(knob);
+              this._dragging = true; this._showNumbers = true; el.setPointerCapture(e.pointerId);
+              cancelAnimationFrame(this._springRaf); onMove(e);
+            });
+            el.addEventListener('pointermove', onMove);
+            el.addEventListener('pointerup', onUp);
+            el.addEventListener('pointercancel', onUp);
+          }
         }
         _bindKeyboard(){
           const knob = this._el('knob');
@@ -7031,7 +7124,7 @@
         }
         // stick (+ triggers, mecanum) position -> drive/spin/power values + table. Canvas reads these each frame.
         _updateValues(){
-          const CX = 98, CY = 150, R = 28;
+          const CX = STICK.CX, CY = STICK.CY, R = STICK.R;
           const knob = this._el('knob');
           knob.setAttribute('cx', CX + this._sx * R);
           knob.setAttribute('cy', CY + this._sy * R);

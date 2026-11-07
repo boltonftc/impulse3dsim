@@ -12,6 +12,8 @@ the direction the robot is currently facing, like a compass.</p>
   <code>Math.sin</code> expect radians.</p>
 </div>
 
+<img src="images/heading_compass.png" alt="Top-down robot in the center of a compass dial. Straight ahead is heading 0. Turning left (counter-clockwise) counts up to +pi/2 (+90 degrees); turning right (clockwise) counts down to -pi/2 (-90 degrees). Directly behind is plus or minus pi (180 degrees), where the number jumps from +3.14 to -3.14. A second panel shows resetYaw(): the robot doesn't move, but its current direction becomes the new 0. The driver says: right bumper = reset.">
+
 <p>Why do we care? Without a heading, "forward" on the stick means "whatever way the robot is pointed."
 The moment the robot spins around, forward looks backward to the driver. In the next lesson we will use this
 heading to make forward always mean <em>away from the driver</em> &mdash; <strong>field-centric</strong>
@@ -65,13 +67,76 @@ config name <code>"imu"</code> &mdash; exactly like fetching a motor. The second
   is always the same: find the innermost part, understand it, then read outward.</p>
 </div>
 
-<p>Why does the mounting matter? The IMU figures out rotation relative to gravity and its own body. If you
-told it the hub was lying flat when it is really standing on its side, every heading it reported would be
-wrong. <strong>UP</strong> and <strong>FORWARD</strong> match our robot and the most common real mounting &mdash;
-on a physical robot you would change these to match how your hub is actually bolted on.</p>
+<h3>Getting LOGO and USB right (this bites a lot of teams)</h3>
 
-<p>The imports for <code>IMU</code>, <code>RevHubOrientationOnRobot</code>, and <code>AngleUnit</code> are
-already added for you at the top of the file.</p>
+<p>The IMU chip is inside the Control Hub, so it only knows how <em>the hub</em> is turned. Those two words,
+<code>LogoFacingDirection</code> and <code>UsbFacingDirection</code>, tell it how the hub sits on <em>your
+robot</em>. If they don't match what's actually bolted on, the heading is wrong. Nothing warns you: the code
+compiles, the robot drives, and the numbers just don't make sense.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">How to read your hub</div>
+  <ol>
+    <li>Stand behind your robot, facing the same way it drives forward (the intake side is <strong>FORWARD</strong>).</li>
+    <li><strong>Logo:</strong> find the REV logo printed on the hub's big flat face. Which way does that face point?
+      <code>UP</code>, <code>DOWN</code>, <code>LEFT</code>, <code>RIGHT</code>, <code>FORWARD</code> or <code>BACKWARD</code>.</li>
+    <li><strong>USB:</strong> find the edge with the USB ports. Which way does that edge point? Same six choices.</li>
+    <li>The two answers always point in different directions at a right angle to each other (for example UP + FORWARD,
+      or LEFT + UP). They can never be the same direction or opposite directions.</li>
+  </ol>
+  <p>A hub lying flat, logo on top, USB ports toward the front is <code>UP</code> + <code>FORWARD</code> &mdash; that's
+  the simulator robot. A hub bolted <em>standing up</em> on a side plate is very common on real robots, and then the
+  logo faces <code>LEFT</code> or <code>RIGHT</code>, <strong>not</strong> UP.</p>
+</div>
+
+<img src="images/hub_orientation.png" alt="How to describe the Control Hub's mounting: which way the REV logo faces and which way the USB edge faces, relative to the robot's front. Two correct examples: hub flat (UP + FORWARD) and hub standing on the left side plate (LEFT + UP). Three test results from turning the robot left by hand: correct reads +90 degrees; logo upside down reads -90 degrees (field-centric turns the wrong way); hub on its side but coded UP reads about 0 (turns look like tipping, so the heading is garbage).">
+
+<p>What happens when it's wrong:</p>
+
+<table>
+  <tr><th>Mistake</th><th>What you see</th></tr>
+  <tr><td><strong>Logo on the wrong axis</strong><br>(the hub stands on its side, but the code says <code>UP</code>)</td>
+      <td>The worst one. The IMU thinks your turns are the robot tipping over, so the heading barely changes when you
+      spin, and it jumps when you bump or tilt the robot. Field-centric driving wanders, and autonomous turns
+      overshoot or never stop.</td></tr>
+  <tr><td><strong>Logo upside down</strong><br>(the code says <code>UP</code> but the logo faces <code>DOWN</code>, or the other way around)</td>
+      <td>The heading is the right size but has the <strong>wrong sign</strong>: turn left and it goes <em>negative</em>.
+      Field-centric drives turn the wrong way (push forward after a turn and the robot goes off at an angle), and
+      autonomous turns go the opposite direction.</td></tr>
+  <tr><td><strong>Logo right, USB wrong</strong></td>
+      <td>Heading still works (turning around the up-down axis is measured correctly), but pitch and roll come out
+      swapped or backwards. That breaks anything that uses tilt, like anti-tip code. Set it correctly anyway.</td></tr>
+  <tr><td><strong>Logo and USB in the same or opposite direction</strong><br>(like <code>UP</code> + <code>UP</code>, or <code>UP</code> + <code>DOWN</code>)</td>
+      <td>That's physically impossible, so the program stops at INIT with an error saying the two directions
+      aren't perpendicular.</td></tr>
+</table>
+
+<div class="blk blk-challenge">
+  <div class="blk-head">The simulator won't catch this &mdash; test on the real robot</div>
+  <p>The simulator's IMU always reports the correct heading, whatever you type for LOGO and USB. So code that
+  works perfectly here can still be wrong on your robot. Do this 60-second check every time the hub is mounted or
+  moved:</p>
+  <ol>
+    <li>Robot flat on the floor. INIT, then START, and watch <strong>Heading (deg)</strong> on the Driver Hub.</li>
+    <li>Turn the robot by hand about a quarter turn to the <strong>left</strong> (counter-clockwise from above).
+      It should read about <strong>+90</strong>.</li>
+    <li>Reads about <strong>&minus;90</strong>? The logo direction is upside down &mdash; swap <code>UP</code>/<code>DOWN</code>
+      (or <code>LEFT</code>/<code>RIGHT</code>, etc.).</li>
+    <li>Barely changes, or changes when you tilt the robot nose-up? The logo direction is on the wrong axis &mdash;
+      go back to <em>How to read your hub</em>.</li>
+    <li>Turn it back to where it started: about <strong>0</strong>. Then you're good.</li>
+  </ol>
+</div>
+
+<p>This code uses three new classes, so add their imports at the very top of the file, with the other
+<code>import</code> lines (if you pressed <strong>Reset to Start</strong>, they're already there):</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type these lines at the top of the file</span><span class="copybtn">&#10697; Copy</span></div>
+<pre><code>import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import com.qualcomm.robotcore.hardware.IMU;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;</code></pre>
+</div>
 
 <h2>2 &mdash; Read the heading every loop</h2>
 

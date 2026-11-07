@@ -50,6 +50,20 @@ frontLeft.setDirection(DcMotor.Direction.REVERSE);
 backLeft.setDirection(DcMotor.Direction.REVERSE);</code></pre>
 </div>
 
+<div class="blk blk-code">
+  <div class="blk-head"><span>Also type this line at the very top of the file, with the other <code>import</code> lines</span><span class="copybtn">&#10697; Copy</span></div>
+<pre><code>import com.qualcomm.robotcore.hardware.DcMotor;</code></pre>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why the new <code>import</code> line?</div>
+  <p>An <strong>import</strong> tells Java where to find a class you use &mdash; here, the FTC SDK's
+  <code>DcMotor</code>. Without it, Java doesn't know what <code>DcMotor</code> means and the code won't compile
+  (you'd see an error like <em>"DcMotor cannot be resolved to a type"</em>). Earlier lessons didn't need it because
+  they didn't use any motors. Put it up with the other <code>import</code> lines, right under the
+  <code>package</code> line. (If you pressed <strong>Reset to Start</strong>, it's already there.)</p>
+</div>
+
 <h2>Step 2 &mdash; Read the joystick</h2>
 
 <p>The left stick gives us two values we care about:</p>

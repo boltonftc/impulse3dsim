@@ -151,6 +151,46 @@
         "Because the battery only supports radians"
       ],
       "explain": "The rotation math (cos and sin) works in radians, so the raw heading is in radians. You convert to degrees only when showing it to a human."
+    },
+    {
+      "q": "Your Control Hub is bolted standing up on the robot's left side plate, with the REV logo facing outward to the left. What LogoFacingDirection should the code use?",
+      "correct": "LEFT",
+      "wrong": [
+        "UP, because that's what the sample code says",
+        "FORWARD, because the robot drives forward",
+        "It doesn't matter as long as the USB direction is right"
+      ],
+      "explain": "Describe where the logo actually points on YOUR robot. A hub standing on a side plate has its logo facing LEFT or RIGHT, not UP. Copying UP from sample code is the classic mistake."
+    },
+    {
+      "q": "On the real robot, you turn it a quarter turn to the LEFT by hand and Heading reads about -90. What's wrong?",
+      "correct": "The logo direction is upside down (for example UP when it should be DOWN)",
+      "wrong": [
+        "Nothing, left turns are supposed to be negative",
+        "The battery is low, so the IMU reads backwards",
+        "The drive motors need to be reversed"
+      ],
+      "explain": "Turning left (counter-clockwise) should make heading go positive. A flipped sign means the IMU thinks the hub is upside down from how it really is. Swap the logo direction."
+    },
+    {
+      "q": "Why can the simulator NOT catch a wrong LOGO/USB setting?",
+      "correct": "The simulator's IMU always reports the true heading, whatever directions you type",
+      "wrong": [
+        "The simulator doesn't have an IMU at all",
+        "The simulator automatically fixes your code before running it",
+        "Wrong directions only matter during autonomous"
+      ],
+      "explain": "The sim's IMU uses the robot's true heading, so it forgives a wrong mounting. Your real robot won't. Do the 60-second turn-left test on the real robot whenever the hub is mounted or moved."
+    },
+    {
+      "q": "With the hub really standing on its side but the code saying LogoFacingDirection.UP, what usually happens?",
+      "correct": "Spinning the robot barely changes the heading, and bumping or tilting it makes the heading jump",
+      "wrong": [
+        "The heading works perfectly but in degrees instead of radians",
+        "The robot refuses to drive until you fix it",
+        "The heading is exactly 90 degrees off but otherwise correct"
+      ],
+      "explain": "The IMU thinks your turns are the robot tipping over, so turns show up as pitch or roll instead of heading. Field-centric driving wanders and autonomous turns overshoot or never finish."
     }
   ]
 }
