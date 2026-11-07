@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.23';
+    window.APP_VERSION = '2.8.24';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -1477,10 +1477,18 @@
     // POLLEN extractor arm (lesson 19). Servo -> arm angle is linear and calibrated so the lesson's placeholder numbers
     // work: 0.10 = straight up (stowed), 0.75 = bar just above the tiles, ~5 cm ahead of the bumper (deployed). Other
     // numbers land the arm elsewhere, so a robot whose bar stops too high (e.g. 0.65) can't hook POLLEN -- calibrate!
-    // Heights are above the floor; the bar hooks POLLEN only while it is lower than HOOK_Y.
-    const EXTRACTOR = { PIVOT_Y: 0.17, ARM_L: 0.165, POS_UP: 0.10, POS_DOWN: 0.75,
+    // Heights are above the floor. Below LOW_Y the bar is a solid fence across the intake (plows loose POLLEN, no floor
+    // pickups); below HOOK_Y it is low enough to wedge under a FLOWER's bottom POLLEN and stream the stack out.
+    const EXTRACTOR = { PIVOT_Y: 0.17, PIVOT_Z: 8 * 0.0254 - 0.063 - 0.01, BAR_HX: 8 * 0.0254 - 0.063 + 0.018, ARM_L: 0.165,
+                        POS_UP: 0.10, POS_DOWN: 0.75,
                         ANG_DOWN: 151.5 * Math.PI / 180, ANG_MIN: -10 * Math.PI / 180, ANG_MAX: 160 * Math.PI / 180,
-                        RATE: 6.0, HOOK_Y: 0.065, HOOK_R: 0.05 };
+                        RATE: 6.0, HOOK_Y: 0.065, LOW_Y: 0.08,
+                        FENCE_Y: 0.035, FENCE_HY: 0.03, FENCE_HZ: 0.012,              // bar collider (world height center / half sizes)
+                        PERIOD: 0.25,                                                 // seconds between POLLEN leaving a FLOWER
+                        LATERAL: 0.12, SQUARE: 10 * Math.PI / 180,                    // FLOWER within the robot's width, robot square +-10 deg
+                        SPILL_X: 0.215, MOUTH_F: 0.13 };                              // side spill point / intake mouth ahead of center
+    // Rapier collision groups: the bar fence passes through the FLOWER (it slides under the stack) but hits everything else
+    const GROUP_FLOWER = (0x0002 << 16) | 0xFFFF, GROUP_BAR = (0x0004 << 16) | (0xFFFF & ~0x0002);
     const extractorAngle = pos => Math.max(EXTRACTOR.ANG_MIN, Math.min(EXTRACTOR.ANG_MAX,
       (pos - EXTRACTOR.POS_UP) / (EXTRACTOR.POS_DOWN - EXTRACTOR.POS_UP) * EXTRACTOR.ANG_DOWN));
     const ROBOT_MASS = 12.0;
@@ -1540,6 +1548,13 @@
     const robotBlueRig = makeRobotBody(-HALF * 0.45, 0);
     const robotBlue = robotBlueRig.body;
     robotBlueRig.collider.setSensor(upMode !== 2);   // hidden opponent's body still exists/sims, but shouldn't be a solid invisible wall unless it's actually playing
+    // extractor bar fence, one per robot (index = slot): enabled + positioned by stepExtractor only while the bar is down
+    const barColliders = [robot, robotBlue].map(b => {
+      const c = world.createCollider(RAPIER.ColliderDesc.cuboid(EXTRACTOR.BAR_HX, EXTRACTOR.FENCE_HY, EXTRACTOR.FENCE_HZ)
+        .setDensity(0).setFriction(0.3).setRestitution(0.1).setCollisionGroups(GROUP_BAR), b);
+      c.setEnabled(false);
+      return c;
+    });
 
     // game elements (balls / hive) are built below by the game module, once the scene exists
 
@@ -2137,7 +2152,7 @@
       const exX = half + 0.012, exL = EXTRACTOR.ARM_L;
       const exMat  = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.45, metalness: 0.2 });
       const extractorPivot = new THREE.Object3D();
-      extractorPivot.position.set(0, F + EXTRACTOR.PIVOT_Y, half - 0.01);
+      extractorPivot.position.set(0, F + EXTRACTOR.PIVOT_Y, EXTRACTOR.PIVOT_Z);
       group.add(extractorPivot);
       for (const sx of [-1, 1]) {
         bx(0.012, EXTRACTOR.PIVOT_Y - 0.10 + 0.012, 0.016, sx * exX, F + (0.10 + EXTRACTOR.PIVOT_Y) / 2, half - 0.01, chMat);   // hinge bracket off the frame
@@ -3311,9 +3326,10 @@
     // PHYSICS ("faked", as in caryden/ftc-biobuzz-sim): fixed box colliders for the solid parts, and the staged
     //   elements are a typed stack (no rigid bodies) that drops down a slot when the bottom one is removed. Only the
     //   bottom POLLEN has a collider, so loose balls bump into it instead of passing through.
-    // EXTRACTION: the lesson-19 drop-down bar hooks the bottom POLLEN through the retrieval opening when it is lowered
-    //   onto it, drags it along as the robot backs away, and lets it go as a normal field ball once it clears the flower.
-    //   Raising the bar while the POLLEN is still under the flower drops it back in.
+    // EXTRACTION: the lesson-19 drop-down bar is a wedge. Lowered under a FLOWER the robot faces squarely, it slides under
+    //   the bottom POLLEN and the stack rides it down like a ramp: one POLLEN every EXTRACTOR.PERIOD goes into a running
+    //   intake (max 4 held) or, with the intake off or the robot full, spills out a side onto the field until the FLOWER
+    //   is empty. Driving around with the bar down, it is a solid fence that plows POLLEN instead of letting them in.
     // Local frame: origin on the tile at the POLLEN stack, -Z toward the wall, +Z toward the field.
     const FLOWER = {
       ALONG: 0.5942,                                      // stack center along its wall, from the field center line (CAD)
@@ -3334,6 +3350,7 @@
       { id: 'wall+X', x:  FLOWER.OUT,   z: -FLOWER.ALONG, yaw: -Math.PI / 2 },
     ];
     const flowers = [];
+    const extractTransit = [];   // POLLEN sliding off an extractor bar: { mesh, a, into, t, dur, from, to?, dir? }
     const flowerToLocal = (f, x, z) => { const dx = x - f.x, dz = z - f.z, c = Math.cos(f.yaw), s = Math.sin(f.yaw); return { x: c * dx - s * dz, z: s * dx + c * dz }; };
     const flowerToWorld = (f, lx, lz) => { const c = Math.cos(f.yaw), s = Math.sin(f.yaw); return { x: f.x + c * lx + s * lz, z: f.z - s * lx + c * lz }; };
     // bottom height of each staged element, bottom to top: POLLEN falls to the tile, NECTAR stops on the middle ring
@@ -3346,16 +3363,16 @@
     (function buildFlowers() {
       const yawQ = yaw => ({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) });
       for (const m of FLOWER_MOUNTS) {
-        const f = { ...m, stack: [], hookedBy: null, group: new THREE.Group() };
+        const f = { ...m, stack: [], group: new THREE.Group() };
         f.group.position.set(f.x, 0, f.z); f.group.rotation.y = f.yaw; scene.add(f.group);
         const box = (hx, hy, hz, lx, y, lz) => { const p = flowerToWorld(f, lx, lz);
-          world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(p.x, y, p.z).setRotation(yawQ(f.yaw)).setFriction(0.5).setRestitution(0.3)); };
+          world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(p.x, y, p.z).setRotation(yawQ(f.yaw)).setFriction(0.5).setRestitution(0.3).setCollisionGroups(GROUP_FLOWER)); };
         const midZ = (FLOWER.ZB + FLOWER.ZF) / 2, hz = (FLOWER.ZF - FLOWER.ZB) / 2;
         box(FLOWER.HX, (FLOWER.TOP - FLOWER.OPEN_TOP) / 2, hz, 0, (FLOWER.TOP + FLOWER.OPEN_TOP) / 2, midZ);   // rings + pipes (solid above the opening)
         box(FLOWER.HX, 0.0045, hz, 0, 0.0045, midZ);                                                          // Layer X base plate
         for (const sx of [-1, 1]) box(0.0163, 0.0475, 0.0163, sx * 0.0319, 0.0565, -0.0464);                  // the two "peanut" supports at the back
         const bp = flowerToWorld(f, 0, 0);
-        f.bottomCollider = world.createCollider(RAPIER.ColliderDesc.ball(POLLEN.r).setTranslation(bp.x, POLLEN.r, bp.z).setFriction(0.6).setRestitution(0.3));
+        f.bottomCollider = world.createCollider(RAPIER.ColliderDesc.ball(POLLEN.r).setTranslation(bp.x, POLLEN.r, bp.z).setFriction(0.6).setRestitution(0.3).setCollisionGroups(GROUP_FLOWER));
         flowers.push(f);
       }
       (async () => {
@@ -3386,69 +3403,101 @@
       m.castShadow = true; scene.add(m); return m;
     }
     function resetFlowers() {
-      for (const a of [alliances.red, alliances.blue]) if (a.hook) { scene.remove(a.hook.item.mesh); a.hook = null; }
+      for (const it of extractTransit) scene.remove(it.mesh);
+      extractTransit.length = 0;
+      for (const a of [alliances.red, alliances.blue]) { a.exPending = 0; a.exCd = 0; }
       for (const f of flowers) {
         for (const it of f.stack) scene.remove(it.mesh);
-        f.stack = []; f.hookedBy = null;
+        f.stack = [];
         for (let k = 0; k < 4; k++) { const it = { type: 'pollen', vy: 0 }; it.mesh = flowerPieceMesh(it); f.stack.push(it); }
         const hs = flowerSeatHeights(f.stack, 0);
         f.stack.forEach((it, i) => { it.y = hs[i] + specOf(it.type).r; });   // start seated
       }
     }
-    // stacks fall under gravity to their seats; while a POLLEN is hooked out from under it, the stack stays propped on it
+    // stacks fall under gravity to their seats (the next POLLEN drops onto the tile as soon as the bottom one leaves)
     function stepFlowerStacks(dt) {
       for (const f of flowers) {
-        const base = f.hookedBy ? 2 * POLLEN.r + FLOWER.GAP : 0;
-        const hs = flowerSeatHeights(f.stack, base);
+        const hs = flowerSeatHeights(f.stack, 0);
         f.stack.forEach((it, i) => {
           const rest = hs[i] + specOf(it.type).r;
           if (it.y > rest) { it.vy += 9.81 * dt; it.y = Math.max(rest, it.y - it.vy * dt); } else { it.y = rest; it.vy = 0; }
           const p = flowerToWorld(f, 0, 0); it.mesh.position.set(p.x, it.y, p.z);
         });
         const b = f.stack[0], seated = b && b.type === 'pollen' && b.y < POLLEN.r + 0.005;
-        f.bottomCollider.setEnabled(!!seated && !f.hookedBy);
+        f.bottomCollider.setEnabled(!!seated);
       }
+      stepExtractTransit(dt);
     }
-    // one alliance's extractor arm: ease toward the servo's angle, then hook / drag / release POLLEN
-    function stepExtractor(a, dt) {
-      const H = handleOf(a);
+    const intakeOn = a => (debugIntake && a.slot === 0) || (a.mech && a.mech.intake < -0.15);   // Java intake forward = reversed motor -> negative
+    // one alliance's extractor arm: ease toward the servo's angle, move the bar's fence collider with it, and -- when the
+    // bar is down under a FLOWER the robot is squarely facing -- stream the POLLEN out one every EXTRACTOR.PERIOD.
+    // The bar is a wedge: it slides under the bottom POLLEN and the stack rides it down like a ramp toward the robot.
+    function stepExtractor(a, dt, active) {
+      const H = handleOf(a), body = a.slot === 0 ? robot : robotBlue, bar = barColliders[a.slot];
       if (!H.extractorPivot) return;
+      if (!active) { bar.setEnabled(false); a.barLow = false; return; }
       const pos = (debugExtractor && a.slot === 0) ? EXTRACTOR.POS_DOWN : (a.mech.extractor == null ? EXTRACTOR.POS_UP : a.mech.extractor);
       const tgt = extractorAngle(pos);
       if (a.exAng == null) a.exAng = tgt;
       const step = EXTRACTOR.RATE * dt;
       a.exAng += Math.max(-step, Math.min(step, tgt - a.exAng));
       H.extractorPivot.rotation.x = a.exAng;
-      H.group.updateMatrixWorld(true);
-      const tip = H.extractorTip.getWorldPosition(new THREE.Vector3());
-      const low = tip.y < EXTRACTOR.HOOK_Y;
-      if (!a.hook) {
-        if (!low) return;
-        for (const f of flowers) {
-          const b = f.stack[0];
-          if (f.hookedBy || !b || b.type !== 'pollen' || b.y > POLLEN.r + 0.005) continue;
-          const l = flowerToLocal(f, tip.x, tip.z);
-          if (Math.hypot(l.x, l.z) > EXTRACTOR.HOOK_R) continue;
-          a.hook = { f, item: f.stack.shift() }; f.hookedBy = a;
-          break;
+      const tipY = EXTRACTOR.PIVOT_Y + EXTRACTOR.ARM_L * Math.cos(a.exAng);    // bar height above the tiles
+      const tipF = EXTRACTOR.PIVOT_Z + EXTRACTOR.ARM_L * Math.sin(a.exAng);    // bar distance ahead of the robot center
+      a.barLow = tipY < EXTRACTOR.LOW_Y;
+      bar.setEnabled(a.barLow);
+      if (a.barLow) bar.setTranslationWrtParent({ x: 0, y: EXTRACTOR.FENCE_Y - CH, z: tipF });
+      a.exCd = Math.max(0, (a.exCd || 0) - dt);
+      if (!a.barLow || tipY > EXTRACTOR.HOOK_Y || a.exCd > 0) return;
+      const t = body.translation(), q = body.rotation(), yaw = 2 * Math.atan2(q.y, q.w);
+      const fx = Math.sin(yaw), fz = Math.cos(yaw), tip = { x: t.x + fx * tipF, z: t.z + fz * tipF };
+      for (const f of flowers) {
+        const b = f.stack[0];
+        if (!b || b.type !== 'pollen' || b.y > POLLEN.r + 0.005) continue;           // empty, NECTAR-plugged, or still dropping
+        const l = flowerToLocal(f, tip.x, tip.z);
+        if (l.z < -0.03 || l.z > FLOWER.ZF + 0.03) continue;                          // bar not under the retrieval opening
+        const lateral = (f.x - t.x) * Math.cos(yaw) - (f.z - t.z) * Math.sin(yaw);    // flower center vs robot centerline
+        if (Math.abs(lateral) > EXTRACTOR.LATERAL) continue;
+        const toWall = { x: -Math.sin(f.yaw), z: -Math.cos(f.yaw) };
+        if (fx * toWall.x + fz * toWall.z < Math.cos(EXTRACTOR.SQUARE)) continue;    // robot not square to the FLOWER
+        f.stack.shift();
+        a.exCd = EXTRACTOR.PERIOD;
+        const into = intakeOn(a) && a.stored.length + (a.exPending || 0) < STORAGE_CAPACITY;
+        const from = flowerToWorld(f, 0, 0);
+        if (into) {
+          a.exPending = (a.exPending || 0) + 1;
+          extractTransit.push({ mesh: b.mesh, a, into: true, t: 0, dur: 0.18, from: { x: from.x, y: POLLEN.r, z: from.z } });
+        } else {                                                                      // intake off or robot full: spill out a side
+          a.exSide = -(a.exSide || 1);
+          const to = flowerToWorld(f, a.exSide * EXTRACTOR.SPILL_X, -0.015), out = flowerToWorld(f, a.exSide, 0);
+          extractTransit.push({ mesh: b.mesh, a, into: false, t: 0, dur: 0.2, from: { x: from.x, y: POLLEN.r, z: from.z },
+                                to: { x: to.x, y: POLLEN.r, z: to.z }, dir: { x: out.x - f.x, z: out.z - f.z } });
         }
-        return;
+        break;
       }
-      const { f, item } = a.hook;
-      const l = flowerToLocal(f, tip.x, tip.z);
-      const lz = Math.max(0, l.z);                         // the peanut supports stop it from going toward the wall
-      const p = flowerToWorld(f, l.x, lz);
-      item.mesh.position.set(p.x, POLLEN.r, p.z);
-      const clear = Math.abs(l.x) > FLOWER.HX + POLLEN.r + 0.003 || lz > FLOWER.ZF + POLLEN.r + 0.003;
-      if (clear) {                                         // out from under the flower: becomes a normal field ball
-        scene.remove(item.mesh);
-        const nb = makeBall('pollen', p.x, POLLEN.r + 0.002, p.z, 'field');
-        const v = (a.slot === 0 ? robot : robotBlue).linvel();
-        nb.body.setLinvel({ x: v.x * 0.8, y: 0, z: v.z * 0.8 }, true);
-        f.hookedBy = null; a.hook = null;
-      } else if (!low) {                                   // bar lifted while still under the flower: it drops back in
-        f.stack.unshift(item); item.y = POLLEN.r; item.vy = 0;
-        f.hookedBy = null; a.hook = null;
+    }
+    // POLLEN sliding off the bar: into the intake (stored when it arrives) or out the side (becomes a field ball)
+    function stepExtractTransit(dt) {
+      for (let i = extractTransit.length - 1; i >= 0; i--) {
+        const it = extractTransit[i];
+        it.t += dt;
+        const k = Math.min(1, it.t / it.dur);
+        let to = it.to;
+        if (it.into) {                                     // the intake mouth moves with the robot
+          const body = it.a.slot === 0 ? robot : robotBlue, p = body.translation(), q = body.rotation(), yaw = 2 * Math.atan2(q.y, q.w);
+          to = { x: p.x + Math.sin(yaw) * EXTRACTOR.MOUTH_F, y: POLLEN.r + 0.02, z: p.z + Math.cos(yaw) * EXTRACTOR.MOUTH_F };
+        }
+        it.mesh.position.set(it.from.x + (to.x - it.from.x) * k, it.from.y + (to.y - it.from.y) * k, it.from.z + (to.z - it.from.z) * k);
+        if (k < 1) continue;
+        scene.remove(it.mesh);
+        extractTransit.splice(i, 1);
+        if (it.into) {
+          it.a.exPending = Math.max(0, (it.a.exPending || 0) - 1);
+          if (!enqueueStored(it.a, { type: 'pollen' })) makeBall('pollen', to.x, POLLEN.r + 0.002, to.z, 'field');
+        } else {
+          const nb = makeBall('pollen', to.x, POLLEN.r + 0.002, to.z, 'field');
+          nb.body.setLinvel({ x: it.dir.x * 0.7, y: 0, z: it.dir.z * 0.7 }, true);   // rolls away along the wall
+        }
       }
     }
     function setupMatchField() {
@@ -3542,9 +3591,10 @@
       const q = H.group.getWorldQuaternion(new THREE.Quaternion());
       const ctr = H.group.getWorldPosition(new THREE.Vector3());
       const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q); fwd.y = 0; fwd.normalize();
-      const intakeActive = (debugIntake && a.slot === 0) || (M && M.intake < -0.15);   // Java intake forward = reversed motor -> negative
+      const intakeActive = intakeOn(a);
       a.captureCd -= dt;
-      if (intakeActive && a.stored.length < STORAGE_CAPACITY && a.captureCd <= 0) {
+      // a lowered extractor bar is a fence across the intake mouth: no floor pickups while it is down
+      if (intakeActive && !a.barLow && a.stored.length < STORAGE_CAPACITY && a.captureCd <= 0) {
         const mouth = ctr.clone().addScaledVector(fwd, 0.20);
         let capturedThisCycle = false, touchedBall = false;
         for (let i = balls.length - 1; i >= 0; i--) {
@@ -3839,7 +3889,7 @@
       game.step(dt);
       stepFlight(dt);
       for (const a of activeAlliances()) stepShooterOne(a, dt);   // per-alliance flywheel + intake + storage + feed/launch
-      for (const a of activeAlliances()) stepExtractor(a, dt);    // drop-down bar: animate + hook POLLEN out of a FLOWER
+      for (const a of [alliances.red, alliances.blue]) stepExtractor(a, dt, activeAlliances().includes(a));   // drop-down bar: animate, fence, stream POLLEN out of a FLOWER
       stepFlowerStacks(dt);
       // nectar illegal-possession: a robot holding the OTHER alliance's nectar draws a yellow card
       if (alliances.red.stored.some(s => s.type === 'nectar' && s.alliance && s.alliance !== 'red')) flagIllegalNectar('red');
