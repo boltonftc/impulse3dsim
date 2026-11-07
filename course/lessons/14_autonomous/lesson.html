@@ -183,6 +183,10 @@ follower.followPath(chain1, SPEED, true);
 while (opModeIsActive() &amp;&amp; follower.isBusy()) {
     follower.update();   // drive one step along the path
     robot.update();      // keep the mechanisms' state machines alive
+    Pose p = follower.getPose();                                      // where the robot is right now
+    telemetry.addData("Phase", "Following the path");
+    telemetry.addData("Pos", "(%.1f, %.1f)", p.getX(), p.getY());     // watch x and y change as it drives
+    telemetry.update();
 }</code></pre>
 </div>
 

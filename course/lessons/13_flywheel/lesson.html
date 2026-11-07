@@ -175,13 +175,28 @@ subsystems.add(flywheel);               // register it so robot.update() calls f
 
 <h2>Part E &mdash; Wire the controls and show the RPM</h2>
 
-<p>Three small pieces in <code>MecanumDrive.java</code>: toggle with <strong>Y</strong>, trim with the right stick, and put
-the RPM on the Driver Hub so you can watch it.</p>
+<p>Four small pieces in <code>MecanumDrive.java</code>: give the Y button a memory, toggle with <strong>Y</strong>, trim with
+the right stick, and put the RPM on the Driver Hub so you can watch it.</p>
 
-<h3>1. Toggle and trim</h3>
+<h3>1. Give the Y button a memory</h3>
 
-<p><strong>Y</strong> is a toggle, so it needs <strong>edge detection</strong> (the same trick from the intake &mdash; act only on
-the press, not every loop it's held). The right-stick trim is a hold, so we just feed it in every loop.</p>
+<p><strong>Y</strong> is a toggle, so it needs <strong>edge detection</strong> &mdash; the same trick from the intake: act only on the
+<em>press</em>, not on every loop it's held. Edge detection needs a one-loop memory of what the button was last time,
+just like <code>previousA</code> and <code>previousB</code> in the intake lesson. Add one for Y, up with the other button
+memories near the top of the class (<strong>not</strong> inside the loop &mdash; it has to remember its value from one loop
+to the next).</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Flywheel : Variables">&#9656; MecanumDrive.java : Flywheel : Variables</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>private boolean previousY = false;   // what gamepad1.y was LAST loop (starts false = not pressed)</code></pre>
+</div>
+
+<h3>2. Toggle and trim</h3>
+
+<p>Now use that memory: <code>gamepad1.y &amp;&amp; !previousY</code> means &ldquo;Y is down <em>now</em>, and it was <em>not</em>
+down last loop&rdquo; &mdash; a fresh press. The right-stick trim is a hold, so we just feed it in every loop.</p>
 
 <span class="act" data-action="open_file" data-arg="MecanumDrive.java|Flywheel : Loop">&#9656; MecanumDrive.java : Flywheel : Loop</span>
 
@@ -201,7 +216,7 @@ robot.flywheel.nudge(-gamepad1.right_stick_y);</code></pre>
   faster, which is what your thumb expects.</p>
 </div>
 
-<h3>2. Show the RPM</h3>
+<h3>3. Show the RPM</h3>
 
 <span class="act" data-action="open_file" data-arg="MecanumDrive.java|Flywheel : Telemetry">&#9656; MecanumDrive.java : Flywheel : Telemetry</span>
 

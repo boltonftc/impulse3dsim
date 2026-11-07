@@ -239,6 +239,16 @@ else robot.indexer.stop();</code></pre>
 </div>
 
 <div class="blk blk-key">
+  <div class="blk-head">Optional: show it on the Driver Hub</div>
+  <p>Down with your other telemetry lines (right under the <code>Intake</code> line), you can add this to watch the
+  indexer switch to <strong>FEEDING</strong> while you hold X:</p>
+<pre><code>telemetry.addData("Indexer", robot.indexer.isFeeding() ? "FEEDING" : "idle");</code></pre>
+  <p>That's your <code>isFeeding()</code> peek-window in action &mdash; and another ternary picking one of two words.</p>
+</div>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Telemetry : Status">&#9656; MecanumDrive.java : Telemetry : Status</span>
+
+<div class="blk blk-key">
   <div class="blk-head">Why no edge detection this time?</div>
   <p>Edge detection is for <em>toggles</em> &mdash; "one tap flips a setting" &mdash; where reacting on all 15&ndash;20 loops of a
   held press would flip it back and forth. Feeding is a <em>hold</em>: we <em>want</em> it on for every loop X is down.

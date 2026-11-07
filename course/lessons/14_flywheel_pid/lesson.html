@@ -196,6 +196,23 @@ previousY = gamepad1.y;
 robot.flywheel.trim(-gamepad1.right_stick_y);</code></pre>
 </div>
 
+<h3>Part F &mdash; Show the target and the error</h3>
+
+<p>To <em>see</em> the controller working, put the target and the error on the Driver Hub. Go to your flywheel
+telemetry and add two lines <strong>below</strong> the <code>Flywheel</code> and <code>Flywheel RPM</code> lines you already
+have (keep those):</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Flywheel : Telemetry">&#9656; MecanumDrive.java : Flywheel : Telemetry</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>telemetry.addData("Target RPM", "%.0f", robot.flywheel.getTarget());                          // what the controller is aiming for
+telemetry.addData("RPM error", "%.0f", robot.flywheel.getTarget() - robot.flywheel.getRpm());  // how far off it is right now</code></pre>
+</div>
+
+<p><strong>RPM error</strong> is exactly the number your <code>kP</code> correction works on: target minus measured. When
+the controller is doing its job, it hovers near <strong>0</strong>.</p>
+
 <div class="blk blk-key">
   <div class="blk-head">Wait &mdash; what about the "I" and "D" in PID?</div>
   <p><strong>PID</strong> stands for <strong>P</strong>roportional, <strong>I</strong>ntegral, <strong>D</strong>erivative

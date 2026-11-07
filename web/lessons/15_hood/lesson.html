@@ -168,6 +168,18 @@ subsystems.add(hood);</code></pre>
 robot.hood.aim(gamepad1.right_stick_x);</code></pre>
 </div>
 
+  <h3>Part F &mdash; Show the hood setting</h3>
+
+  <p>So you can watch the hood move (and write down a good setting once you find one), add one telemetry line
+  <strong>below</strong> your flywheel telemetry lines:</p>
+
+  <span class="act" data-action="open_file" data-arg="MecanumDrive.java|Flywheel : Telemetry">&#9656; MecanumDrive.java : Flywheel : Telemetry</span>
+
+  <div class="blk blk-code">
+    <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+    <pre><code>telemetry.addData("Hood", "%.2f", robot.hood.getPosition());   // the hood servo setting, 0.00 to 1.00</code></pre>
+  </div>
+
 <hr>
 
 <h2>Test it &mdash; aim and fire</h2>
