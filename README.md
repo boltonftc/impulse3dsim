@@ -37,7 +37,7 @@ CheerpJ CDN same-origin under `/cj/`.
 | `java/sim/` | The simulator host (`OpModeHost`) and hardware implementations that bridge student code to the 3D physics world. |
 | `java/examples/` | Reference competition OpModes, sanity-compiled by the build. |
 | `course/` | Lesson **source**: `master/` tagged Java, `lessons/` HTML, `module.json` order, and `build_course.py`. |
-| `tools/` | `build.ps1` (compiles jars), `range_server.py` (local dev server). |
+| `tools/` | `build.ps1` (compiles jars), `range_server.py` (local dev server), `cad/` (dev-only converters that turn the official BIOBUZZ field STEP into `web/assets` models, e.g. `convert_flower.mjs` → `flower.glb`). |
 | `docs/` | Design and planning notes. |
 
 ## Building

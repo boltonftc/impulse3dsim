@@ -1,0 +1,13 @@
+{
+  "name": "impulse-3dsim-cad-tools",
+  "private": true,
+  "description": "Dev-only converters that turn the official BIOBUZZ field STEP into web/assets models. Not part of the site.",
+  "type": "module",
+  "scripts": {
+    "flower": "node convert_flower.mjs"
+  },
+  "devDependencies": {
+    "meshoptimizer": "^1.2.0",
+    "occt-import-js": "^0.0.23"
+  }
+}

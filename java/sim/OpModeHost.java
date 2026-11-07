@@ -45,8 +45,8 @@ public class OpModeHost {
 
     // Java -> JS chassis velocity, robot frame (m/s, m/s, rad/s CCW+).
     static native void publish(int slot, double vx, double vy, double omega);
-    // Java -> JS mechanism state so the sim can animate them (intake/feeder/shooter spin, hood + dump-bed + turret pos).
-    static native void mech(int slot, double intake, double feeder, double shooter, double hood, double dump, double turret);
+    // Java -> JS mechanism state so the sim can animate them (intake/feeder/shooter spin, hood + dump-bed + turret + extractor pos).
+    static native void mech(int slot, double intake, double feeder, double shooter, double hood, double dump, double turret, double extractor);
     // Java -> JS telemetry snapshot for the HUD.
     static native void telemetry(int slot, String text);
     // Java -> JS run state: 1 compiling, 2 initialized, 3 running, 4 stopped, 5 error.
@@ -195,8 +195,10 @@ public class OpModeHost {
             final SimServo turret   = new SimServo("turret");
             turret.setPosition(0.5);   // centered = facing forward until student code drives it
             hw.put("turret", turret);
-            // pollen extractor arm (lesson 19): registered so student code runs; not drawn or simulated yet
+            // pollen extractor arm (lesson 19): a drop-down bar on the robot front that pulls POLLEN out of a FLOWER.
+            // Starts at 0.10 (the lesson's STOWED_POS) so the arm is up until student code drives it.
             final SimServo extractor = new SimServo("extractor");
+            extractor.setPosition(0.10);
             hw.put("extractor", extractor);
 
             // DUMPER robot type -- the names the v2 course and competition_code use.
@@ -276,7 +278,7 @@ public class OpModeHost {
                     // models the RPM from it). This closes the loop the encoder + PID lessons depend on.
                     shooter.setVelocity(simFlywheelTicks(s));
                     double shooterPow = Math.max(-1.0, Math.min(1.0, shooter.getEffectivePower()));
-                    mech(s, intake.getEffectivePower(), feeder.getEffectivePower(), shooterPow, hood.getPosition(), dumpServo.getPosition(), turret.getPulseFraction());
+                    mech(s, intake.getEffectivePower(), feeder.getEffectivePower(), shooterPow, hood.getPosition(), dumpServo.getPosition(), turret.getPulseFraction(), extractor.getEffectivePosition());
 
                     samples++;
                     // ~60 Hz control rate; under CheerpJ this loop shares the browser main thread, so a tighter sleep starves rendering.

@@ -37,6 +37,18 @@ copyright, and their respective licenses continue to govern their use:
   - three.js — MIT License. https://threejs.org/
   - Rapier (rapier3d) — Apache License 2.0. https://rapier.rs/
   - CodeMirror — MIT License. https://codemirror.net/
+  - ftc-biobuzz-sim (caryden/ftc-biobuzz-sim) — MIT License, Copyright (c) 2026
+    Carl Ryden and the students and mentors of NCSSM FTC teams 5064, 8569, and
+    22377. https://github.com/caryden/ftc-biobuzz-sim
+    The FLOWER stack model in web/index.html and tools/cad/convert_flower.mjs are
+    adapted from it. Full license text: web/THIRD_PARTY_NOTICES.txt
+
+FIELD MODELS
+============
+web/assets/flower.glb is converted (tools/cad/convert_flower.mjs) from the
+official BIOBUZZ field CAD that FIRST publishes on its Playing Field Resources
+page. The design belongs to FIRST and its suppliers (AndyMark); it is included
+only so the simulator can draw the official field and is not relicensed here.
 
 The FIRST Tech Challenge SDK class names mirrored by the simulator's shim
 (packages com.qualcomm.* and org.firstinspires.*) are independent
