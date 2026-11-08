@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.33';
+    window.APP_VERSION = '2.8.34';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -2708,6 +2708,22 @@
       body.setRotation({ x: 0, y: Math.sin(yaw/2), z: 0, w: Math.cos(yaw/2) }, true);
       body.setLinvel({ x: 0, y: 0, z: 0 }, true); body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     }
+    // AUTO START PLACEMENT: like a drive team setting the robot down where its auto says it starts.
+    // Called (via the placeRobot native) when an OpMode declares a pose on the Pinpoint during INIT,
+    // e.g. follower.setStartingPose(...). Coordinates are inches/radians seen from THAT alliance's
+    // drivers (the field is 180-deg symmetric), so blue's pose is rotated half a turn into the world.
+    function placeFromDeclaredPose(al, xIn, yIn, hRad){
+      const s = al.slot === 1 ? -1 : 1, M = 0.0254, lim = HALF - 0.25;   // keep the 18" robot inside the walls
+      const x = Math.max(-lim, Math.min(lim, s * xIn * M));
+      const z = Math.max(-lim, Math.min(lim, -s * yIn * M));
+      const yaw = hRad + Math.PI / 2 + (al.slot === 1 ? Math.PI : 0);
+      const body = al.slot === 1 ? robotBlue : robot;
+      body.setTranslation({ x, y: CH, z }, true);
+      body.setRotation({ x: 0, y: Math.sin(yaw/2), z: 0, w: Math.cos(yaw/2) }, true);
+      body.setLinvel({ x: 0, y: 0, z: 0 }, true); body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      al.hold = null;                      // drop the old frozen pose so the governor re-latches HERE
+      al.placed = { xIn, yIn, hRad };      // re-applied if the match ceremony resets the field after INIT
+    }
     // shared by the ceremony (reset happens while the lights are out) and the practice Field Reset button
     function resetFieldForMatch(){
       game.reset();
@@ -2718,6 +2734,9 @@
       resetRobot(robot, HALF * 0.45, Math.PI);
       resetRobot(robotBlue, -HALF * 0.45, 0);
       alliances.red.hold = alliances.blue.hold = null;   // drop any frozen-pose lock so robots start from spawn
+      // an auto that already declared its start pose during INIT keeps that placement (the Pinpoint is
+      // anchored to it), even though the ceremony's field reset runs after INIT on a fast compile
+      for (const al of [alliances.red, alliances.blue]) if (al.placed) placeFromDeclaredPose(al, al.placed.xIn, al.placed.yIn, al.placed.hRad);
     }
     function startMatch(){
       if (match.running || match.arming) return;
@@ -2733,7 +2752,11 @@
     function beginPlay(){
       match.arming = false; match.running = true; match.state = 'AUTO'; match.t = 0; match.endgameAnnounced = false; match.nectarDumped = false;
       playSfx('matchStart');
-      for (const al of participants()){ al.matchArm = false; opStartOn(al); }
+      for (const al of participants()){
+        const p = (al.slot === 0 ? robot : robotBlue).translation();
+        al.startXZ = { x: p.x, z: p.z };   // where the robot actually starts (spawn or its auto's start pose)
+        al.matchArm = false; opStartOn(al);
+      }
       setMatchUI();
     }
     function endMatch(){
@@ -2767,9 +2790,10 @@
       // AUTO mobility: 3 pts the first time each participating robot leaves its spawn
       if (match.state === 'AUTO') for (const al of participants()) {
         if (scored[al.name].moved) continue;
-        const body = al.slot === 0 ? robot : robotBlue, sz = al.slot === 0 ? HALF * 0.45 : -HALF * 0.45;
+        const body = al.slot === 0 ? robot : robotBlue;
+        const s0 = al.startXZ || { x: 0, z: al.slot === 0 ? HALF * 0.45 : -HALF * 0.45 };
         const p = body.translation();
-        if (Math.hypot(p.x, p.z - sz) > 0.08) { scored[al.name].moved = true; matchScore[al.name] += 3; }
+        if (Math.hypot(p.x - s0.x, p.z - s0.z) > 0.08) { scored[al.name].moved = true; matchScore[al.name] += 3; }
       }
       if (match.state === 'AUTO' && match.t >= MATCH.AUTO) {
         for (const al of participants()) {                        // parked in the LOADING ZONE at end of AUTO -> 5 pts
@@ -3808,6 +3832,16 @@
     function Java_sim_OpModeHost_simVelX(lib, slot){ return bodyBySlot[slot|0].linvel().x; }
     function Java_sim_OpModeHost_simVelZ(lib, slot){ return bodyBySlot[slot|0].linvel().z; }
     function Java_sim_OpModeHost_simYawRate(lib, slot){ return bodyBySlot[slot|0].angvel().y; }
+    // Java -> JS: the OpMode declared a pose on the Pinpoint (setPosition). Before START, that's the drive
+    // team placing the robot on its auto's start spot -- move the sim robot there. After START it's just a
+    // re-anchor (HOME reset, auto -> TeleOp hand-off), so the robot stays put. Returns true if it moved.
+    function Java_sim_OpModeHost_placeRobot(lib, slot, xIn, yIn, hRad){
+      const a = sel(slot); a.calls++;
+      if (!a.placeOk || a.lastCode === 3 || !(a.pending === 1 || a.lastCode === 1 || a.lastCode === 2)) return false;
+      if (match.running && match.state !== 'AUTO') return false;
+      placeFromDeclaredPose(a, xIn, yIn, hRad);
+      return true;
+    }
     function Java_sim_OpModeHost_opActive(lib, slot){ const a = sel(slot); a.calls++; return a.active; }
     function Java_sim_OpModeHost_pollCommand(lib, slot){
       const a = sel(slot); a.calls++;
@@ -3849,6 +3883,7 @@
     function forceHubStopped(al){
       if (al.lastCode === 2 || al.lastCode === 3) opStopOn(al);   // only stop if actually armed/running
       al.lastCode = 0;
+      al.placed = null;   // a stopped hub no longer owns a start placement (Field Reset -> default spawn)
       const st = document.getElementById(al.hub.opstate);
       if (st) st.textContent = 'STOPPED';
       renderHub(al, 0);
@@ -4338,6 +4373,8 @@
       a.cmd.vx = a.cmd.vy = a.cmd.omega = 0;
       a.active = true;
       a.pending = 1;
+      a.placed = null;           // a new INIT forgets any previous auto start placement
+      a.placeOk = !!src.fqn;     // only a real, user-chosen op may place the robot (not the silent prewarm)
       return fqn;
     }
     // init queue: only one alliance may stage into the shared flat /str/ + compile at a time.
@@ -6795,6 +6832,7 @@
           Java_sim_OpModeHost_telemetry, Java_sim_OpModeHost_status,
           Java_sim_OpModeHost_simX, Java_sim_OpModeHost_simZ, Java_sim_OpModeHost_simYaw,
           Java_sim_OpModeHost_simVelX, Java_sim_OpModeHost_simVelZ, Java_sim_OpModeHost_simYawRate,
+          Java_sim_OpModeHost_placeRobot,
           Java_sim_OpModeHost_simFlywheelTicks } });
         try { cheerpjCreateDisplay(1,1); } catch(e){}
         booted = true;

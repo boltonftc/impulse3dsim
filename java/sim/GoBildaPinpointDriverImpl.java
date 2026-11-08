@@ -24,6 +24,7 @@ public class GoBildaPinpointDriverImpl extends com.qualcomm.hardware.gobilda.GoB
     private double anchorXmm = 0, anchorYmm = 0, anchorHrad = 0;   // declared pose at last setPosition
     private double gtResetXmm = 0, gtResetYmm = 0, gtResetHrad = 0; // ground truth at last setPosition
     private double cosPhi = 1.0, sinPhi = 0.0;                      // R(phi), phi = anchorHrad - gtResetHrad
+    private boolean resetting = false;                              // inside resetPosAndIMU(): not a placement
 
     public GoBildaPinpointDriverImpl(int slot) {
         this.slot = slot;
@@ -33,15 +34,26 @@ public class GoBildaPinpointDriverImpl extends com.qualcomm.hardware.gobilda.GoB
     private double groundTruthYmm() { return OpModeHost.simX(slot) * 1000.0; }
     private double groundTruthHrad() { return OpModeHost.simYaw(slot); }
 
+    @Override
+    public synchronized void resetPosAndIMU() {
+        resetting = true;
+        try { super.resetPosAndIMU(); } finally { resetting = false; }
+    }
+
     // Re-anchor: called by resetPosAndIMU() and by team code (real API, e.g. from a Localizer's
     // setStartPose). Latch the declared pose and the ground truth at this instant, and recompute
     // the start-heading rotation so future simUpdate() ticks read relative to this pose.
+    // A declared pose during INIT also PLACES the sim robot there first (like a drive team setting
+    // the robot on its auto's start spot), so the ground truth latched below is the placed pose.
     @Override
     public synchronized void setPosition(Pose2D pos) {
         super.setPosition(pos);
         anchorXmm = pos.getX(DistanceUnit.MM);
         anchorYmm = pos.getY(DistanceUnit.MM);
         anchorHrad = pos.getHeading(AngleUnit.RADIANS);
+        if (!resetting) {
+            OpModeHost.placeRobot(slot, pos.getX(DistanceUnit.INCH), pos.getY(DistanceUnit.INCH), anchorHrad);
+        }
         gtResetXmm = groundTruthXmm();
         gtResetYmm = groundTruthYmm();
         gtResetHrad = groundTruthHrad();

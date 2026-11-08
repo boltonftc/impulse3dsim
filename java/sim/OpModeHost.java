@@ -39,6 +39,10 @@ public class OpModeHost {
     static native double simVelX(int slot);
     static native double simVelZ(int slot);
     static native double simYawRate(int slot);
+    // Java -> JS: team code declared a pose on the Pinpoint (setPosition, not a reset). Before START the
+    // sim treats it as "the drive team placed the robot here" and moves the robot (inches/radians, seen
+    // from that alliance's drivers). Returns true if the robot was moved.
+    static native boolean placeRobot(int slot, double xIn, double yIn, double headingRad);
     // JS -> Java flywheel encoder readback (ticks/sec, 28 CPR) so the student's getVelocity() reads the
     // real modeled RPM -- spin-up inertia + per-shot sag -- for the encoder and PID lessons.
     static native double simFlywheelTicks(int slot);
