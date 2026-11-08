@@ -156,17 +156,6 @@
       "quiz": true
     },
     {
-      "id": "15_hood",
-      "title": "Aiming: The Adjustable Hood",
-      "tier": "advanced",
-      "code": true,
-      "html": true,
-      "active": "Hood.java",
-      "folder": "15_hood",
-      "description": "Consistent speed is done; now aim. Build a Hood subsystem on a positional servo (precise angles, not a CR servo) and steer the launch angle with the right stick -- changing the hood re-aims the shot instantly, no waiting on the flywheel.",
-      "quiz": true
-    },
-    {
       "id": "13_localization",
       "title": "Where Am I? Pinpoint Localization",
       "tier": "advanced",
@@ -202,7 +191,10 @@
     {
       "id": "17_turret",
       "title": "The Turret: Gears, Servos and Aiming",
-      "tier": "advanced",
+      "tier": "specialized",
+      "requires": [
+        "turret"
+      ],
       "code": false,
       "html": true,
       "folder": "17_turret",
@@ -213,7 +205,10 @@
     {
       "id": "18_auto_aim",
       "title": "Auto-Aim: Pointing the Turret with Odometry",
-      "tier": "advanced",
+      "tier": "specialized",
+      "requires": [
+        "turret"
+      ],
       "code": false,
       "html": true,
       "folder": "18_auto_aim",
@@ -224,7 +219,10 @@
     {
       "id": "19_extractor",
       "title": "The Extractor Arm: A Two-Position Servo",
-      "tier": "advanced",
+      "tier": "specialized",
+      "requires": [
+        "extractor"
+      ],
       "code": false,
       "html": true,
       "folder": "19_extractor",

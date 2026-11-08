@@ -458,7 +458,7 @@ def main():
         shutil.copytree(LESSONS_SRC_DIR, WEB_LESSONS_DIR)
         # module.json lives beside the lessons; stamp "quiz": true onto lessons that ship a quiz.json,
         # and "reward": true onto lessons that ship a reward.html (shown only after the quiz is passed)
-        published = dict(module)
+        published = {k: v for k, v in module.items() if k not in ("retired", "_retired_note")}
         published["lessons"] = []
         for l in module["lessons"]:
             entry = {**l, "quiz": True} if l["id"] in quiz_have else dict(l)

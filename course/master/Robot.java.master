@@ -58,6 +58,8 @@ public class Robot {
     public final Flywheel flywheel;
     // @end(13_flywheel)
 
+    // @begin(15_hood)
+    // RETIRED lesson (course/retired/15_hood): never reached, so this whole block stays hidden
     // ===============================================
     // Hood : Field
     // Do not remove this comment
@@ -65,6 +67,7 @@ public class Robot {
     // ===============================================
     // @fill(15_hood)
     public final Hood hood;
+    // @end(15_hood)
     // @end(15_hood)
 
     // ===============================================
@@ -120,6 +123,8 @@ public class Robot {
         subsystems.add(flywheel);
         // @end(13_flywheel)
 
+        // @begin(15_hood)
+        // RETIRED lesson (course/retired/15_hood): never reached, so this whole block stays hidden
         // ===============================================
         // Hood : Setup
         // Do not remove this comment
@@ -128,6 +133,7 @@ public class Robot {
         // @fill(15_hood)
         hood = new Hood(hardwareMap);
         subsystems.add(hood);
+        // @end(15_hood)
         // @end(15_hood)
 
         // ===============================================

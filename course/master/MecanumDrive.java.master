@@ -190,6 +190,8 @@ public class MecanumDrive extends LinearOpMode {
             robot.flywheel.nudge(-gamepad1.right_stick_y);
             // @end(13_flywheel)
 
+            // @begin(15_hood)
+            // RETIRED lesson (course/retired/15_hood): never reached, so this whole block stays hidden
             // ===============================================
             // Hood : Loop
             // Do not remove this comment
@@ -198,6 +200,7 @@ public class MecanumDrive extends LinearOpMode {
             // @fill(15_hood)
             // Right stick LEFT/RIGHT aims the hood (up/down trims the flywheel target).
             robot.hood.aim(gamepad1.right_stick_x);
+            // @end(15_hood)
             // @end(15_hood)
 
             // @fill(06_mecanum_drive, supersedes=05_tank_drive)

@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.29';
+    window.APP_VERSION = '2.8.30';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -5469,7 +5469,8 @@
     const TIER_INFO = {
       easier:       { icon: '\u25cf', label: 'EASIER',       desc: 'Watch & Change Values',   color: '#4cd94c', dark: '#142d14' },
       intermediate: { icon: '\u25a0', label: 'INTERMEDIATE', desc: 'Build New Features',       color: '#598cff', dark: '#16233f' },
-      advanced:     { icon: '\u25c6', label: 'ADVANCED',     desc: 'Write Code From Scratch',  color: '#4b5563', dark: '#1c1c22', font: '#d9d9d9' }
+      advanced:     { icon: '\u25c6', label: 'ADVANCED',     desc: 'Write Code From Scratch',  color: '#4b5563', dark: '#1c1c22', font: '#d9d9d9' },
+      specialized:  { icon: '\u2699', label: 'SPECIALIZED SUBSYSTEMS', desc: 'Only if your robot has one', color: '#b45309', dark: '#2a1f08', font: '#fcd34d' }
     };
     const tierCollapsed = {};   // { tierKey: true } once a student collapses a section
 
@@ -5596,7 +5597,7 @@
     }
     function renderLessonList(){
       listEl.innerHTML = '';
-      const order = ['easier', 'intermediate', 'advanced'];
+      const order = ['easier', 'intermediate', 'advanced', 'specialized'];
       for (const tierKey of order){
         const group = lessons.filter(l => (l.tier || 'easier') === tierKey);
         if (!group.length) continue;

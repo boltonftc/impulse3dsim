@@ -152,14 +152,14 @@ send by default. With the hub's normal servo signal, you get about <strong>90%</
 <strong>left</strong> to swing left, <strong>right</strong> to swing right. In the simulator, the <code>,</code> and
 <code>.</code> keys (the <code>&lt;</code> and <code>&gt;</code> keys) do the same thing.</p>
 
-<p>This works like the Hood's aiming, with one difference. The Hood used a <em>stick</em>, so pushing it farther moved it
-faster. A D-pad button is just on or off, so while it's held, the turret moves the <strong>same small step every
+<p>This is different from the flywheel trim on the right stick. A <em>stick</em> is analog, so pushing it farther
+changes things faster. A D-pad button is just on or off, so while it's held, the turret moves the <strong>same small step every
 loop</strong>. At dozens of loops a second, those small steps add up to a smooth swing. And every step is clamped to the
 safe limits, so the driver can't wrap the wires.</p>
 
 <div class="blk blk-key">
   <div class="blk-head">The turret is just another subsystem</div>
-  <p>Same shape as the Hood: a <code>position</code> field remembers where we want the turret, command methods
+  <p>Same shape as your Intake, Indexer and Flywheel: a <code>position</code> field remembers where we want the turret, command methods
   (<code>nudgeLeft()</code>, <code>nudgeRight()</code>, <code>setAngle()</code>) only change that field, and
   <code>update()</code> sends it to the servo every loop. Nothing moves until <code>robot.update()</code> runs.</p>
 </div>
