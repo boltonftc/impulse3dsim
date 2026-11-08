@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.34';
+    window.APP_VERSION = '2.8.35';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -2727,6 +2727,8 @@
     // shared by the ceremony (reset happens while the lights are out) and the practice Field Reset button
     function resetFieldForMatch(){
       game.reset();
+      // every robot starts the match with its motors off and the flywheel at rest (no carried-over power)
+      for (const al of [alliances.red, alliances.blue]) { stopMotors(al); al.sh.rpm = 0; }
       setupMatchField();                                      // 4 pollen in the robot, 3 nectar per hive, 4 pollen per garden
       clearYellowCards();                                     // illegal-possession warnings persist only within a match
       alliances.red.captured = alliances.red.stored.length;   // start each robot with its preloaded pollen count
@@ -3852,6 +3854,7 @@
     }
     function Java_sim_OpModeHost_mech(lib, slot, intake, feeder, shooter, hood, dump, turret, extractor){
       const a = sel(slot); a.calls++; a.mech.intake = intake; a.mech.feeder = feeder; a.mech.shooter = shooter; a.mech.hood = hood; a.mech.dump = dump; a.mech.turret = turret; a.mech.extractor = extractor;
+      if (!a.active) stopMotors(a);   // a late publish from a stopping OpMode can't restart the motors
     }
     // JS -> Java flywheel encoder readback: modeled RPM as encoder ticks/sec (28 CPR). slot 0 = red robot
     // (the only modeled flywheel today); blue returns 0. The sampler injects this into the shooter motor so
@@ -4401,7 +4404,16 @@
       }
     }
     function opStartOn(a){ if (booted) { a.active = true; a.pending = 2; } }
-    function opStopOn(a){ if (booted) { a.active = false; a.pending = 3; } }
+    function opStopOn(a){ if (booted) { a.active = false; a.pending = 3; stopMotors(a); } }
+    // STOP cuts every motor, like a real robot when its OpMode ends: drive, intake, feeder and flywheel
+    // power go to 0, so leftover feeder/flywheel power can't keep firing pieces after a stop or reset.
+    // (Servos hold their last position, as real servos do.)
+    function stopMotors(a){
+      const M = a.mech;
+      M.intake = M.feeder = M.shooter = 0;
+      a.cmd.vx = a.cmd.vy = a.cmd.omega = 0;
+      a.sh.feedCd = 0; a.ejectTimer = 0; a.dumpTimer = 0;
+    }
     function opStart() { opStartOn(sim); }
     function opStop()  { opStopOn(sim); }
     // run an alliance's carried snapshot on its Driver Hub (RED auto-carries the Pit package if empty)
