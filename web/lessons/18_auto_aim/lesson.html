@@ -445,6 +445,23 @@ it can be off by an inch or two. Since the robot parks near the drivers anyway, 
 slate clean. (Coming up in a future lesson: the <strong>Limelight</strong> camera can spot AprilTags on the field walls
 and correct the position automatically.)</p>
 
+<h3>4. Field-centric after auto: trust the Pinpoint, not the IMU</h3>
+
+<p>Here's a sneaky one. Field-centric driving needs to know which way the robot faces <em>compared to the drivers</em>.
+Until now it asked the Control Hub's <strong>IMU</strong>. But the IMU knows nothing about the field: it calls
+&ldquo;forward&rdquo; whichever way the robot faced when TeleOp started. If auto ends with the robot turned 45&deg;,
+every push of the stick in TeleOp comes out 45&deg; off.</p>
+
+<p>The Pinpoint doesn't have that problem. Auto told it the real start pose, and the note on the blackboard carried
+the pose into TeleOp, so its heading is a true <strong>field</strong> heading. So once the pose is known, field-centric
+uses the Pinpoint's heading instead. Facing away from the red drivers is field heading 90&deg;, and field-centric
+calls that 0&deg;, so we subtract 90:</p>
+
+<pre><code>heading = Math.toRadians(robot.localization.getHeadingDegrees() - 90);</code></pre>
+
+<p>If the pose isn't known yet (TeleOp by itself, no HOME reset), it falls back to the IMU, just like before. And the
+HOME reset still lines both up: at HOME the Pinpoint says 90&deg; (so this gives 0) and the IMU is reset to 0.</p>
+
 <h2>14. The code: your worksheet, in Java</h2>
 
 <p>Here's the heart of the <code>AutoAim</code> class you'll unlock. It's the same worksheet you filled in during

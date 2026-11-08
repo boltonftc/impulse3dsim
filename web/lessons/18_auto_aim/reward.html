@@ -1,8 +1,9 @@
 <p>Turret robots: add these pieces to your code package. You need the <code>Turret</code> and <code>Robot</code>
 changes from lesson 17 first. <strong>Before</strong> you let the turret swing &plusmn;200&deg;, do the wiring check in
 the lesson (section 10).</p>
-<p><strong>No turret?</strong> You can still use the HOME reset and the hand-off from auto: add pieces 3&ndash;7 (leave
-the two auto-aim lines out of piece 6) and skip <code>Turret.java</code> and <code>AutoAim.java</code>.</p>
+<p><strong>No turret?</strong> You can still use the HOME reset, the hand-off from auto, and field-centric that stays
+right after auto: add pieces 3&ndash;8 (leave the two auto-aim lines out of piece 6) and skip <code>Turret.java</code>
+and <code>AutoAim.java</code>.</p>
 
 <div class="blk blk-code">
   <div class="blk-head"><span>&#128275; 1. Replace your whole <code>Turret.java</code></span><span class="copybtn">&#10850; Copy</span></div>
@@ -251,7 +252,22 @@ public class AutoAim {
 </div>
 
 <div class="blk blk-code">
-  <div class="blk-head"><span>7. Hand-written autos only (like <code>SimpleAuto</code>): inside the follow loop, after <code>Pose p = follower.getPose();</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <div class="blk-head"><span>7. In your TeleOp loop, replace the heading line in <code>IMU : Heading</code></span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>            // Field-centric "forward": once we know our field pose (from auto or HOME), use the Pinpoint's
+            // FIELD heading -- the IMU only knows which way we faced when TeleOp started.
+            // 90 deg on the field = facing away from the red drivers = field-centric 0, so subtract 90.
+            double heading;
+            if (robot.localization.isPoseKnown()) {
+                heading = Math.toRadians(robot.localization.getHeadingDegrees() - 90);
+            } else {
+                heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);   // no pose yet: same as before
+            }</code></pre>
+</div>
+<p>This <strong>replaces</strong> the old <code>double heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);</code>
+line. Leave the heading telemetry and the <code>driveFieldCentric(gamepad1, heading)</code> call as they are.</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>8. Hand-written autos only (like <code>SimpleAuto</code>): inside the follow loop, after <code>Pose p = follower.getPose();</code></span><span class="copybtn">&#10850; Copy</span></div>
 <pre><code>            // Leave our position for TeleOp. Saved every loop, in case the match timer cuts auto short.
             blackboard.put("autoPose", new double[] { p.getX(), p.getY(), Math.toDegrees(p.getHeading()) });</code></pre>
 </div>
@@ -259,7 +275,7 @@ public class AutoAim {
 coordinates.</p>
 
 <div class="blk blk-hint">
-  <div class="blk-head">8. Optional: aim during auto too</div>
+  <div class="blk-head">9. Optional: aim during auto too</div>
   <p><strong>Path Capture autos aim on their own:</strong> when your package has <code>AutoAim.java</code>, Path Capture
   adds these lines for you. For a hand-written auto (like <code>SimpleAuto</code>), add them yourself. First, right after
   <code>follower.setStartingPose(startPose);</code>, tell Localization the same start pose so it knows where you are:</p>
