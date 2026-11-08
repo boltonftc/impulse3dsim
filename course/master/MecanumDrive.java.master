@@ -11,6 +11,9 @@ import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.hardware.IMU;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 // @end(08_imu)
+// @fill(16b_auto_to_teleop)
+import com.qualcomm.robotcore.util.ElapsedTime;
+// @end(16b_auto_to_teleop)
 
 /*
  * ============================================================================
@@ -98,6 +101,18 @@ public class MecanumDrive extends LinearOpMode {
         // START: pause here until the driver presses the play button.
         waitForStart();
 
+        // @fill(16b_auto_to_teleop)
+        // Where are we? If auto just ran, it left the robot's position on the blackboard.
+        // remove() uses it up, so a later TeleOp run can't pick up an old, stale position.
+        Object fromAuto = blackboard.remove("autoPose");
+        if (fromAuto instanceof double[]) {
+            double[] p = (double[]) fromAuto;
+            robot.localization.setPose(p[0], p[1], p[2]);
+        }
+        ElapsedTime rbHeld = new ElapsedTime();   // a stopwatch for "hold RB for half a second"
+        boolean homeDone = false;
+        // @end(16b_auto_to_teleop)
+
         // ===============================================
         // Telemetry : Loop Counter
         // Do not remove this comment
@@ -117,6 +132,31 @@ public class MecanumDrive extends LinearOpMode {
             // Do not remove this comment
             // Read the heading, show it, and reset it on the right bumper
             // ===============================================
+            // @fill(16b_auto_to_teleop, supersedes=08_imu)
+            // Field-centric "forward": once we know our field pose (from auto or HOME), use the Pinpoint's
+            // FIELD heading -- the IMU only knows which way we faced when TeleOp started.
+            // 90 deg on the field = facing away from your drivers = field-centric 0, so subtract 90.
+            double heading;
+            if (robot.localization.isPoseKnown()) {
+                heading = Math.toRadians(robot.localization.getHeadingDegrees() - 90);
+            } else {
+                heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);   // no pose yet: same as before
+            }
+            telemetry.addData("Heading (deg)", Math.toDegrees(heading));
+            telemetry.addData("Heading (rad)", heading);
+
+            // HOME reset: park at HOME and hold RB for half a second. Resets field-centric "forward"
+            // (the IMU) AND tells odometry exactly where the robot is. Only press it at HOME!
+            if (!gamepad1.right_bumper) {
+                rbHeld.reset();          // the stopwatch restarts whenever RB is up
+                homeDone = false;
+            } else if (rbHeld.seconds() >= 0.5 && !homeDone) {
+                imu.resetYaw();
+                robot.localization.setPoseToHome();
+                homeDone = true;
+            }
+            if (homeDone) telemetry.addLine("HOME: position reset. Let go of RB.");
+            // @end(16b_auto_to_teleop)
             // @fill(08_imu)
             double heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
             telemetry.addData("Heading (deg)", Math.toDegrees(heading));
@@ -321,6 +361,9 @@ public class MecanumDrive extends LinearOpMode {
             telemetry.addData("Distance from start (in)", "%.1f",
                 robot.localization.getDistanceFromStartInches());
             // @end(13_localization)
+            // @fill(16b_auto_to_teleop)
+            telemetry.addData("Pose known", robot.localization.isPoseKnown());   // false = no auto hand-off yet: hold RB at HOME
+            // @end(16b_auto_to_teleop)
 
             telemetry.update();
         }

@@ -132,6 +132,25 @@ public class SimpleAuto extends LinearOpMode {
         // Do not remove this comment
         // Seed the start pose, then follow the path with a follow-and-wait loop below
         // ===============================================
+        // @fill(16b_auto_to_teleop, supersedes=14_autonomous)
+        // Tell the localizer exactly where the robot is starting. From here on,
+        // its tracked position is in FIELD inches -- not "inches from wherever
+        // it powered on."
+        follower.setStartingPose(startPose);
+
+        // Follow the whole chain: away from the drivers to pose1, then left to pose2.
+        follower.followPath(chain1, SPEED, true);
+        while (opModeIsActive() && follower.isBusy()) {
+            follower.update();   // drive one step along the path
+            robot.update();      // keep the mechanisms' state machines alive
+            Pose p = follower.getPose();
+            // Leave our position for TeleOp. Saved every loop, in case the match timer cuts auto short.
+            blackboard.put("autoPose", new double[] { p.getX(), p.getY(), Math.toDegrees(p.getHeading()) });
+            telemetry.addData("Phase", "Following the path");
+            telemetry.addData("Pos", "(%.1f, %.1f)", p.getX(), p.getY());
+            telemetry.update();
+        }
+        // @end(16b_auto_to_teleop)
         // @fill(14_autonomous)
         // Tell the localizer exactly where the robot is starting. From here on,
         // its tracked position is in FIELD inches -- not "inches from wherever

@@ -4,7 +4,8 @@
   <div class="blk-head">Before you start: finish the Turret lesson first</div>
   <p>Auto-aim builds on the <strong>Turret</strong> lesson (<em>The Turret: Gears, Servos and Aiming</em>, just above this
   one). You need its <code>Turret.java</code> and the turret line in <code>Robot.java</code>, plus the Pinpoint
-  <strong>Localization</strong> from the Advanced lessons, so the robot knows where it is. Haven't done the Turret lesson
+  <strong>Localization</strong> and the <strong>Auto &rarr; TeleOp: Keep Your Place</strong> lesson from the Advanced
+  lessons, so the robot knows where it is. Haven't done the Turret lesson
   yet? Go back and do that one first.</p>
 </div>
 
@@ -372,105 +373,19 @@ that auto-aim adds on top of its answer:</p>
 hood line on the right stick from an older version of this course, delete it.) And since auto-aim moves the turret now,
 the D-pad is free.</p>
 
-<h2>13. Where am I? Starting and staying found</h2>
+<h2>13. Where am I? You already solved this</h2>
 
-<p>A game's compass only works because the game always knows where you are. Our robot has to earn that. The Pinpoint
-resets to <code>(0, 0)</code> facing 0&deg; every time an OpMode starts &mdash; it has no idea where on the field it
-is until somebody tells it. There are three ways that happens.</p>
-
-<h3>1. Auto leaves a note for TeleOp</h3>
-
-<p>Autonomous knows exactly where the robot is the whole time: it's driving paths in field coordinates. So every loop,
-it writes the robot's position on the <strong>blackboard</strong>, a place in the FTC software that survives from one
-OpMode to the next. It's like leaving a note on the fridge: &ldquo;I parked at (&minus;48, 16), facing 90&deg;.&rdquo;
-Right after START, TeleOp reads the note and calls <code>setPose</code> with it, and auto-aim works from the very first
-second.</p>
-
-<pre><code>// in auto, every loop:
-blackboard.put("autoPose", new double[] { p.getX(), p.getY(), Math.toDegrees(p.getHeading()) });
-
-// in TeleOp, right after START:
-Object fromAuto = blackboard.remove("autoPose");
-if (fromAuto instanceof double[]) {
-    double[] p = (double[]) fromAuto;
-    robot.localization.setPose(p[0], p[1], p[2]);
-}</code></pre>
-
+<p>A game's compass only works because the game always knows where you are. Our robot learned that in the
+<strong>Auto &rarr; TeleOp: Keep Your Place</strong> lesson, and auto-aim uses it directly:</p>
 <ul>
-  <li>Auto writes the note <strong>every loop</strong>, not just at the end, because the match timer can stop auto
-  partway through a path.</li>
-  <li>TeleOp uses <code>remove</code>, which reads the note and throws it away. If you stop and restart TeleOp later in
-  practice, it won't trust an old note from a robot that may have been carried somewhere else.</li>
-  <li>Autos saved by the simulator's <strong>Path Capture</strong> tool already write the note. A hand-written auto
-  needs the one line above.</li>
-  <li>Wait until after START to call <code>setPose</code>. The Pinpoint spends a moment calibrating after INIT, and a
-  pose sent during that moment can get erased.</li>
+  <li><strong>Auto leaves a note.</strong> Right after START, TeleOp reads auto's position from the blackboard, so
+  auto-aim works from the very first second.</li>
+  <li><strong>No note? Don't guess.</strong> Until <code>isPoseKnown()</code> is true, auto-aim points the turret
+  <strong>straight forward</strong> and the telemetry says <strong>&ldquo;position unknown: park at HOME and hold
+  RB.&rdquo;</strong> A confident wrong aim would be worse than none.</li>
+  <li><strong>HOME by feel.</strong> Back on your drivers' wall, facing away, left side on the loading zone's tape:
+  hold RB for half a second and the robot knows exactly where it is again. It's also the fix for drift.</li>
 </ul>
-
-<h3>2. Nobody told us? Don't guess</h3>
-
-<p>If there's no note (you ran TeleOp by itself, or the robot was restarted), the robot doesn't know where it is. A
-guess would be worse than nothing: the turret would aim confidently at the wrong spot, and the driver might shoot. So
-auto-aim points the turret <strong>straight forward</strong> and the telemetry says <strong>&ldquo;position unknown:
-park at HOME and hold RB.&rdquo;</strong></p>
-
-<h3>3. HOME: a reset button you can find by feel</h3>
-
-<p><strong>HOME</strong> is one spot right in front of the drivers, next to the loading zone, that the robot can be put
-in exactly, without measuring:</p>
-<ul>
-  <li><strong>Back against the drivers' wall</strong> &mdash; that pins down how far from the drivers it is (y).</li>
-  <li><strong>Facing straight away from the wall</strong> &mdash; that pins down the heading: 90&deg;.</li>
-  <li><strong>Left side on the loading zone's right-hand tape line</strong> &mdash; that pins down x.</li>
-</ul>
-
-<figure>
-  <img src="images/home_spot.png" alt="The red drivers' wall with a red-taped loading zone beside it. The robot mascot is backed against the wall, facing away from it, with its left side on the loading zone's right-hand tape line. Callouts point out the wall, the heading and the tape line, and a gamepad shows the RB bumper with a half-second stopwatch.">
-  <figcaption>HOME: back on the wall, facing away, left side on the tape. Then hold RB for half a second.</figcaption>
-</figure>
-
-<p>The position is the robot's <em>center</em>, so we add half the robot's size: with an 18&Prime; &times; 18&Prime;
-robot, HOME is at <strong>x = &minus;22 + 9 = &minus;13</strong> and <strong>y = &minus;71 + 9 = &minus;62</strong>,
-facing <strong>90&deg;</strong>.</p>
-
-<div class="blk blk-key">
-  <div class="blk-head">Hold RB for half a second at HOME</div>
-  <p>One button fixes <em>both</em> of the robot's &ldquo;which way am I facing&rdquo; answers at once:</p>
-  <ul>
-    <li>It resets the <strong>IMU</strong>, so field-centric driving knows &ldquo;forward&rdquo; is away from the
-    drivers (like before).</li>
-    <li>It tells the <strong>Pinpoint</strong> it's at HOME, so auto-aim knows exactly where the robot is.</li>
-  </ul>
-  <p>At HOME both are true at the same moment, so one button can do both. <strong>The rule: only press RB at
-  HOME.</strong> Press it anywhere else and the robot will believe it's at HOME when it isn't, and every shot will miss
-  until you reset properly.</p>
-</div>
-
-<p>Why <strong>hold</strong> for half a second instead of a quick press? So a bumped button in the middle of a match
-can't move the robot's idea of where it is. The code uses a stopwatch (<code>ElapsedTime</code>) that restarts every
-time RB is up; only when it reaches 0.5 seconds does the reset happen.</p>
-
-<p>HOME is also the fix for <strong>drift</strong>. Odometry is very good, but after two minutes of bumping into robots
-it can be off by an inch or two. Since the robot parks near the drivers anyway, a quick hold of RB at HOME wipes the
-slate clean. (Coming up in a future lesson: the <strong>Limelight</strong> camera can spot AprilTags on the field walls
-and correct the position automatically.)</p>
-
-<h3>4. Field-centric after auto: trust the Pinpoint, not the IMU</h3>
-
-<p>Here's a sneaky one. Field-centric driving needs to know which way the robot faces <em>compared to the drivers</em>.
-Until now it asked the Control Hub's <strong>IMU</strong>. But the IMU knows nothing about the field: it calls
-&ldquo;forward&rdquo; whichever way the robot faced when TeleOp started. If auto ends with the robot turned 45&deg;,
-every push of the stick in TeleOp comes out 45&deg; off.</p>
-
-<p>The Pinpoint doesn't have that problem. Auto told it the real start pose, and the note on the blackboard carried
-the pose into TeleOp, so its heading is a true <strong>field</strong> heading. So once the pose is known, field-centric
-uses the Pinpoint's heading instead. Facing away from your drivers is field heading 90&deg;, and field-centric
-calls that 0&deg;, so we subtract 90:</p>
-
-<pre><code>heading = Math.toRadians(robot.localization.getHeadingDegrees() - 90);</code></pre>
-
-<p>If the pose isn't known yet (TeleOp by itself, no HOME reset), it falls back to the IMU, just like before. And the
-HOME reset still lines both up: at HOME the Pinpoint says 90&deg; (so this gives 0) and the IMU is reset to 0.</p>
 
 <h2>14. The code: your worksheet, in Java</h2>
 

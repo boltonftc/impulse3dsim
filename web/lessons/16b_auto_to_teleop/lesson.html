@@ -1,0 +1,348 @@
+<h1>Auto &rarr; TeleOp: Keep Your Place</h1>
+
+<p>Here's something that surprises almost every team the first time. Your autonomous drives a perfect path and parks.
+The buzzer goes, TeleOp starts, the driver pushes the stick straight up&hellip; and the robot drives off at an angle.
+What happened?</p>
+
+<p>Every OpMode is a <strong>fresh start</strong>. When TeleOp begins, the robot has forgotten everything auto knew:</p>
+<ul>
+  <li>The <strong>Pinpoint</strong> resets to <code>(0, 0)</code> facing 0&deg; during INIT. It has no idea where on the
+  field it is.</li>
+  <li>The <strong>IMU</strong> calls &ldquo;forward&rdquo; whichever way the robot happened to face when TeleOp started.
+  If auto parked the robot turned 45&deg;, field-centric driving is now 45&deg; off.</li>
+</ul>
+
+<figure>
+  <img src="images/auto_teleop_handoff.png" alt="Two panels. Left, labeled AUTONOMOUS: the 36563 robot parked at an angle on the field after driving a dashed path, beside a chalkboard reading autoPose: x = -48, y = 16, heading = 90 degrees. A curved arrow labeled blackboard.remove() carries the note to the right panel, labeled TELEOP: the same robot with a green arrow pointing straight away from the drivers, a Driver Hub showing Pose known: true, and a gamepad with the left stick pushed up.">
+  <figcaption>Auto leaves its position on the <strong>blackboard</strong>. TeleOp picks it up right after START, so it
+  knows where it is (<strong>Pose known: true</strong>) and &ldquo;stick up&rdquo; really means &ldquo;away from the
+  drivers.&rdquo;</figcaption>
+</figure>
+
+<p>In this lesson you'll teach the robot to <strong>keep its place</strong> from auto into TeleOp, and to get it back
+when it's lost. Every robot needs this, turret or not.</p>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Already did the Auto-Aim lesson?</div>
+  <p>Its reward used to include all of this code, so your package may already have it. Look in
+  <code>Localization.java</code> for <code>setPose</code> and <code>isPoseKnown</code>. If they're there, read along but
+  don't type them in again (Java won't allow the same method twice). Just check Step 5 and Step 6 against your
+  code.</p>
+</div>
+
+<div class="blk blk-key">
+  <div class="blk-head">The plan</div>
+  <table>
+    <tr><th>Piece</th><th>What it does</th><th>Where</th></tr>
+    <tr><td>1. Leave a note</td><td>Auto writes its position on the <strong>blackboard</strong> every loop</td><td><code>SimpleAuto.java</code></td></tr>
+    <tr><td>2. A place to put it</td><td><code>setPose()</code>, HOME, and &ldquo;do we know where we are?&rdquo;</td><td><code>Localization.java</code></td></tr>
+    <tr><td>3. Read the note</td><td>TeleOp picks up the position right after START</td><td><code>MecanumDrive.java</code></td></tr>
+    <tr><td>4. Don't guess</td><td>Show on telemetry whether we know where we are</td><td><code>MecanumDrive.java</code></td></tr>
+    <tr><td>5. HOME reset</td><td>Lost? Park at HOME and hold RB</td><td><code>MecanumDrive.java</code></td></tr>
+    <tr><td>6. Trust the Pinpoint</td><td>Field-centric uses the field heading, so it stays right after auto</td><td><code>MecanumDrive.java</code></td></tr>
+  </table>
+</div>
+
+<hr>
+
+<h2>1. Auto leaves a note on the blackboard</h2>
+
+<p>Autonomous knows exactly where the robot is the whole time, because it drives paths in field coordinates. So every
+loop it writes the robot's position on the <strong>blackboard</strong>: a place in the FTC software that survives from
+one OpMode to the next. It's like leaving a note on the fridge: &ldquo;I parked at (&minus;48, 16), facing 90&deg;.&rdquo;</p>
+
+<p>The note is three numbers in an array: <code>x</code>, <code>y</code>, and the heading in degrees. It's stored under
+a name, <code>"autoPose"</code>, so TeleOp can find it.</p>
+
+<ul>
+  <li>Auto writes the note <strong>every loop</strong>, not just at the end, because the 30-second timer can stop auto
+  partway through a path.</li>
+  <li>Autos saved by the simulator's <strong>Path Capture</strong> tool already write the note. Hand-written autos like
+  <code>SimpleAuto</code> need one line.</li>
+</ul>
+
+<h3>Step 1 &mdash; Leave the note in <code>SimpleAuto</code></h3>
+
+<p>Open the follow loop. Right after the line <code>Pose p = follower.getPose();</code>, add the note:</p>
+
+<span class="act" data-action="open_file" data-arg="SimpleAuto.java|SimpleAuto : Run">&#9656; SimpleAuto.java : SimpleAuto : Run</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>SimpleAuto.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>            // Leave our position for TeleOp. Saved every loop, in case the match timer cuts auto short.
+            blackboard.put("autoPose", new double[] { p.getX(), p.getY(), Math.toDegrees(p.getHeading()) });</code></pre>
+</div>
+
+<hr>
+
+<h2>2. Give <code>Localization</code> a place to put it</h2>
+
+<p>TeleOp needs a way to tell the Pinpoint &ldquo;you're actually <em>here</em>.&rdquo; That's
+<code>setPose()</code>: it hands the Pinpoint a field position and heading. The Pinpoint keeps counting from there, so
+from then on every reading is in real field inches.</p>
+
+<p>We also add a <strong>flag</strong>, <code>poseKnown</code>. It starts <code>false</code> and turns
+<code>true</code> the moment somebody tells us where we are. And we add <strong>HOME</strong>, a spot you can find by
+feel; section 5 explains it.</p>
+
+<h3>Step 2 &mdash; Add HOME, <code>setPose()</code>, and <code>isPoseKnown()</code></h3>
+
+<p>Add these below <code>getDistanceFromStartInches()</code>, still inside the class:</p>
+
+<span class="act" data-action="open_file" data-arg="Localization.java|Localization : Getters">&#9656; Localization.java : Localization : Getters</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>Localization.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>    // HOME: a spot the drivers can find by feel. Back of the robot against YOUR drivers' wall,
+    // facing away from it, left side on the loading zone's right-hand tape line.
+    // These numbers come from the simulator -- MEASURE your field and your robot!
+    private static final double ROBOT_WIDTH  = 18.0;   // inches, side to side
+    private static final double ROBOT_LENGTH = 18.0;   // inches, front to back
+    private static final double TAPE_X = -22.0;        // the loading zone's right-hand tape line
+    private static final double WALL_Y = -71.0;        // the inside face of the drivers' wall
+    private static final double HOME_X = TAPE_X + ROBOT_WIDTH / 2;    // -13: the robot's CENTER, not its side
+    private static final double HOME_Y = WALL_Y + ROBOT_LENGTH / 2;   // -62
+    private static final double HOME_HEADING = 90.0;                  // facing away from the drivers
+
+    private boolean poseKnown = false;   // stays false until auto hands us a pose, or the driver resets at HOME
+
+    /** Tell the Pinpoint where the robot is right now: field inches, heading in degrees. */
+    public void setPose(double xInches, double yInches, double headingDegrees) {
+        latestPose = new Pose2D(DistanceUnit.INCH, xInches, yInches, AngleUnit.DEGREES, headingDegrees);
+        if (pinpoint != null) {
+            pinpoint.setPosition(latestPose);
+        }
+        poseKnown = true;
+    }
+
+    /** The robot is parked at HOME: that's exactly where we are. */
+    public void setPoseToHome() {
+        setPose(HOME_X, HOME_Y, HOME_HEADING);
+    }
+
+    /** True once we know where we are on the field (from auto, or a HOME reset). */
+    public boolean isPoseKnown() {
+        return poseKnown;
+    }</code></pre>
+</div>
+
+<hr>
+
+<h2>3. TeleOp reads the note</h2>
+
+<p>Right after START, TeleOp looks for the note. If it's there, it hands the position to <code>setPose()</code>, and
+the robot knows exactly where it is from the very first second of TeleOp.</p>
+
+<ul>
+  <li>TeleOp uses <code>remove</code>, which reads the note <strong>and throws it away</strong>. If you stop and restart
+  TeleOp later in practice, it won't trust an old note from a robot that may have been carried somewhere else.</li>
+  <li>The note is an <code>Object</code>, so we check it really is a <code>double[]</code> before using it
+  (<code>instanceof</code>). No note at all? Then <code>fromAuto</code> is <code>null</code>, the check fails, and we
+  simply skip it.</li>
+  <li>We wait until <strong>after START</strong> to call <code>setPose</code>. The Pinpoint spends a moment calibrating
+  after INIT, and a pose sent during that moment can get erased.</li>
+</ul>
+
+<p>We'll also need a stopwatch for the HOME reset in section 5, so we set that up here too.</p>
+
+<h3>Step 3 &mdash; Import the stopwatch</h3>
+
+<p>Add this with the other <code>import</code> lines at the top of <code>MecanumDrive.java</code>:</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode">&#9656; MecanumDrive.java : imports</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>import com.qualcomm.robotcore.util.ElapsedTime;</code></pre>
+</div>
+
+<h3>Step 4 &mdash; Read the note right after <code>waitForStart()</code></h3>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|waitForStart();">&#9656; MecanumDrive.java : waitForStart();</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code>, right after <code>waitForStart();</code></span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>        // Where are we? If auto just ran, it left the robot's position on the blackboard.
+        // remove() uses it up, so a later TeleOp run can't pick up an old, stale position.
+        Object fromAuto = blackboard.remove("autoPose");
+        if (fromAuto instanceof double[]) {
+            double[] p = (double[]) fromAuto;
+            robot.localization.setPose(p[0], p[1], p[2]);
+        }
+        ElapsedTime rbHeld = new ElapsedTime();   // a stopwatch for "hold RB for half a second"
+        boolean homeDone = false;</code></pre>
+</div>
+
+<hr>
+
+<h2>4. No note? Don't guess</h2>
+
+<p>If there's no note (you ran TeleOp by itself, or the robot was restarted between auto and TeleOp), the robot does
+<em>not</em> know where it is. A guess would be worse than nothing: anything that depends on the position would
+confidently do the wrong thing. So the robot keeps <code>poseKnown</code> <code>false</code> and simply waits to be
+told: by auto's note, or by a HOME reset.</p>
+
+<p>Let's put that flag on the Driver Hub, so the drivers can see it at a glance.</p>
+
+<h3>Step 5 &mdash; Show whether we know where we are</h3>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|Localization : Telemetry">&#9656; MecanumDrive.java : Localization : Telemetry</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code>, below the other Localization telemetry</span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>            telemetry.addData("Pose known", robot.localization.isPoseKnown());   // false = no auto hand-off yet: hold RB at HOME</code></pre>
+</div>
+
+<hr>
+
+<h2>5. HOME: a reset button you can find by feel</h2>
+
+<p><strong>HOME</strong> is one spot right in front of your drivers, next to the loading zone, that the robot can be
+put in exactly, without measuring:</p>
+<ul>
+  <li><strong>Back against your drivers' wall</strong> &mdash; that pins down how far from the drivers it is (y).</li>
+  <li><strong>Facing straight away from the wall</strong> &mdash; that pins down the heading: 90&deg;.</li>
+  <li><strong>Left side on the loading zone's right-hand tape line</strong> &mdash; that pins down x.</li>
+</ul>
+
+<figure>
+  <img src="images/home_spot.png" alt="The drivers' wall with a taped loading zone beside it. The robot mascot is backed against the wall, facing away from it, with its left side on the loading zone's right-hand tape line. Callouts point out the wall, the heading and the tape line, and a gamepad shows the RB bumper with a half-second stopwatch.">
+  <figcaption>HOME: back on the wall, facing away, left side on the tape. Then hold RB for half a second.</figcaption>
+</figure>
+
+<p>The position is the robot's <em>center</em>, so we add half the robot's size: with an 18&Prime; &times; 18&Prime;
+robot, HOME is at <strong>x = &minus;22 + 9 = &minus;13</strong> and <strong>y = &minus;71 + 9 = &minus;62</strong>,
+facing <strong>90&deg;</strong>. That's what the constants in Step 2 work out.</p>
+
+<div class="blk blk-key">
+  <div class="blk-head">Hold RB for half a second, and only at HOME</div>
+  <p>One button fixes both of the robot's &ldquo;where am I?&rdquo; answers at once:</p>
+  <ul>
+    <li>It resets the <strong>IMU</strong>, so &ldquo;forward&rdquo; is away from the drivers.</li>
+    <li>It tells the <strong>Pinpoint</strong> it's at HOME, so the robot knows exactly where it is.</li>
+  </ul>
+  <p><strong>The rule: only press RB at HOME.</strong> Press it anywhere else and the robot will believe it's at HOME
+  when it isn't.</p>
+</div>
+
+<p>Why <strong>hold</strong> for half a second instead of a quick tap? So a bumped button in the middle of a match
+can't scramble the robot's idea of where it is. The <code>ElapsedTime</code> stopwatch restarts every loop that RB is
+up; only when it reaches 0.5 seconds does the reset happen, and <code>homeDone</code> makes sure it happens just once
+per hold.</p>
+
+<p>HOME is also the fix for <strong>drift</strong>. Odometry is very good, but after two minutes of bumping into robots
+it can be off by an inch or two. A quick hold of RB at HOME wipes the slate clean.</p>
+
+<hr>
+
+<h2>6. Field-centric that stays right after auto</h2>
+
+<p>Now the fix for the robot that drove off at an angle. Field-centric driving needs to know which way the robot faces
+<em>compared to the drivers</em>. Until now it asked the <strong>IMU</strong>, and the IMU only knows which way the robot
+faced when TeleOp started.</p>
+
+<p>The Pinpoint doesn't have that problem. Auto told it the real start pose, and the note carried that pose into
+TeleOp, so its heading is a true <strong>field</strong> heading. So once the pose is known, field-centric uses the
+Pinpoint's heading instead.</p>
+
+<p>There's one small conversion. On the field, facing away from your drivers is heading <strong>90&deg;</strong>. But
+field-centric calls that direction <strong>0</strong> (&ldquo;straight ahead&rdquo;). So we subtract 90:</p>
+
+<pre><code>heading = Math.toRadians(robot.localization.getHeadingDegrees() - 90);</code></pre>
+
+<p>If the pose isn't known yet, we fall back to the IMU, just like before. And HOME lines both up: at HOME the
+Pinpoint says 90&deg; (so this gives 0) and the IMU is reset to 0.</p>
+
+<h3>Step 6 &mdash; Replace the heading code</h3>
+
+<p>Open the <code>IMU : Heading</code> section. <strong>Delete</strong> what's there now (the old
+<code>double heading = imu...</code> line, the two <code>Heading</code> telemetry lines, and the old
+<code>if (gamepad1.right_bumper) { imu.resetYaw(); }</code>) and type this in its place. The quick RB tap is replaced
+by the HOME reset.</p>
+
+<span class="act" data-action="open_file" data-arg="MecanumDrive.java|IMU : Heading">&#9656; MecanumDrive.java : IMU : Heading</span>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>Type this into <code>MecanumDrive.java</code>, replacing the old heading code</span><span class="copybtn">&#10850; Copy</span></div>
+  <pre><code>            // Field-centric "forward": once we know our field pose (from auto or HOME), use the Pinpoint's
+            // FIELD heading -- the IMU only knows which way we faced when TeleOp started.
+            // 90 deg on the field = facing away from your drivers = field-centric 0, so subtract 90.
+            double heading;
+            if (robot.localization.isPoseKnown()) {
+                heading = Math.toRadians(robot.localization.getHeadingDegrees() - 90);
+            } else {
+                heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);   // no pose yet: same as before
+            }
+            telemetry.addData("Heading (deg)", Math.toDegrees(heading));
+            telemetry.addData("Heading (rad)", heading);
+
+            // HOME reset: park at HOME and hold RB for half a second. Resets field-centric "forward"
+            // (the IMU) AND tells odometry exactly where the robot is. Only press it at HOME!
+            if (!gamepad1.right_bumper) {
+                rbHeld.reset();          // the stopwatch restarts whenever RB is up
+                homeDone = false;
+            } else if (rbHeld.seconds() &gt;= 0.5 &amp;&amp; !homeDone) {
+                imu.resetYaw();
+                robot.localization.setPoseToHome();
+                homeDone = true;
+            }
+            if (homeDone) telemetry.addLine("HOME: position reset. Let go of RB.");</code></pre>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Why <code>double heading;</code> on its own line?</div>
+  <p>We <em>declare</em> the variable first, without a value, then the <code>if</code>/<code>else</code> gives it one
+  either way. Java checks that every path sets it before it's used, so you can't forget a case.</p>
+</div>
+
+<hr>
+
+<h2>7. The Driver Hub's TeleOp preselect</h2>
+
+<p>In a real match there are only 8 seconds between auto and TeleOp. Scrolling for the right TeleOp under that
+pressure is how teams end up running the wrong program. The Driver Hub has a helper for that.</p>
+
+<ul>
+  <li>When you select an <strong>Autonomous</strong>, a faint button appears in the <strong>lower-left</strong> of the
+  Driver Hub. Tap it and pick your TeleOp: it turns solid and shows the name.</li>
+  <li>When auto <strong>ends</strong> (on its own, or when the 30-second timer stops it), the Driver Hub switches to that
+  TeleOp for you. It does <strong>not</strong> run it: for safety, the drivers still press <strong>INIT</strong> and
+  then <strong>START</strong>.</li>
+  <li>If someone presses <strong>STOP</strong> during auto, the switch is cancelled.</li>
+</ul>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Optional: set it in code</div>
+  <p>Add <code>preselectTeleOp</code> to your auto's annotation, and the Driver Hub turns the preselect on by itself
+  every time you pick that auto. The name must match your TeleOp's <code>name</code> exactly.</p>
+  <pre><code>@Autonomous(name = "SimpleAuto", group = "BIOBUZZ", preselectTeleOp = "MecanumDrive")</code></pre>
+</div>
+
+<hr>
+
+<h2>Try it</h2>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ol>
+    <li>Make an auto that ends with the robot <strong>turned</strong> (Path Capture is the quickest way). Preselect
+    <strong>MecanumDrive</strong> on the Driver Hub.</li>
+    <li>Run the auto. When it ends, press <strong>INIT</strong> and <strong>START</strong> on the TeleOp.</li>
+    <li>Check the telemetry: <strong>Pose known</strong> should be <code>true</code>.</li>
+    <li>Push the left stick straight up. The robot should drive <strong>straight away from the drivers</strong>, no
+    matter which way auto left it facing.</li>
+    <li>Now run TeleOp <em>by itself</em> (no auto first). <strong>Pose known</strong> is <code>false</code>. Drive to
+    HOME, hold <strong>RB</strong> for half a second, and watch it turn <code>true</code>.</li>
+  </ol>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Coming up</div>
+  <p>Knowing exactly where the robot is unlocks a lot. In the Specialized Subsystems lessons, <strong>Auto-Aim</strong>
+  uses this same position to keep a turret pointed at the hive while you drive.</p>
+</div>
+
+<hr>
+
+<span class="act" data-action="revert" data-arg="Reset to Start">&#8635; Reset to Start</span>
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

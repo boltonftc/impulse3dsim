@@ -1,0 +1,146 @@
+{
+  "title": "Auto \u2192 TeleOp Quiz",
+  "draw": 10,
+  "questions": [
+    {
+      "q": "Auto parks the robot turned 45\u00b0. TeleOp starts and field-centric uses the IMU. What happens when the driver pushes the stick straight up?",
+      "correct": "It drives off about 45\u00b0 to the side",
+      "wrong": [
+        "It drives straight away from the drivers",
+        "It waits until auto runs one more time",
+        "It spins in place until the driver lets go"
+      ],
+      "explain": "The IMU calls 'forward' whichever way the robot faced when TeleOp started. If that's 45\u00b0 off, every stick push comes out 45\u00b0 off."
+    },
+    {
+      "q": "What is the blackboard?",
+      "correct": "Storage in the FTC software that lasts between OpModes",
+      "wrong": [
+        "A whiteboard the drive team uses to write the plan",
+        "A file the Driver Hub saves between two matches",
+        "The Pinpoint's own memory chip for positions"
+      ],
+      "explain": "blackboard is shared storage that lives across OpMode runs (but not across a robot restart), so auto can leave a note for TeleOp."
+    },
+    {
+      "q": "Why does auto write its position to the blackboard every loop, instead of only at the end?",
+      "correct": "The 30-second timer can cut auto off mid-path",
+      "wrong": [
+        "Writing it only once would take far too long",
+        "The blackboard erases itself after every second",
+        "TeleOp reads it 50 times a second during auto"
+      ],
+      "explain": "If auto is cut off mid-path, the last note written is still the robot's real position."
+    },
+    {
+      "q": "Why does TeleOp use blackboard.remove(\"autoPose\") instead of just reading it?",
+      "correct": "It uses the note up, so an old one is never trusted",
+      "wrong": [
+        "Because remove() runs faster than plain get()",
+        "The blackboard only lets you read a note once",
+        "It deletes the auto program so it can't rerun"
+      ],
+      "explain": "remove() reads the note and throws it away. Restart TeleOp later in practice and it won't trust a position from a robot that may have been carried somewhere else."
+    },
+    {
+      "q": "Why does TeleOp wait until after START to call setPose()?",
+      "correct": "The Pinpoint is still calibrating, and could erase it",
+      "wrong": [
+        "The rules don't allow setPose() during INIT",
+        "The blackboard stays empty until START is pressed",
+        "The robot has to drive forward a little first"
+      ],
+      "explain": "The Pinpoint takes a moment to calibrate after its INIT reset. Sending the pose after START makes sure it sticks."
+    },
+    {
+      "q": "TeleOp starts with no note on the blackboard. What does isPoseKnown() return?",
+      "correct": "false",
+      "wrong": [
+        "true",
+        "The last position from auto",
+        "(0, 0)"
+      ],
+      "explain": "poseKnown starts false and only turns true when setPose() runs: from auto's note or from a HOME reset. No note means we don't guess."
+    },
+    {
+      "q": "Which three things pin down HOME, so the robot can be placed there without measuring?",
+      "correct": "Back on your wall, facing away, left side on the tape",
+      "wrong": [
+        "Field center, facing the hive, touching nothing",
+        "Any corner at all, touching two walls at once",
+        "Wherever auto happened to park the robot last"
+      ],
+      "explain": "The wall fixes y, facing straight away fixes the heading (90\u00b0), and the tape line fixes x."
+    },
+    {
+      "q": "Why is HOME at x = -13 and not x = -22, the tape line?",
+      "correct": "The pose is the robot's center: add half its width",
+      "wrong": [
+        "Because -13 is closer to the hive than -22",
+        "Because the tape line is 9 inches wide",
+        "Because the Pinpoint can't read below -20"
+      ],
+      "explain": "TAPE_X + ROBOT_WIDTH / 2 = -22 + 9 = -13. The same idea gives HOME_Y = -71 + 9 = -62."
+    },
+    {
+      "q": "Why do you HOLD RB for half a second at HOME instead of tapping it?",
+      "correct": "So a bumped button can't scramble its position",
+      "wrong": [
+        "The IMU needs half a second to spin up first",
+        "A quick tap of RB is reserved for the intake",
+        "The Driver Hub ignores any short button press"
+      ],
+      "explain": "The ElapsedTime stopwatch restarts every loop RB is up. Only a deliberate half-second hold triggers the reset."
+    },
+    {
+      "q": "What happens if a driver holds RB somewhere that is NOT HOME?",
+      "correct": "It believes it's at HOME, so its position is now wrong",
+      "wrong": [
+        "Nothing: the robot checks it's really at HOME",
+        "The robot drives itself straight back to HOME",
+        "The robot stops completely until the match ends"
+      ],
+      "explain": "The robot can't check. A HOME reset says 'you are exactly here', so only press it at HOME."
+    },
+    {
+      "q": "Once the pose is known, field-centric uses which heading?",
+      "correct": "The Pinpoint's field heading, minus 90\u00b0",
+      "wrong": [
+        "The IMU heading, plus 90\u00b0 to match",
+        "Always 0\u00b0, so it drives robot-centric",
+        "The heading the auto started out with"
+      ],
+      "explain": "The Pinpoint knows the true field heading. Facing away from your drivers is field heading 90\u00b0, and field-centric calls that 0, so subtract 90."
+    },
+    {
+      "q": "The robot faces straight away from your drivers. Its field heading is 90\u00b0. What heading does field-centric get?",
+      "correct": "0\u00b0",
+      "wrong": [
+        "90\u00b0",
+        "180\u00b0",
+        "-90\u00b0"
+      ],
+      "explain": "90 - 90 = 0: 'straight ahead' for the driver. That's exactly what the IMU reads at HOME after resetYaw(), so the two agree."
+    },
+    {
+      "q": "What does the Driver Hub's TeleOp preselect do when auto ends?",
+      "correct": "Selects your TeleOp; drivers still press INIT and START",
+      "wrong": [
+        "Starts your TeleOp running all by itself",
+        "Runs INIT on your TeleOp automatically",
+        "Restarts the auto from the very beginning"
+      ],
+      "explain": "For safety it only queues the TeleOp. The drivers still press INIT, then START."
+    },
+    {
+      "q": "A driver presses STOP in the middle of auto. What happens to the TeleOp preselect?",
+      "correct": "It's cancelled: no switch to the TeleOp",
+      "wrong": [
+        "It switches to the TeleOp right away",
+        "It starts the TeleOp running immediately",
+        "It waits 30 seconds, then switches anyway"
+      ],
+      "explain": "The switch only happens when auto ends on its own or is stopped by the 30-second timer, not when a person presses STOP."
+    }
+  ]
+}

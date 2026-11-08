@@ -1,9 +1,9 @@
 <p>Turret robots: add these pieces to your code package. You need the <code>Turret</code> and <code>Robot</code>
 changes from lesson 17 first. <strong>Before</strong> you let the turret swing &plusmn;200&deg;, do the wiring check in
 the lesson (section 10).</p>
-<p><strong>No turret?</strong> You can still use the HOME reset, the hand-off from auto, and field-centric that stays
-right after auto: add pieces 3&ndash;8 (leave the two auto-aim lines out of piece 6) and skip <code>Turret.java</code>
-and <code>AutoAim.java</code>.</p>
+<p>The hand-off from auto, the HOME reset, and field-centric that stays right after auto come from the
+<strong>Auto &rarr; TeleOp: Keep Your Place</strong> lesson; this code builds on them. (Did Auto-Aim before that lesson
+existed? Your code already has those pieces.)</p>
 
 <div class="blk blk-code">
   <div class="blk-head"><span>&#128275; 1. Replace your whole <code>Turret.java</code></span><span class="copybtn">&#10850; Copy</span></div>
@@ -178,105 +178,21 @@ public class AutoAim {
 </div>
 
 <div class="blk blk-code">
-  <div class="blk-head"><span>3. In <code>Localization.java</code>, with the other methods</span><span class="copybtn">&#10850; Copy</span></div>
-<pre><code>    // HOME: a spot the drivers can find by feel. Back of the robot against YOUR drivers' wall,
-    // facing away from it, left side on the loading zone's right-hand tape line.
-    // These numbers come from the simulator -- MEASURE your field and your robot!
-    private static final double ROBOT_WIDTH  = 18.0;   // inches, side to side
-    private static final double ROBOT_LENGTH = 18.0;   // inches, front to back
-    private static final double TAPE_X = -22.0;        // the loading zone's right-hand tape line
-    private static final double WALL_Y = -71.0;        // the inside face of the drivers' wall
-    private static final double HOME_X = TAPE_X + ROBOT_WIDTH / 2;    // -13: the robot's CENTER, not its side
-    private static final double HOME_Y = WALL_Y + ROBOT_LENGTH / 2;   // -62
-    private static final double HOME_HEADING = 90.0;                  // facing away from the drivers
-
-    private boolean poseKnown = false;   // stays false until auto hands us a pose, or the driver resets at HOME
-
-    /** Tell the Pinpoint where the robot is right now: field inches, heading in degrees. */
-    public void setPose(double xInches, double yInches, double headingDegrees) {
-        latestPose = new Pose2D(DistanceUnit.INCH, xInches, yInches, AngleUnit.DEGREES, headingDegrees);
-        if (pinpoint != null) {
-            pinpoint.setPosition(latestPose);
-        }
-        poseKnown = true;
-    }
-
-    /** The robot is parked at HOME: that's exactly where we are. */
-    public void setPoseToHome() {
-        setPose(HOME_X, HOME_Y, HOME_HEADING);
-    }
-
-    /** True once we know where we are on the field (from auto, or a HOME reset). */
-    public boolean isPoseKnown() {
-        return poseKnown;
-    }</code></pre>
+  <div class="blk-head"><span>3. In your TeleOp (<code>MecanumDrive.java</code>), right after the blackboard hand-off (just below <code>waitForStart();</code>)</span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>        AutoAim aim = new AutoAim();</code></pre>
 </div>
 
 <div class="blk blk-code">
-  <div class="blk-head"><span>4. In your TeleOp (<code>MecanumDrive.java</code>), with the other imports at the top</span><span class="copybtn">&#10850; Copy</span></div>
-<pre><code>import com.qualcomm.robotcore.util.ElapsedTime;</code></pre>
-</div>
-
-<div class="blk blk-code">
-  <div class="blk-head"><span>5. In your TeleOp, right after <code>waitForStart();</code></span><span class="copybtn">&#10850; Copy</span></div>
-<pre><code>        // Where are we? If auto just ran, it left the robot's position on the blackboard.
-        // remove() uses it up, so a later TeleOp run can't pick up an old, stale position.
-        Object fromAuto = blackboard.remove("autoPose");
-        if (fromAuto instanceof double[]) {
-            double[] p = (double[]) fromAuto;
-            robot.localization.setPose(p[0], p[1], p[2]);
-        }
-        AutoAim aim = new AutoAim();
-        ElapsedTime rbHeld = new ElapsedTime();   // a stopwatch for "hold RB for half a second"
-        boolean homeDone = false;</code></pre>
-</div>
-
-<div class="blk blk-code">
-  <div class="blk-head"><span>6. In your TeleOp, inside the loop</span><span class="copybtn">&#10850; Copy</span></div>
-<pre><code>            // HOME reset: park at HOME and hold RB for half a second. Resets field-centric "forward"
-            // (the IMU) AND tells odometry exactly where the robot is. Only press it at HOME!
-            if (!gamepad1.right_bumper) {
-                rbHeld.reset();          // the stopwatch restarts whenever RB is up
-                homeDone = false;
-            } else if (rbHeld.seconds() &gt;= 0.5 &amp;&amp; !homeDone) {
-                imu.resetYaw();
-                robot.localization.setPoseToHome();
-                homeDone = true;
-            }
-            if (homeDone) telemetry.addLine("HOME: position reset. Let go of RB.");
-
-            // Auto-aim: the turret follows the cell on our side of the field; right stick left/right trims.
+  <div class="blk-head"><span>4. In your TeleOp, inside the loop (after the HOME reset)</span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>            // Auto-aim: the turret follows the cell on our side of the field; right stick left/right trims.
             aim.trim(gamepad1.right_stick_x);
             aim.aim(robot.localization, robot.turret);
             telemetry.addData("Aim", aim.getStatus());
             telemetry.addData("Aim trim", "%.1f deg", aim.getTrim());</code></pre>
 </div>
 
-<div class="blk blk-code">
-  <div class="blk-head"><span>7. In your TeleOp loop, replace the heading line in <code>IMU : Heading</code></span><span class="copybtn">&#10850; Copy</span></div>
-<pre><code>            // Field-centric "forward": once we know our field pose (from auto or HOME), use the Pinpoint's
-            // FIELD heading -- the IMU only knows which way we faced when TeleOp started.
-            // 90 deg on the field = facing away from your drivers = field-centric 0, so subtract 90.
-            double heading;
-            if (robot.localization.isPoseKnown()) {
-                heading = Math.toRadians(robot.localization.getHeadingDegrees() - 90);
-            } else {
-                heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);   // no pose yet: same as before
-            }</code></pre>
-</div>
-<p>This <strong>replaces</strong> the old <code>double heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);</code>
-line. Leave the heading telemetry and the <code>driveFieldCentric(gamepad1, heading)</code> call as they are.</p>
-
-<div class="blk blk-code">
-  <div class="blk-head"><span>8. Hand-written autos only (like <code>SimpleAuto</code>): inside the follow loop, after <code>Pose p = follower.getPose();</code></span><span class="copybtn">&#10850; Copy</span></div>
-<pre><code>            // Leave our position for TeleOp. Saved every loop, in case the match timer cuts auto short.
-            blackboard.put("autoPose", new double[] { p.getX(), p.getY(), Math.toDegrees(p.getHeading()) });</code></pre>
-</div>
-<p>Autos saved by <strong>Path Capture</strong> already do this. Re-save older captures so they use the new field
-coordinates.</p>
-
 <div class="blk blk-hint">
-  <div class="blk-head">9. Optional: aim during auto too</div>
+  <div class="blk-head">5. Optional: aim during auto too</div>
   <p><strong>Path Capture autos aim on their own:</strong> when your package has <code>AutoAim.java</code>, Path Capture
   adds these lines for you. For a hand-written auto (like <code>SimpleAuto</code>), add them yourself. First, right after
   <code>follower.setStartingPose(startPose);</code>, tell Localization the same start pose so it knows where you are:</p>
@@ -290,8 +206,6 @@ coordinates.</p>
 <div class="blk blk-hint">
   <div class="blk-head">Then delete these old lines from the loop</div>
   <ul>
-    <li>The lesson 8 heading reset: <code>if (gamepad1.right_bumper) { imu.resetYaw(); }</code> (RB is the HOME reset
-    now, and it resets the heading too).</li>
     <li>The lesson 17 D-pad nudges: <code>if (gamepad1.dpad_left) robot.turret.nudgeLeft();</code> and
     <code>if (gamepad1.dpad_right) robot.turret.nudgeRight();</code> (auto-aim moves the turret now, and the D-pad is free
     for something else). The methods stay in <code>Turret.java</code> for testing.</li>

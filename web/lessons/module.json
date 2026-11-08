@@ -189,6 +189,17 @@
       "reward": true
     },
     {
+      "id": "16b_auto_to_teleop",
+      "title": "Auto → TeleOp: Keep Your Place",
+      "tier": "advanced",
+      "code": true,
+      "html": true,
+      "active": "MecanumDrive.java",
+      "folder": "16b_auto_to_teleop",
+      "description": "Every program forgets where it is when it ends. Have auto leave a note on the blackboard, have TeleOp read it, never guess when there is no note, reset at HOME by feel, and make field-centric driving trust the Pinpoint so it stays right after auto. Plus the Driver Hub's TeleOp preselect.",
+      "quiz": true
+    },
+    {
       "id": "17_turret",
       "title": "The Turret: Gears, Servos and Aiming",
       "tier": "specialized",

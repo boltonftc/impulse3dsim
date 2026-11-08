@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.37';
+    window.APP_VERSION = '2.8.38';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -6795,7 +6795,7 @@
         push('        telemetry.update();');
         push('    }');
         push('');
-        push('    // Hand the robot\'s position to TeleOp (lesson 18, auto-aim). The SDK\'s blackboard survives from one OpMode');
+        push('    // Hand the robot\'s position to TeleOp (lesson "Auto -> TeleOp: Keep Your Place"). The SDK\'s blackboard survives from one OpMode');
         push('    // to the next, so TeleOp starts out knowing where auto left the robot. Saved every loop, not just at the');
         push('    // end, because the match timer can stop auto partway through a path.');
         push('    private void saveForTeleOp(Follower follower) {');
