@@ -56,7 +56,7 @@ public class SimpleAuto extends LinearOpMode {
     // ── SET YOUR STARTING POSITION HERE ──────────────────────────────────
     // Before the match you PLACE the robot on the field, then tell the code
     // exactly where you put it. X/Y are inches from the CENTER of the field,
-    // seen from the red drivers: +X = their right, +Y = away from them.
+    // seen from YOUR drivers (red or blue): +X = their right, +Y = away from them.
     // HEADING is the way the robot points (degrees, counter-clockwise positive,
     // 0 = facing +X, 90 = facing away from the drivers). If this does not match
     // where you set the robot down, every path is shifted by the difference.

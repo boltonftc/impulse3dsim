@@ -160,7 +160,7 @@
         "12 feet forward and 36 feet right, with no heading at all",
         "Told to drive 12 in, then turn 36°, then stop facing 90°"
       ],
-      "explain": "x = 12 is 12 inches toward +X (the red drivers' right), y = -36 is 36 inches toward -Y (toward the drivers), and heading 90° faces +Y, away from the drivers."
+      "explain": "x = 12 is 12 inches toward +X (your drivers' right), y = -36 is 36 inches toward -Y (toward the drivers), and heading 90° faces +Y, away from the drivers."
     },
     {
       "q": "What does a PathChain do?",

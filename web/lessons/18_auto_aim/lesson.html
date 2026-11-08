@@ -39,7 +39,7 @@ one at a time.</p>
 <h2>1. The field is graph paper</h2>
 
 <p>A compass only works if everyone agrees where things are. So we lay a sheet of <strong>graph paper</strong>
-over the field, seen from where the <strong>red drivers</strong> stand:</p>
+over the field, seen from where <strong>your drivers</strong> stand:</p>
 <ul>
   <li><code>(0, 0)</code> is the <strong>center of the field</strong>.</li>
   <li><strong>+X</strong> points to the drivers' <strong>right</strong>.</li>
@@ -50,10 +50,20 @@ over the field, seen from where the <strong>red drivers</strong> stand:</p>
 
 <figure>
   <img src="images/field_graph_paper.png" alt="A top-down FTC field drawn as graph paper. The center is marked (0, 0). An arrow labeled +X points right and an arrow labeled +Y points away from the red drivers standing at the bottom. The red hive sits just below the center with two cells; the robot is below it at (0, -32).">
-  <figcaption>Field coordinates: the center is <code>(0, 0)</code>, +X is right, +Y is away from the red drivers.</figcaption>
+  <figcaption>Field coordinates: the center is <code>(0, 0)</code>, +X is right, +Y is away from your drivers. (The
+  picture shows red; blue sees the exact same thing from its own wall.)</figcaption>
 </figure>
 
-<p>The red hive has two cells. On our graph paper they're at:</p>
+<div class="blk blk-key">
+  <div class="blk-head">Red or blue? Always the near hive, always the same numbers</div>
+  <p>The field is the same from both drivers' walls: spin it halfway around and blue's side looks exactly like red's.
+  So we never say &ldquo;the red hive&rdquo; or &ldquo;the blue hive.&rdquo; We aim at the <strong>near hive</strong>,
+  the one in front of <em>your</em> drivers. Every number in this lesson (the cells, HOME, headings) is measured from
+  your own drivers' wall, so the same code works on either alliance. On blue, just put the robot on the mirror-image
+  start spot.</p>
+</div>
+
+<p>The near hive has two cells. On our graph paper they're at:</p>
 <ul>
   <li><strong>Left cell:</strong> <code>(&minus;11.4, &minus;12.75)</code></li>
   <li><strong>Right cell:</strong> <code>(10.2, &minus;12.75)</code></li>
@@ -247,7 +257,7 @@ small idea of its own.</p>
 <h2>9. Which cell? The one on your side</h2>
 
 <p>The robot aims at <strong>the cell on the same side of the field as the robot</strong>. The line down the middle,
-from the red drivers through the center of the hive, is <code>x = 0</code>:</p>
+from your drivers through the center of the hive, is <code>x = 0</code>:</p>
 <ul>
   <li>Robot on the <strong>left</strong> (x is negative) &rarr; aim at the <strong>left cell</strong>.</li>
   <li>Robot on the <strong>right</strong> (x is positive) &rarr; aim at the <strong>right cell</strong>.</li>
@@ -454,7 +464,7 @@ every push of the stick in TeleOp comes out 45&deg; off.</p>
 
 <p>The Pinpoint doesn't have that problem. Auto told it the real start pose, and the note on the blackboard carried
 the pose into TeleOp, so its heading is a true <strong>field</strong> heading. So once the pose is known, field-centric
-uses the Pinpoint's heading instead. Facing away from the red drivers is field heading 90&deg;, and field-centric
+uses the Pinpoint's heading instead. Facing away from your drivers is field heading 90&deg;, and field-centric
 calls that 0&deg;, so we subtract 90:</p>
 
 <pre><code>heading = Math.toRadians(robot.localization.getHeadingDegrees() - 90);</code></pre>

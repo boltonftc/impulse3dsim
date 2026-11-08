@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.32';
+    window.APP_VERSION = '2.8.33';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -6469,8 +6469,9 @@
         push('// pair. You MAY add your own code between a CAP:ACTION line and its matching CAP:ACTION-END -- that\'s');
         push('// the only region this tool preserves verbatim when the file is loaded back into the capture GUI.');
         push('//');
-        push('// Coordinates: inches from the field center, seen from the RED drivers: +X = their right, +Y = away from');
-        push('// them, heading in degrees counter-clockwise from +X (90 = facing away from the drivers). TeleOp and');
+        push('// Coordinates: inches from the field center, seen from YOUR drivers (red or blue -- the field is the same');
+        push('// from both sides): +X = their right, +Y = away from them, heading in degrees counter-clockwise from +X');
+        push('// (90 = facing away from the drivers). On blue, place the robot on the mirror-image spot. TeleOp and');
         push('// auto-aim use the same frame, so the pose this auto ends at can be handed straight to TeleOp.');
         push('@Autonomous(name = "' + className + '", group = "Captured")');
         push('public class ' + className + ' extends LinearOpMode {');
@@ -6611,7 +6612,7 @@
         push('    private void telemetryPose(Follower follower, double tx, double ty, double thDeg) {');
         push('        Pose p = follower.getPose();');
         push('        double hDeg = Math.toDegrees(p.getHeading());');
-        push('        telemetry.addData("Coords", "inches from field center, +X = red drivers\' right, +Y = away from them, heading deg CCW+");');
+        push('        telemetry.addData("Coords", "inches from field center, +X = your drivers\' right, +Y = away from them, heading deg CCW+");');
         push('        telemetry.addData("Pinpoint pose (x,y,h)", "(%.1f, %.1f, %.1f)", p.getX(), p.getY(), hDeg);');
         push('        telemetry.addData("Target pose  (x,y,h)", "(%.1f, %.1f, %.1f)", tx, ty, thDeg);');
         push('        telemetry.addData("Error (dx,dy,dh)", "(%.1f, %.1f, %.1f)", tx - p.getX(), ty - p.getY(), thDeg - hDeg);');

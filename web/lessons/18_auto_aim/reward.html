@@ -90,15 +90,16 @@ public class Turret implements Subsystem {
 /*
  * AutoAim -- keeps the turret pointed at a hive cell, using where odometry says we are.
  *
- * Field coordinates (seen from the RED drivers): (0, 0) is the field center, +X is right,
+ * Field coordinates (seen from YOUR drivers, red or blue): (0, 0) is the field center, +X is right,
  * +Y is away from the drivers, distances in inches. Angles: 0 = +X, counter-clockwise is +.
  *
- *     target cell  = the one on the same side of the field as the robot
+ *     target cell  = the near hive's cell on the same side of the field as the robot
  *     turret angle = field angle to the cell - robot heading + trim
  */
 public class AutoAim {
 
-    // Where the red hive's two cells are, in field inches. MEASURE these on your field!
+    // Where the NEAR hive's two cells are (the hive in front of your drivers), in field inches.
+    // Same numbers on red or blue. MEASURE these on your field!
     private static final double LEFT_CELL_X  = -11.4;
     private static final double RIGHT_CELL_X =  10.2;
     private static final double CELL_Y       = -12.75;
@@ -178,7 +179,7 @@ public class AutoAim {
 
 <div class="blk blk-code">
   <div class="blk-head"><span>3. In <code>Localization.java</code>, with the other methods</span><span class="copybtn">&#10850; Copy</span></div>
-<pre><code>    // HOME: a spot the drivers can find by feel. Back of the robot against the red drivers' wall,
+<pre><code>    // HOME: a spot the drivers can find by feel. Back of the robot against YOUR drivers' wall,
     // facing away from it, left side on the loading zone's right-hand tape line.
     // These numbers come from the simulator -- MEASURE your field and your robot!
     private static final double ROBOT_WIDTH  = 18.0;   // inches, side to side
@@ -255,7 +256,7 @@ public class AutoAim {
   <div class="blk-head"><span>7. In your TeleOp loop, replace the heading line in <code>IMU : Heading</code></span><span class="copybtn">&#10850; Copy</span></div>
 <pre><code>            // Field-centric "forward": once we know our field pose (from auto or HOME), use the Pinpoint's
             // FIELD heading -- the IMU only knows which way we faced when TeleOp started.
-            // 90 deg on the field = facing away from the red drivers = field-centric 0, so subtract 90.
+            // 90 deg on the field = facing away from your drivers = field-centric 0, so subtract 90.
             double heading;
             if (robot.localization.isPoseKnown()) {
                 heading = Math.toRadians(robot.localization.getHeadingDegrees() - 90);
@@ -319,7 +320,8 @@ coordinates.</p>
     <code>TRIM_MAX</code>.</li>
     <li><strong>Target switches too eagerly, or not soon enough?</strong> Change <code>DEAD_ZONE</code>. Wider means
     more driving before it switches.</li>
-    <li><strong>Blue alliance?</strong> This class is for red. Blue needs its own cell positions and its own &ldquo;which
-    side&rdquo; rule, measured from the blue drivers' view.</li>
+    <li><strong>Blue alliance?</strong> Nothing changes. Every number is measured from your own drivers' wall, and the
+    field looks the same from both sides, so blue uses the same code: aim at the near hive, HOME is the mirror-image
+    spot by your own loading zone, and autos start on the mirror-image spot.</li>
   </ul>
 </div>

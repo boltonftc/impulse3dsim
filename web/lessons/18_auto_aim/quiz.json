@@ -11,7 +11,7 @@
       "explain": "Field coordinates put (0, 0) at the field center, so everyone agrees where everything is. The robot's start spot is NOT (0, 0) anymore."
     },
     {
-      "q": "Seen from the red drivers, which way does +Y point?",
+      "q": "Seen from your drivers, which way does +Y point?",
       "correct": "Away from the drivers",
       "wrong": ["Toward the drivers", "To the drivers' right", "To the drivers' left"],
       "explain": "+X is to the drivers' right, and +Y is away from them, toward the far wall, just like graph paper."
@@ -19,7 +19,7 @@
     {
       "q": "Which direction is 0° on the field?",
       "correct": "Along +X, to the drivers' right",
-      "wrong": ["Along +Y, away from the drivers", "Toward the red drivers", "Wherever the robot faces"],
+      "wrong": ["Along +Y, away from the drivers", "Toward the drivers", "Wherever the robot faces"],
       "explain": "Angles start at +X and grow counter-clockwise: 90° is away from the drivers, 180° is left, −90° is toward them."
     },
     {
