@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.36';
+    window.APP_VERSION = '2.8.37';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -105,6 +105,7 @@
 
     /* ---- index-card edge panels: a content card with a tab stub that stays visible when the card is slid away ---- */
     .edgepanel{position:fixed;z-index:12;transition:transform .32s cubic-bezier(.4,0,.2,1)}
+    .edgepanel.open{z-index:13}   /* an opened panel sits in front of other panels' closed tabs (e.g. Driver Hub over the CAPTURE tab) */
     .edgepanel .panel-body{background:#0b1220f5;border:1px solid #334155;box-shadow:0 6px 26px #000b;box-sizing:border-box}
     .edgetab{position:absolute;cursor:pointer;user-select:none;background:#131c30;color:#9fb3d1;border:1px solid #24324d;
              display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:.72rem;font-weight:bold;letter-spacing:.12em}
@@ -1454,22 +1455,52 @@
     const matchScore = { red: 0, blue: 0 };
     const scored = { red: {}, blue: {} };   // one-time AUTO mobility / park awards per alliance
     let match = { state: 'IDLE', t: 0, running: false, arming: false, pending: null };
-    // FMS sound cues (real FTC field-control tones)
-    const SFX = {
-      matchStart:   new Audio('audio/match_start.mp3'),
-      autoComplete: new Audio('audio/autonomous_complete.mp3'),
-      driversPickup:new Audio('audio/tele_start.mp3'),           // "Drivers, pick up your controllers, 3-2-1" (AUTO->TELEOP transition)
-      teleBells:    new Audio('audio/tele_start_3_bells.mp3'),
-      endgame:      new Audio('audio/endgame_start.mp3'),
-      matchEnd:     new Audio('audio/match_end.mp3'),
+    // FMS sound cues (real FTC field-control tones). Played through ONE shared Web Audio context from
+    // buffers decoded up front -- the same path as the synthesized heartbeat, which plays reliably. Plain
+    // <audio> elements are only a fallback: the long cues (foghorn, "drivers pick up") could go silent
+    // that way, e.g. while the in-browser compiler is hogging the page.
+    const SFX_FILES = {
+      matchStart:    'audio/match_start.mp3',
+      autoComplete:  'audio/autonomous_complete.mp3',
+      driversPickup: 'audio/tele_start.mp3',           // "Drivers, pick up your controllers, 3-2-1" (AUTO->TELEOP transition)
+      teleBells:     'audio/tele_start_3_bells.mp3',
+      endgame:       'audio/endgame_start.mp3',
+      matchEnd:      'audio/match_end.mp3',
+      fogHorn:       'audio/fog_horn.mp3',            // "LET'S GO!" at the end of the start ceremony
     };
-    function playSfx(name){
-      const a = SFX[name]; if (!a) return;
-      try { a.currentTime = 0; } catch(e){}
-      // log every match cue so a silent one can be diagnosed from the console (blocked vs. never fired)
-      a.play().then(() => console.log('[sfx] ' + name + ' playing')).catch(e => console.warn('[sfx] ' + name + ' FAILED: ' + e.name + ' ' + e.message));
+    let audioCtx = null;
+    function getAudioCtx(){
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});   // unlocks once the user has clicked/pressed anything
+      return audioCtx;
     }
-    for (const k in SFX) { SFX[k].preload = 'auto'; try { SFX[k].load(); } catch(e){} }   // fetch/decode up front so the first cue isn't skipped
+    const sfxBuf = {}, sfxEl = {};
+    let sfxDecoding = false;
+    function decodeSfx(){                     // first user gesture: fetch + decode every cue into a buffer
+      if (sfxDecoding) return; sfxDecoding = true;
+      const ctx = getAudioCtx();
+      for (const [k, url] of Object.entries(SFX_FILES)) {
+        fetch(url).then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b)).then(buf => { sfxBuf[k] = buf; })
+          .catch(e => console.warn('[sfx] decode ' + k + ' failed: ' + e));
+      }
+    }
+    for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, decodeSfx, { once: true, capture: true });
+    function playSfx(name){
+      const buf = sfxBuf[name];
+      if (buf) {
+        try {
+          const ctx = getAudioCtx(), src = ctx.createBufferSource();
+          src.buffer = buf; src.connect(ctx.destination); src.start();
+          console.log('[sfx] ' + name + ' playing (ctx ' + ctx.state + ')');
+          return;
+        } catch (e) { console.warn('[sfx] ' + name + ' webaudio FAILED: ' + e); }
+      }
+      // fallback: not decoded yet (no click before the cue) -> plain <audio> element
+      const url = SFX_FILES[name]; if (!url) return;
+      const a = sfxEl[name] || (sfxEl[name] = new Audio(url));
+      try { a.currentTime = 0; } catch(e){}
+      a.play().then(() => console.log('[sfx] ' + name + ' playing (fallback)')).catch(e => console.warn('[sfx] ' + name + ' FAILED: ' + e.name + ' ' + e.message));
+    }
 
     // ---- field constants (meters) ----
     const FT = 0.3048;
@@ -2892,54 +2923,39 @@
     let gymEnvMapRestored = false;
 
     // synthesized "lub-dub" heartbeat (ported from the v1 desktop sim's procedural WAV generator) --
-    // no audio file needed, just two quick thuds with a punchy decay envelope. The deep 30-110 Hz body is
-    // inaudible on laptop/Chromebook speakers, so each thud also gets a 150-240 Hz "punch" and a tiny
-    // click on its attack: the deep part still rumbles on headphones/subwoofers, and small speakers hear it too.
+    // no audio file needed, just two quick sine-wave thuds with a punchy decay envelope
     function synthHeartbeatBuffer(ctx){
       const sr = ctx.sampleRate, dur = 0.4, n = Math.floor(dur * sr);
       const buf = ctx.createBuffer(1, n, sr), d = buf.getChannelData(0);
-      let seed = 12345; const noise = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x3fffffff - 1; };
-      const thud = (t, f, e) => Math.sin(t * f * 2 * Math.PI) * e;
-      let peak = 0;
       for (let i = 0; i < n; i++) {
         const t = i / sr; let s = 0;
         if (t < 0.12) {
           let e1 = t < 0.008 ? t / 0.008 : (t < 0.035 ? 1 : Math.max(0, 1 - (t - 0.035) / 0.085)); e1 *= e1;
-          s += thud(t, 45, e1) * 0.85 + thud(t, 90, e1) * 0.25 + thud(t, 30, e1) * 0.4;   // deep body
-          s += thud(t, 160, e1) * 0.55 + thud(t, 240, e1) * 0.25;                         // punch for small speakers
-          if (t < 0.004) s += noise() * 0.35 * (1 - t / 0.004);                           // attack click
+          s += Math.sin(t * 45 * 2 * Math.PI) * e1 * 0.85 + Math.sin(t * 90 * 2 * Math.PI) * e1 * 0.25 + Math.sin(t * 30 * 2 * Math.PI) * e1 * 0.4;
         }
         const t2 = t - 0.15;
         if (t2 > 0 && t2 < 0.11) {
           let e2 = t2 < 0.006 ? t2 / 0.006 : (t2 < 0.025 ? 1 : Math.max(0, 1 - (t2 - 0.025) / 0.085)); e2 *= e2;
-          s += thud(t2, 55, e2) * 0.7 + thud(t2, 110, e2) * 0.18 + thud(t2, 35, e2) * 0.35;
-          s += thud(t2, 180, e2) * 0.45 + thud(t2, 260, e2) * 0.2;
-          if (t2 < 0.004) s += noise() * 0.28 * (1 - t2 / 0.004);
+          s += Math.sin(t2 * 55 * 2 * Math.PI) * e2 * 0.7 + Math.sin(t2 * 110 * 2 * Math.PI) * e2 * 0.18 + Math.sin(t2 * 35 * 2 * Math.PI) * e2 * 0.35;
         }
-        d[i] = s; peak = Math.max(peak, Math.abs(s));
+        d[i] = Math.max(-1, Math.min(1, s));
       }
-      const k = peak > 0 ? 0.95 / peak : 1;   // normalize so the louder mix can't clip
-      for (let i = 0; i < n; i++) d[i] *= k;
       return buf;
     }
-    let heartbeatCtx = null, heartbeatBuf = null;
+    let heartbeatBuf = null;
     function playHeartbeat(){
       try {
-        if (!heartbeatCtx) heartbeatCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (heartbeatCtx.state === 'suspended') heartbeatCtx.resume();   // unlock after autoplay-gating so it fires every match, not just the first
-        if (!heartbeatBuf) heartbeatBuf = synthHeartbeatBuffer(heartbeatCtx);
-        const src = heartbeatCtx.createBufferSource(); src.buffer = heartbeatBuf;
-        const gain = heartbeatCtx.createGain(); gain.gain.value = 0.7;
-        src.connect(gain); gain.connect(heartbeatCtx.destination); src.start();
+        const ctx = getAudioCtx();
+        if (!heartbeatBuf) heartbeatBuf = synthHeartbeatBuffer(ctx);
+        const src = ctx.createBufferSource(); src.buffer = heartbeatBuf;
+        const gain = ctx.createGain(); gain.gain.value = 0.7;
+        src.connect(gain); gain.connect(ctx.destination); src.start();
       } catch (e) {}
     }
-    const fogHornSfx = new Audio('audio/fog_horn.mp3');
     // 1:00 "chime" (no audio file): two bell tones, a fifth apart, with a ringing decay
     function playChime(){
       try {
-        if (!heartbeatCtx) heartbeatCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (heartbeatCtx.state === 'suspended') heartbeatCtx.resume();
-        const ctx = heartbeatCtx, now = ctx.currentTime;
+        const ctx = getAudioCtx(), now = ctx.currentTime;
         [[880, 0], [1320, 0.18], [880, 0.36]].forEach(([f, dt]) => {
           for (const [mult, amp] of [[1, 0.35], [2.76, 0.08]]) {   // bell = fundamental + an inharmonic partial
             const o = ctx.createOscillator(), g = ctx.createGain();
@@ -2953,7 +2969,6 @@
         console.log('[sfx] chime playing');
       } catch (e) { console.warn('[sfx] chime FAILED: ' + e); }
     }
-    fogHornSfx.preload = 'auto'; try { fogHornSfx.load(); } catch(e){}
 
     // "LET'S GO!" -- a simple glowing pulse (canvas texture, unlit material so it reads through the
     // dimmed ceremony lighting), shown only during the horn phase
@@ -3061,7 +3076,7 @@
         ceremonyCamPos.lerpVectors(CEREMONY_WIDE_POS, DRIVER_CAM_POS, e);
         ceremonyCamLook.lerpVectors(CEREMONY_WIDE_LOOK, DRIVER_CAM_LOOK, e);
         if (t >= 1) {
-          try { fogHornSfx.currentTime = 0; } catch(e){} fogHornSfx.play().then(() => console.log('[sfx] foghorn playing')).catch(e => console.warn('[sfx] foghorn FAILED: ' + e.name));   // foghorn: every Start Match
+          playSfx('fogHorn');   // foghorn: every Start Match
           ceremony.phase = 'horn'; ceremony.t = 0;
         }
         return;
@@ -4294,7 +4309,10 @@
       const want = wantFqn != null ? wantFqn : (al.loaded && al.loaded.fqn);
       // only resolve a fallback opmode when something was actually wanted -- an explicit '' (the
       // very first automatic boot carry) means "leave nothing selected", not "pick a default".
+      const prev = al.loaded;
       al.loaded = { name: pkgName, files, active: p.active, fqn: want ? resolveFqn(files, want) : '' };
+      // keep the hub's TeleOp preselect across the re-snapshot every INIT does (it's hub state, not code)
+      if (prev && prev.preFor) { al.loaded.preFor = prev.preFor; al.loaded.preTele = prev.preTele || ''; }
       saveMatch();
       renderHubCode(al); renderHubOps(al); updateLoadState(al);
     }
