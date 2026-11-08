@@ -93,6 +93,10 @@ public class OpModeHost {
         volatile boolean running = false;
         Thread sampler;
         LinearOpMode current;
+        // Exact text of the sources behind this slot's last SUCCESSFUL compile. An INIT with identical
+        // sources skips the compiler and reuses the classes already in outDir -- like a real robot, where
+        // code is built once at deploy and INIT just constructs the OpMode. (Null = must compile.)
+        private String lastCompiledSources = null;
 
         Runner(int slot) {
             this.slot = slot;
@@ -165,20 +169,41 @@ public class OpModeHost {
             return ok ? null : (err.toString() + out.toString());
         }
 
-        // INIT: compile, construct, start the worker (blocks at waitForStart), begin sampling.
+        // Every staged file's name + text, in order: two INITs with an equal key compile identically.
+        String sourcesKey(String[] srcFiles) {
+            StringBuilder sb = new StringBuilder();
+            try {
+                for (String p : srcFiles) {
+                    sb.append(p).append('\u0000');
+                    sb.append(new String(Files.readAllBytes(new File(p).toPath()), "UTF-8")).append('\u0001');
+                }
+            } catch (Exception e) { return null; }   // unreadable -> never skip
+            return sb.toString();
+        }
+
+        // INIT: compile (unless unchanged), construct, start the worker (blocks at waitForStart), begin sampling.
         void init() throws Exception {
             stop();
+            com.qualcomm.robotcore.eventloop.opmode.SimBlackboard.setSlot(slot);   // this robot's own blackboard
             status(slot, 1, "compiling");
             String fqn = readFqn();
             long t0 = System.currentTimeMillis();
-            String err = compile(stagedSources());
-            long ms = System.currentTimeMillis() - t0;
-            if (err != null) {
-                System.out.println("COMPILE_ERR[" + slot + "] (" + ms + "ms)\n" + err);
-                status(slot, 5, err);   // full ECJ text; the browser parses line numbers into editor squiggles
-                return;
+            String[] srcs = stagedSources();
+            String key = sourcesKey(srcs);
+            if (key != null && key.equals(lastCompiledSources)) {
+                System.out.println("COMPILE_SKIP[" + slot + "] unchanged sources, reusing classes");
+            } else {
+                lastCompiledSources = null;
+                String err = compile(srcs);
+                long ms = System.currentTimeMillis() - t0;
+                if (err != null) {
+                    System.out.println("COMPILE_ERR[" + slot + "] (" + ms + "ms)\n" + err);
+                    status(slot, 5, err);   // full ECJ text; the browser parses line numbers into editor squiggles
+                    return;
+                }
+                lastCompiledSources = key;
+                System.out.println("COMPILE_OK[" + slot + "] " + ms + "ms");
             }
-            System.out.println("COMPILE_OK[" + slot + "] " + ms + "ms");
 
             HardwareMap hw = new HardwareMap();
             SimMotor fl = new SimMotor("leftFront");

@@ -7,8 +7,9 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import java.util.HashMap;
 
 public abstract class OpMode {
-    /** FTC SDK 10.3+: survives from one OpMode to the next (not across robot restarts) -- e.g. auto -> TeleOp. */
-    public static final HashMap<String, Object> blackboard = new HashMap<>();
+    /** FTC SDK 10.3+: survives from one OpMode to the next (not across robot restarts) -- e.g. auto -> TeleOp.
+     *  In the sim each robot gets its own (see SimBlackboard), like each real robot's own Control Hub. */
+    public static final HashMap<String, Object> blackboard = new SimBlackboard();
 
     public Gamepad gamepad1 = new Gamepad();
     public Gamepad gamepad2 = new Gamepad();
