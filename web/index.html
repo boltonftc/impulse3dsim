@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.35';
+    window.APP_VERSION = '2.8.36';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -268,7 +268,15 @@
     .dh-alliance{font-weight:bold;color:#f87171;letter-spacing:.1em;font-size:.8rem;padding:0 .3rem}
     .dh-alliance.blue{color:#60a5fa}
     .dh-op{text-align:center;color:#cbd5e1;font-size:.8rem;padding:.4rem;background:#12151a}
-    .dh-mid{display:flex;justify-content:center;padding:.8rem;background:#12151a}
+    .dh-mid{display:flex;justify-content:center;padding:.8rem;background:#12151a;position:relative}
+    /* real DS "TeleOp preselect": faint icon (off) in the lower-left; tap to pick, solid + name when on */
+    .dh-pre{position:absolute;left:8px;bottom:8px;display:flex;align-items:center;gap:5px;max-width:150px;background:none;border:none;color:#e2e8f0;cursor:pointer;opacity:.3;padding:2px 4px;font-family:monospace;font-size:.72rem;user-select:none}
+    .dh-pre:hover{opacity:.55}
+    .dh-pre.on{opacity:1;color:#86efac}
+    .dh-pre .ico{font-size:1.15rem;line-height:1}
+    .dh-pre .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .dh-pre-sel{position:absolute;left:8px;bottom:8px;width:150px;opacity:0;pointer-events:none;font-size:.75rem}
+    .dh-pre-sel.open{opacity:1;pointer-events:auto;background:#0f1318;color:#e2e8f0;border:1px solid #333b47;border-radius:6px}
     .dh-btn{width:110px;height:110px;border-radius:50%;border:none;font-size:1.4rem;font-weight:bold;color:#fff;cursor:pointer;box-shadow:0 3px 0 #0006,inset 0 0 0 4px #ffffff22}
     .dh-btn.init{background:#2563eb}
     .dh-btn.start{background:#16a34a}
@@ -952,6 +960,8 @@
         <div class="dh-op" id="dh-op">No OpMode Selected</div>
         <div class="dh-mid">
           <button id="dh-btn" class="dh-btn init">INIT</button>
+          <button id="dh-pre" class="dh-pre" style="display:none" title="TeleOp preselect: tap to choose the TeleOp that gets queued when this Autonomous ends (you still press INIT + START). Long-press to turn it off."><span class="ico">&#9197;</span><span class="nm"></span></button>
+          <select id="dh-pre-sel" class="dh-pre-sel" tabindex="-1" aria-label="Preselect TeleOp"></select>
         </div>
         <div class="dh-bottom">
           <select id="dh-code" class="dh-sel dh-code" title="Code package — pick one to load &amp; recompile on the Driver Hub"><option>_starter</option></select>
@@ -978,6 +988,8 @@
         <div class="dh-op" id="dh-op-b">No OpMode Selected</div>
         <div class="dh-mid">
           <button id="dh-btn-b" class="dh-btn init">INIT</button>
+          <button id="dh-pre-b" class="dh-pre" style="display:none" title="TeleOp preselect: tap to choose the TeleOp that gets queued when this Autonomous ends (you still press INIT + START). Long-press to turn it off."><span class="ico">&#9197;</span><span class="nm"></span></button>
+          <select id="dh-pre-sel-b" class="dh-pre-sel" tabindex="-1" aria-label="Preselect TeleOp"></select>
         </div>
         <div class="dh-bottom">
           <select id="dh-code-b" class="dh-sel dh-code" title="Opponent code package"><option value="">— pick opponent code —</option></select>
@@ -1429,14 +1441,16 @@
     alliances.red.name = 'red'; alliances.blue.name = 'blue';
     // per-alliance Driver Hub DOM ids; fromPit=true means the code comes from the Pit deploy (red),
     // false means the panel picks any saved package as the opponent (blue)
-    alliances.red.hub  = { auto:'dh-auto',   teleop:'dh-teleop',   op:'dh-op',   btn:'dh-btn',   code:'dh-code',   opstate:'opstate',   recompile:'dh-recompile',   load:'dh-load-state',   tele:'tele',   gp:'gp1',   fromPit:true  };
-    alliances.blue.hub = { auto:'dh-auto-b', teleop:'dh-teleop-b', op:'dh-op-b', btn:'dh-btn-b', code:'dh-code-b', opstate:'opstate-b', recompile:'dh-recompile-b', load:'dh-load-state-b', tele:'tele-b', gp:'gp1-b', fromPit:false };
+    alliances.red.hub  = { auto:'dh-auto',   teleop:'dh-teleop',   op:'dh-op',   btn:'dh-btn',   code:'dh-code',   opstate:'opstate',   recompile:'dh-recompile',   load:'dh-load-state',   tele:'tele',   gp:'gp1',   pre:'dh-pre',   preSel:'dh-pre-sel',   fromPit:true  };
+    alliances.blue.hub = { auto:'dh-auto-b', teleop:'dh-teleop-b', op:'dh-op-b', btn:'dh-btn-b', code:'dh-code-b', opstate:'opstate-b', recompile:'dh-recompile-b', load:'dh-load-state-b', tele:'tele-b', gp:'gp1-b', pre:'dh-pre-b', preSel:'dh-pre-sel-b', fromPit:false };
     const bySlot = [alliances.red, alliances.blue];
     const sel = slot => bySlot[slot] || alliances.red;   // native slot index -> alliance instance
     let upMode = 1;              // 1UP = red only; 2UP = red + blue opponent (set by #upbadge)
-    // FMS match: AUTO(30s) -> TELEOP(120s, last 30s = ENDGAME) = 2:30 of play. Scoring rules TBD (M8b).
-    const MATCH = { AUTO: 30, TELEOP: 120, ENDGAME: 30 };
-    const XION_DUR = 8, XION_PICKUP = 2;   // AUTO->TELEOP: robots STOPPED for 8s; "tele_start" cue at +2s
+    // FMS match: AUTO(30s) -> TELEOP(120s, last 20s = ENDGAME) = 2:30 of play. Scoring rules TBD (M8b).
+    const MATCH = { AUTO: 30, TELEOP: 120, ENDGAME: 20 };
+    // AUTO->TELEOP: robots STOPPED for 8s. The "Drivers, pick up your controllers, 3-2-1" voiceover (7.5s)
+    // starts right away so its 3-2-1 lands as TELEOP begins (with the 3 bells).
+    const XION_DUR = 8, XION_PICKUP = 0.5;
     const matchScore = { red: 0, blue: 0 };
     const scored = { red: {}, blue: {} };   // one-time AUTO mobility / park awards per alliance
     let match = { state: 'IDLE', t: 0, running: false, arming: false, pending: null };
@@ -1449,7 +1463,12 @@
       endgame:      new Audio('audio/endgame_start.mp3'),
       matchEnd:     new Audio('audio/match_end.mp3'),
     };
-    function playSfx(name){ const a = SFX[name]; if (!a) return; try { a.currentTime = 0; } catch(e){} a.play().catch(()=>{}); }
+    function playSfx(name){
+      const a = SFX[name]; if (!a) return;
+      try { a.currentTime = 0; } catch(e){}
+      // log every match cue so a silent one can be diagnosed from the console (blocked vs. never fired)
+      a.play().then(() => console.log('[sfx] ' + name + ' playing')).catch(e => console.warn('[sfx] ' + name + ' FAILED: ' + e.name + ' ' + e.message));
+    }
     for (const k in SFX) { SFX[k].preload = 'auto'; try { SFX[k].load(); } catch(e){} }   // fetch/decode up front so the first cue isn't skipped
 
     // ---- field constants (meters) ----
@@ -2767,7 +2786,7 @@
       for (const al of participants()){ al.matchArm = false; opStopOn(al); }
       setMatchUI();
     }
-    function abortMatch(){ if (match.state === 'IDLE') return; endMatch(); }
+    function abortMatch(){ if (match.state === 'IDLE') return; for (const al of participants()) al.abortPre = true; endMatch(); }
     // practice utility: put balls + both robots back at their time-zero spawn, without touching the
     // clock/opmode state -- lets you re-run a capture or re-test a teleop pass without a full match reset.
     function fieldReset(){
@@ -2783,8 +2802,8 @@
       // AUTO -> TELEOP transition: robots STOPPED, match clock paused for XION_DUR while drivers grab controllers
       if (match.state === 'XION') {
         match.xt += dt;
-        if (!match.telePickup && match.xt >= XION_PICKUP) { match.telePickup = true; playSfx('driversPickup'); }   // "drivers, pick up your controllers" (6s)
-        if (match.xt >= XION_DUR) { match.state = 'TELEOP'; }                                                      // only now does TELEOP begin
+        if (!match.telePickup && match.xt >= XION_PICKUP) { match.telePickup = true; playSfx('driversPickup'); }   // "drivers, pick up your controllers, 3-2-1"
+        if (match.xt >= XION_DUR) { match.state = 'TELEOP'; playSfx('teleBells'); }                                // TELEOP begins: 3 bells
         updateMatchClock();
         return;
       }
@@ -2803,12 +2822,14 @@
           if (inLoadingZone(al.name, p.x, p.z)) matchScore[al.name] += 5;
         }
         playSfx('autoComplete');                                  // AUTO ends: 3-buzzer
+        // the Driver Station's 30 s timer stops a still-running Autonomous (-> preselected TeleOp gets queued)
+        for (const al of participants()) if (al.runType === 'auto' && al.lastCode === 3) { al.autoT0 = 0; opStopOn(al); }
         match.state = 'XION'; match.xt = 0; match.telePickup = false;   // enter the 8s stop; robots are frozen in the render loop
         updateMatchClock();
         return;
       }
       if (match.state === 'TELEOP' && !match.endgameAnnounced && inEndgame()) { match.endgameAnnounced = true; playSfx('endgame'); }
-      if (match.state === 'TELEOP' && !match.nectarDumped && periodRemaining() <= 60) { match.nectarDumped = true; dumpRemainingNectar(); }
+      if (match.state === 'TELEOP' && !match.nectarDumped && periodRemaining() <= 60) { match.nectarDumped = true; dumpRemainingNectar(); playChime(); }   // 1:00: chime
       if (match.t >= MATCH.AUTO + MATCH.TELEOP) {
         for (const al of participants()) {                        // parked in the LOADING ZONE at end of TELEOP -> 5 pts
           const p = (al.slot === 0 ? robot : robotBlue).translation();
@@ -2871,23 +2892,34 @@
     let gymEnvMapRestored = false;
 
     // synthesized "lub-dub" heartbeat (ported from the v1 desktop sim's procedural WAV generator) --
-    // no audio file needed, just two quick sine-wave thuds with a punchy decay envelope
+    // no audio file needed, just two quick thuds with a punchy decay envelope. The deep 30-110 Hz body is
+    // inaudible on laptop/Chromebook speakers, so each thud also gets a 150-240 Hz "punch" and a tiny
+    // click on its attack: the deep part still rumbles on headphones/subwoofers, and small speakers hear it too.
     function synthHeartbeatBuffer(ctx){
       const sr = ctx.sampleRate, dur = 0.4, n = Math.floor(dur * sr);
       const buf = ctx.createBuffer(1, n, sr), d = buf.getChannelData(0);
+      let seed = 12345; const noise = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x3fffffff - 1; };
+      const thud = (t, f, e) => Math.sin(t * f * 2 * Math.PI) * e;
+      let peak = 0;
       for (let i = 0; i < n; i++) {
         const t = i / sr; let s = 0;
         if (t < 0.12) {
           let e1 = t < 0.008 ? t / 0.008 : (t < 0.035 ? 1 : Math.max(0, 1 - (t - 0.035) / 0.085)); e1 *= e1;
-          s += Math.sin(t * 45 * 2 * Math.PI) * e1 * 0.85 + Math.sin(t * 90 * 2 * Math.PI) * e1 * 0.25 + Math.sin(t * 30 * 2 * Math.PI) * e1 * 0.4;
+          s += thud(t, 45, e1) * 0.85 + thud(t, 90, e1) * 0.25 + thud(t, 30, e1) * 0.4;   // deep body
+          s += thud(t, 160, e1) * 0.55 + thud(t, 240, e1) * 0.25;                         // punch for small speakers
+          if (t < 0.004) s += noise() * 0.35 * (1 - t / 0.004);                           // attack click
         }
         const t2 = t - 0.15;
         if (t2 > 0 && t2 < 0.11) {
           let e2 = t2 < 0.006 ? t2 / 0.006 : (t2 < 0.025 ? 1 : Math.max(0, 1 - (t2 - 0.025) / 0.085)); e2 *= e2;
-          s += Math.sin(t2 * 55 * 2 * Math.PI) * e2 * 0.7 + Math.sin(t2 * 110 * 2 * Math.PI) * e2 * 0.18 + Math.sin(t2 * 35 * 2 * Math.PI) * e2 * 0.35;
+          s += thud(t2, 55, e2) * 0.7 + thud(t2, 110, e2) * 0.18 + thud(t2, 35, e2) * 0.35;
+          s += thud(t2, 180, e2) * 0.45 + thud(t2, 260, e2) * 0.2;
+          if (t2 < 0.004) s += noise() * 0.28 * (1 - t2 / 0.004);
         }
-        d[i] = Math.max(-1, Math.min(1, s));
+        d[i] = s; peak = Math.max(peak, Math.abs(s));
       }
+      const k = peak > 0 ? 0.95 / peak : 1;   // normalize so the louder mix can't clip
+      for (let i = 0; i < n; i++) d[i] *= k;
       return buf;
     }
     let heartbeatCtx = null, heartbeatBuf = null;
@@ -2902,7 +2934,26 @@
       } catch (e) {}
     }
     const fogHornSfx = new Audio('audio/fog_horn.mp3');
-    let fogHornPlayed = false;   // the foghorn blasts only on the very first Start Match of the session
+    // 1:00 "chime" (no audio file): two bell tones, a fifth apart, with a ringing decay
+    function playChime(){
+      try {
+        if (!heartbeatCtx) heartbeatCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (heartbeatCtx.state === 'suspended') heartbeatCtx.resume();
+        const ctx = heartbeatCtx, now = ctx.currentTime;
+        [[880, 0], [1320, 0.18], [880, 0.36]].forEach(([f, dt]) => {
+          for (const [mult, amp] of [[1, 0.35], [2.76, 0.08]]) {   // bell = fundamental + an inharmonic partial
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.frequency.value = f * mult; o.type = 'sine';
+            g.gain.setValueAtTime(0.0001, now + dt);
+            g.gain.exponentialRampToValueAtTime(amp, now + dt + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.0001, now + dt + 1.4);
+            o.connect(g); g.connect(ctx.destination); o.start(now + dt); o.stop(now + dt + 1.5);
+          }
+        });
+        console.log('[sfx] chime playing');
+      } catch (e) { console.warn('[sfx] chime FAILED: ' + e); }
+    }
+    fogHornSfx.preload = 'auto'; try { fogHornSfx.load(); } catch(e){}
 
     // "LET'S GO!" -- a simple glowing pulse (canvas texture, unlit material so it reads through the
     // dimmed ceremony lighting), shown only during the horn phase
@@ -3010,7 +3061,7 @@
         ceremonyCamPos.lerpVectors(CEREMONY_WIDE_POS, DRIVER_CAM_POS, e);
         ceremonyCamLook.lerpVectors(CEREMONY_WIDE_LOOK, DRIVER_CAM_LOOK, e);
         if (t >= 1) {
-          if (!fogHornPlayed) { try { fogHornSfx.currentTime = 0; } catch(e){} fogHornSfx.play().then(() => { fogHornPlayed = true; }).catch(() => {}); }   // foghorn: first Start Match only, latched on success
+          try { fogHornSfx.currentTime = 0; } catch(e){} fogHornSfx.play().then(() => console.log('[sfx] foghorn playing')).catch(e => console.warn('[sfx] foghorn FAILED: ' + e.name));   // foghorn: every Start Match
           ceremony.phase = 'horn'; ceremony.t = 0;
         }
         return;
@@ -3884,7 +3935,7 @@
     // any change to which op is armed invalidates whatever was compiled/running before -- force the
     // hub back to STOPPED so the button/label never claims to be ready to run stale code
     function forceHubStopped(al){
-      if (al.lastCode === 2 || al.lastCode === 3) opStopOn(al);   // only stop if actually armed/running
+      if (al.lastCode === 2 || al.lastCode === 3) { al.abortPre = true; opStopOn(al); }   // only stop if actually armed/running
       al.lastCode = 0;
       al.placed = null;   // a stopped hub no longer owns a start placement (Field Reset -> default spawn)
       const st = document.getElementById(al.hub.opstate);
@@ -3898,6 +3949,7 @@
     }
     function Java_sim_OpModeHost_status(lib, slot, code, msg){
       const a = sel(slot); a.calls++;
+      const prevCode = a.lastCode;
       a.lastCode = code;
       if (code >= 2) a.warmed = true;   // any completed compile means this parser is now warm
       if (code === 2 && a.autoStart) { a.autoStart = false; opStartOn(a); }
@@ -3938,6 +3990,30 @@
             s.textContent = a.warmed ? 'STATUS: compiling…'
                                      : 'STATUS: warming compiler — first run only (~1 min)…'; }
           else if (code === 4) { s.className = ''; s.textContent = 'STATUS: stopped'; }
+        }
+      }
+      if (code === 4 && prevCode === 3) onOpEnded(a);   // a RUNNING op just ended -> maybe queue the preselected TeleOp
+    }
+    // AUTO -> TELEOP PRESELECT (real Driver Station, SDK 6.1+): when an Autonomous ends on its own or is
+    // stopped by the 30 s auto timer, the hub switches its selected OpMode to the TeleOp preselected before
+    // auto STARTed. It is only QUEUED -- drivers still press INIT and START themselves (safety). A STOP
+    // pressed by a person during auto cancels the switch.
+    function onOpEnded(a){
+      if (a.runType !== 'auto' || a.abortPre || !a.preAtStart || !a.loaded) return;
+      const t = scanOps({ files: a.loaded.files }).find(o => o.fqn === a.preAtStart && o.type === 'teleop');
+      if (!t) return;
+      a.loaded.fqn = t.fqn; saveMatch();
+      renderHubOps(a);
+      const load = document.getElementById(a.hub.load);
+      if (load) { load.textContent = '\u23ed ' + t.name + ' queued \u2014 press INIT'; load.className = 'dh-load'; }
+    }
+    // the Driver Station's 30 s AUTONOMOUS timer: outside a match, an Autonomous that's still running
+    // 30 s after START is stopped for you (in a match, the match clock does this at the end of AUTO)
+    function tickAutoTimers(){
+      if (match.running) return;
+      for (const a of [alliances.red, alliances.blue]) {
+        if (a.runType === 'auto' && a.lastCode === 3 && a.autoT0 && performance.now() - a.autoT0 >= MATCH.AUTO * 1000) {
+          a.autoT0 = 0; opStopOn(a);
         }
       }
     }
@@ -3991,6 +4067,7 @@
       const dt = Math.min(0.05, rawDt); last = now;
       readInput(dt);
       tickMatch(dt);
+      tickAutoTimers();
       // ceremony pacing uses the real (uncapped) elapsed time, NOT the physics-stability-capped dt
       // above -- it's a plain state-machine timer (no integration to blow up), so it's safe to let it
       // jump forward by however much wall-clock time actually passed. Capping it (as with the physics
@@ -4346,7 +4423,8 @@
           let name = cls, group = '';
           const nm = args.match(/name\s*=\s*"([^"]*)"/);  if (nm) name = nm[1];
           const gm = args.match(/group\s*=\s*"([^"]*)"/); if (gm) group = gm[1];
-          ops.push({ fqn: pkgName ? pkgName + '.' + cls : cls, simple: cls, type, name, group, file: fname });
+          const pm = args.match(/preselectTeleOp\s*=\s*"([^"]*)"/);
+          ops.push({ fqn: pkgName ? pkgName + '.' + cls : cls, simple: cls, type, name, group, file: fname, preTeleName: pm ? pm[1] : '' });
         }
       }
       return ops;
@@ -4378,6 +4456,8 @@
       a.pending = 1;
       a.placed = null;           // a new INIT forgets any previous auto start placement
       a.placeOk = !!src.fqn;     // only a real, user-chosen op may place the robot (not the silent prewarm)
+      const runOp = scanOps({ files }).find(o => o.fqn === fqn);
+      a.runType = runOp ? runOp.type : '';   // 'auto' gets the 30 s timer + TeleOp preselect hand-off
       return fqn;
     }
     // init queue: only one alliance may stage into the shared flat /str/ + compile at a time.
@@ -4403,7 +4483,14 @@
         cstat.textContent = warming ? 'warming (~1 min)…' : 'compiling…';
       }
     }
-    function opStartOn(a){ if (booted) { a.active = true; a.pending = 2; } }
+    function opStartOn(a){
+      if (!booted) return;
+      a.active = true; a.pending = 2;
+      // remember the TeleOp preselected at the moment auto STARTs (that's what the real DS queues afterwards)
+      a.abortPre = false;
+      a.preAtStart = (a.runType === 'auto' && a.loaded && a.loaded.preTele) || '';
+      a.autoT0 = a.runType === 'auto' ? performance.now() : 0;
+    }
     function opStopOn(a){ if (booted) { a.active = false; a.pending = 3; stopMotors(a); } }
     // STOP cuts every motor, like a real robot when its OpMode ends: drive, intake, feeder and flywheel
     // power go to 0, so leftover feeder/flywheel power can't keep firing pieces after a stop or reset.
@@ -4415,7 +4502,7 @@
       a.sh.feedCd = 0; a.ejectTimer = 0; a.dumpTimer = 0;
     }
     function opStart() { opStartOn(sim); }
-    function opStop()  { opStopOn(sim); }
+    function opStop()  { sim.abortPre = true; opStopOn(sim); }   // a person pressed STOP: no TeleOp hand-off
     // run an alliance's carried snapshot on its Driver Hub (RED auto-carries the Pit package if empty)
     function hubInit(al){
       if (!al.loaded && al.hub.fromPit) carryToHub(true);
@@ -4457,6 +4544,29 @@
       const cur = has ? ops.find(o => o.fqn === al.loaded.fqn) : null;
       auto.value   = cur && cur.type === 'auto'   ? cur.fqn : '';
       teleop.value = cur && cur.type === 'teleop' ? cur.fqn : '';
+      // TeleOp preselect: only offered while an Autonomous is selected (like the real DS). First time this
+      // auto is shown, default to its @Autonomous(preselectTeleOp = "...") annotation, if it has one.
+      const preBtn = document.getElementById(al.hub.pre), preSel = document.getElementById(al.hub.preSel);
+      if (preBtn && preSel) {
+        const isAuto = !!(cur && cur.type === 'auto');
+        preBtn.style.display = isAuto ? '' : 'none';
+        preSel.classList.remove('open');
+        if (isAuto) {
+          const teleops = ops.filter(o => o.type === 'teleop');
+          if (al.loaded.preFor !== cur.fqn) {               // a different auto than last time: take its default
+            const def = cur.preTeleName ? teleops.find(o => o.name === cur.preTeleName || o.simple === cur.preTeleName) : null;
+            al.loaded.preTele = def ? def.fqn : '';
+            al.loaded.preFor = cur.fqn; saveMatch();
+          }
+          preSel.innerHTML = '<option value="">(no preselect)</option>' + teleops.map(o => '<option></option>').join('');
+          teleops.forEach((o, i) => { const opt = preSel.options[i + 1]; opt.value = o.fqn; opt.textContent = o.name; });
+          const pt = teleops.find(o => o.fqn === al.loaded.preTele);
+          if (!pt) al.loaded.preTele = '';
+          preSel.value = al.loaded.preTele || '';
+          preBtn.classList.toggle('on', !!pt);
+          preBtn.querySelector('.nm').textContent = pt ? pt.name : '';
+        }
+      }
       if (opLabel) opLabel.textContent = cur
         ? cur.name + (cur.type === 'auto' ? '  (Autonomous)' : '  (TeleOp)')
         : 'No OpMode Selected';
@@ -4477,13 +4587,31 @@
         renderHubOps(al);
       });
       const code = document.getElementById(al.hub.code);
+      // TeleOp preselect button: tap -> pick a TeleOp from the list; long-press -> turn preselect off
+      const preBtn = document.getElementById(al.hub.pre), preSel = document.getElementById(al.hub.preSel);
+      if (preBtn && preSel) {
+        let lpTimer = 0, longPressed = false;
+        preBtn.addEventListener('pointerdown', () => {
+          longPressed = false;
+          lpTimer = setTimeout(() => { longPressed = true; if (al.loaded) { al.loaded.preTele = ''; saveMatch(); renderHubOps(al); } }, 600);
+        });
+        const cancelLp = () => clearTimeout(lpTimer);
+        preBtn.addEventListener('pointerup', cancelLp); preBtn.addEventListener('pointerleave', cancelLp);
+        preBtn.addEventListener('click', () => {
+          if (longPressed) { longPressed = false; return; }
+          preSel.classList.add('open'); preSel.focus();
+          try { preSel.showPicker(); } catch (e) {}
+        });
+        preSel.addEventListener('change', () => { if (al.loaded) { al.loaded.preTele = preSel.value; saveMatch(); } renderHubOps(al); });
+        preSel.addEventListener('blur', () => preSel.classList.remove('open'));
+      }
       // both hubs can pick a package here; RED loads & recompiles it on the sim test stand
       if (code) code.addEventListener('change', e => { if (e.target.value) snapshotInto(al, e.target.value); });
       const btn = document.getElementById(al.hub.btn);
       if (btn) btn.addEventListener('click', () => {
         const act = btn.dataset.act || 'init';
         if (act === 'start') opStartOn(al);
-        else if (act === 'stop') opStopOn(al);
+        else if (act === 'stop') { al.abortPre = true; opStopOn(al); }   // a person pressed STOP: no TeleOp hand-off
         else hubInit(al);
       });
       const re = document.getElementById(al.hub.recompile);
