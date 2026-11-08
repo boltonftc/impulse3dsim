@@ -259,6 +259,18 @@ public class AutoAim {
 coordinates.</p>
 
 <div class="blk blk-hint">
+  <div class="blk-head">8. Optional: aim during auto too</div>
+  <p><strong>Path Capture autos aim on their own:</strong> when your package has <code>AutoAim.java</code>, Path Capture
+  adds these lines for you. For a hand-written auto (like <code>SimpleAuto</code>), add them yourself. First, right after
+  <code>follower.setStartingPose(startPose);</code>, tell Localization the same start pose so it knows where you are:</p>
+<pre><code>        robot.localization.setPose(startPose.getX(), startPose.getY(), Math.toDegrees(startPose.getHeading()));
+        AutoAim aim = new AutoAim();</code></pre>
+  <p>Then, inside every follow loop (and once just before you shoot), point the turret:</p>
+<pre><code>            aim.aim(robot.localization, robot.turret);</code></pre>
+  <p>The turret servo holds its angle, so while the robot sits still and shoots, it stays on the hive.</p>
+</div>
+
+<div class="blk blk-hint">
   <div class="blk-head">Then delete these old lines from the loop</div>
   <ul>
     <li>The lesson 8 heading reset: <code>if (gamepad1.right_bumper) { imu.resetYaw(); }</code> (RB is the HOME reset

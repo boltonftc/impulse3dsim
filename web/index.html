@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.30';
+    window.APP_VERSION = '2.8.31';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -6435,7 +6435,9 @@
         return segments;
       }
 
-      function generateJava(className, list) {
+      function generateJava(className, list, opts) {
+        opts = opts || {};
+        const autoAim = !!opts.autoAim;   // package has AutoAim.java (Auto-Aim lesson): aim the turret during auto too
         const initEntry = list.find(e => e.type === 'init');
         const segments = segmentEntries(list);
         // the captured start (Pinpoint init pose) becomes the first waypoint of the first chain, so the
@@ -6527,6 +6529,12 @@
         push('        // match wherever the robot is physically placed on the field before the match starts.');
         push('        follower.setStartingPose(startPose);');
         push('        follower.update();   // sync the localizer/PoseTracker once before reading getPose() below');
+        if (autoAim) {
+          push('        // Auto-aim: tell Localization the same start pose so AutoAim knows where we are, and aim');
+          push('        // the turret every loop. (Added because this package has AutoAim.java.)');
+          push('        robot.localization.setPose(startPose.getX(), startPose.getY(), Math.toDegrees(startPose.getHeading()));');
+          push('        AutoAim aim = new AutoAim();');
+        }
         push('');
         push('        telemetry.addData("Status", "Captured auto ready. Hold the robot on the start position, then press START.");');
         push('        telemetry.addData("Declared start (x,y,h)", "(%.1f, %.1f, %.1f deg)", startPose.getX(), startPose.getY(), Math.toDegrees(startPose.getHeading()));');
@@ -6552,6 +6560,7 @@
             push('        follower.followPath(chain' + (si + 1) + ', SPEED, true);');
             push('        while (opModeIsActive() && follower.isBusy()) {');
             push('            follower.update();');
+            if (autoAim) push('            aim.aim(robot.localization, robot.turret);   // keep the turret on the hive while driving');
             push('            robot.update();');
             push('            saveForTeleOp(follower);');
             push('            telemetry.addData("Phase", "Chain ' + (si + 1) + '");');
@@ -6562,6 +6571,11 @@
           }
           if (seg.actionAfter) {
             const seq = seqOf.get(seg.actionEntry);
+            if (autoAim) {
+              push('        robot.update();');
+              push('        aim.aim(robot.localization, robot.turret);   // final aim from where we stopped (the servo holds it)');
+              push('        robot.update();');
+            }
             push('        // CAP:ACTION seq=' + seq + ' button=' + seg.actionAfter);
             if (seg.actionEntry && seg.actionEntry.code) {
               for (const line of seg.actionEntry.code.split('\n')) push(line);
@@ -6636,7 +6650,7 @@
           }
         }
 
-        p.files[name + '.java'] = generateJava(name, entries);
+        p.files[name + '.java'] = generateJava(name, entries, { autoAim: !!p.files['AutoAim.java'] });
         p.active = name + '.java';
         saveStore();
         renderAll();
