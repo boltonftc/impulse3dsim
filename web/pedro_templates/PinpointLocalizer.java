@@ -15,10 +15,11 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 // simulated Pinpoint reads ground truth) and on the real robot (the real I2C driver) --
 // only the class hardwareMap.get() hands back differs.
 //
-// REAL-ROBOT SETUP: measure your pods' offsets from the robot's center of rotation and set
-// them below (see GoBildaPinpointDriver.setOffsets() javadoc); confirm the pod type and
-// encoder directions match your build. The sim ignores these (pods are modeled at center),
-// but real hardware needs them or position will smear during turns.
+// REAL-ROBOT SETUP: the Pinpoint must know where your odometry pods sit, or position smears during
+// turns (the sim ignores pod settings). Keep ONE copy of them: if your package has RobotConfig.java
+// (configurePinpoint) or Localization.java, Path Capture wires this file to use THOSE settings.
+// Only a package with neither keeps its own copy right here -- measure your pods and set them below
+// (see GoBildaPinpointDriver.setOffsets() javadoc), and confirm the pod type and encoder directions.
 public class PinpointLocalizer implements Localizer {
 
     private final GoBildaPinpointDriver pinpoint;

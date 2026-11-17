@@ -55,7 +55,9 @@ can read but do not have to write:</p>
   <div class="blk-head">The Follower needs a Localizer and a Drivetrain</div>
   <ul>
     <li><code>PinpointLocalizer</code> &mdash; answers <em>&ldquo;where am I?&rdquo;</em> It wraps the <strong>same</strong>
-    goBILDA Pinpoint your Localization subsystem uses, configured the same way, so the two never disagree.</li>
+    goBILDA Pinpoint your Localization subsystem uses, and it lets your <code>Localization</code> constructor set the
+    Pinpoint up (<code>new Localization(hardwareMap)</code>), so the pod settings live in <strong>one</strong> place
+    and TeleOp and autonomous can never disagree.</li>
     <li><code>MecanumDrivetrainSubsystem</code> &mdash; answers <em>&ldquo;how do I push the wheels?&rdquo;</em> It uses the
     <strong>same</strong> mecanum mixing math as your TeleOp <code>Drivebase</code>.</li>
   </ul>
@@ -236,6 +238,10 @@ Open any captured auto and you'll recognize every piece of it:</p>
   your app and the one this tool uploads &mdash; and the on-robot build fails with a duplicate-class error. From here on,
   let OnBot Java (this tool) be the <strong>one</strong> source of Pedro. Earlier lessons never touched Pedro, so this
   only matters now. In the simulator there is nothing to do.</p>
+  <p><strong>Measure your odometry pods.</strong> On a real robot the Pinpoint must know where its two pods sit, or every
+  turn looks like the robot slid sideways (a 180&deg; spin can &ldquo;move&rdquo; it 15&Prime;). Set them in
+  <code>Localization.java</code> &mdash; the <strong>only</strong> place; auto uses the same settings. Test it: spin the
+  robot in place a full turn; x and y should stay within about an inch.</p>
 </div>
 
 <div class="blk blk-todo">

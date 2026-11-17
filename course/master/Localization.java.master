@@ -60,8 +60,13 @@ public class Localization implements Subsystem {
         pinpoint = found;
 
         if (pinpoint != null) {
-            // Describe the physical odometry pods to the Pinpoint. You would only
-            // change these if you moved the tracking wheels on the real robot.
+            // Describe the physical odometry pods to the Pinpoint. This is the ONE place these
+            // settings live: auto's PinpointLocalizer sets the Pinpoint up by calling this same
+            // constructor, so TeleOp and autonomous always agree. On a REAL robot, measure your
+            // pods from the robot's center and set the offsets here (the sim ignores them):
+            //   1st number: how far LEFT of center the FORWARD pod is  (left +, right -)
+            //   2nd number: how far FORWARD of center the STRAFE pod is (forward +, back -)
+            //   e.g. forward pod 3" right, strafe pod 7" back -> setOffsets(-3 * 25.4, -7 * 25.4, MM)
             pinpoint.setOffsets(0.0, 0.0, DistanceUnit.MM);
             pinpoint.setEncoderResolution(
                 GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);

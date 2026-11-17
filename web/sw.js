@@ -29,7 +29,7 @@ const APP_JARS = ['app.jar', 'shim.jar'];
 const PRECACHE = [
   './', './index.html', './manifest.webmanifest',
   './vendor/three.module.js', './vendor/rapier3d.mjs', './vendor/codemirror.bundle.js',
-  './vendor/RGBELoader.js', './vendor/ziplite.js',
+  './vendor/RGBELoader.js', './vendor/ziplite.js', './podconfig.js',
   './assets/icon-192.png', './assets/icon-512.png',
   './assets/cheerpj_logo.png', './assets/sim_icon_v2.png', './assets/splash.jpg',
   './assets/seesaw.stl',

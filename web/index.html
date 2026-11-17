@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.39';
+    window.APP_VERSION = '2.8.40';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -292,6 +292,18 @@
     .carrybtn{background:#1e2a16;border:1px solid #3f5a2a;color:#bbf7d0}
     .carrybtn:hover{background:#26361d}
     #filetabs{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+    #podfix-banner{display:none;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 0;padding:6px 10px;border-radius:8px;background:#2a1f08;border:1px solid #f59e0b;color:#fde68a;font-size:12px;line-height:1.4}
+    #podfix-banner.show{display:flex}
+    #podfix-banner span{flex:1 1 300px}
+    #podfix-banner button{font:inherit;font-weight:700;padding:3px 10px;border-radius:6px;border:1px solid #f59e0b;background:#f59e0b;color:#1a1204;cursor:pointer}
+    #podfix-banner button.dim{background:transparent;color:#fde68a}
+    .podfix-tbl{border-collapse:collapse;width:100%;font-size:12px;margin:6px 0}
+    .podfix-tbl th,.podfix-tbl td{border-bottom:1px solid #223047;padding:4px 6px;text-align:left;vertical-align:top}
+    .podfix-tbl td.num{text-align:right;font-family:ui-monospace,monospace}
+    .podfix-form{display:grid;grid-template-columns:auto auto auto;gap:4px 8px;align-items:center;font-size:12px;margin:6px 0}
+    .podfix-form input,.podfix-form select{font:inherit;width:9em;padding:2px 4px}
+    .podfix-diff{background:#05070a;border:1px solid #222933;border-radius:8px;padding:6px 8px;font-family:ui-monospace,monospace;font-size:11px;max-height:30vh;overflow:auto;white-space:pre;color:#8b97a8}
+    .podfix-diff .a{color:#6ee787}.podfix-diff .d{color:#ff8080}.podfix-diff .f{color:#93c5fd;font-weight:700}
     .filetab{background:#182130;border:1px solid #2b3a52;color:#cbd5e1;border-radius:6px 6px 0 0;padding:4px 10px;font:12px monospace;cursor:pointer}
     .filetab.active{background:#1e2a3a;color:#fff;border-bottom-color:#1e2a3a}
     .filetab.addfile{color:#7dd3fc;border-style:dashed}
@@ -363,6 +375,7 @@
     #pit-scrim{position:fixed;inset:0;background:#00000099;backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:400}
     #pit-scrim.show{display:flex}
     .pit-sheet{width:440px;max-width:92vw;background:#0d1526;border:1px solid #334155;border-radius:14px;box-shadow:0 20px 60px #000b;overflow:hidden}
+    .pit-sheet.wide{width:780px}
     .pit-sheet-head{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid #1e293b}
     .pit-sheet-head .ic{font-size:1.4rem}
     .pit-sheet-head h3{margin:0;font-size:15px;color:#f1f5f9}
@@ -1135,6 +1148,7 @@
           <button data-act="delete" class="danger">Delete…</button>
         </div>
 
+        <div id="podfix-banner"></div>
         <div id="filetabs"></div>
         <div id="src"></div>
 
@@ -1393,6 +1407,7 @@
     </div>
   </div>
 
+  <script src="podconfig.js"></script>
   <script type="module">
 
     import * as THREE from './vendor/three.module.js';
@@ -4254,7 +4269,24 @@
         }
       }
       if (repairMissingPinpointField(files)) changed = true;
+      if (unifyPinpointSetup(files)) changed = true;
       return changed;
+    }
+
+    // An auto PinpointLocalizer that carries its own copy of the pod settings, in a package WITHOUT
+    // RobotConfig.java, where that copy matches Localization's: switch it to `new Localization(hardwareMap)`
+    // so there is only ONE copy (same values -> the robot behaves exactly the same). Packages whose copies
+    // DISAGREE are left alone -- the compile warning (and, with RobotConfig, the review prompt) handles them.
+    function unifyPinpointSetup(files){
+      if (!window.PodConfig || !files || typeof files['PinpointLocalizer.java'] !== 'string') return false;
+      try {
+        if (!PodConfig.analyze(files).canSilentFix) return false;
+        const next = PodConfig.delegate(files['PinpointLocalizer.java'], 'localization');
+        if (next === files['PinpointLocalizer.java']) return false;
+        files['PinpointLocalizer.java'] = next;
+        console.log('[robot setup] PinpointLocalizer now takes its pod settings from Localization.java -- one copy instead of two (same values, so nothing changes on the robot).');
+        return true;
+      } catch (e) { return false; }
     }
 
     // structural repair (not a simple text swap, since the anchor points moved across shipped
@@ -4481,7 +4513,17 @@
     // init queue: only one alliance may stage into the shared flat /str/ + compile at a time.
     // Hold the next init until the running one reports INIT (2) or ERROR (5) via the status native.
     const initQueue = []; let initInProgress = null;
-    function armInit(al, src){ initQueue.push({ al, src }); pumpInits(); }
+    // Pinpoint pod settings that disagree between files (or a RobotConfig package that still hard-codes
+    // them) are a real-robot-only bug -- the sim ignores pod settings -- so say so every time code builds.
+    function podSetupWarn(files, sink){
+      if (!window.PodConfig || !files) return;
+      let w = [];
+      try { w = PodConfig.warnings(files); } catch (e) { return; }
+      if (!w.length) return;
+      if (sink) w.forEach((l, i) => sink((i ? '' : '\u26a0 ') + l, 'warn'));
+      else console.warn('[robot setup] ' + w.join('\n'));
+    }
+    function armInit(al, src){ podSetupWarn(src && src.files); refreshPodBanner(); initQueue.push({ al, src }); pumpInits(); }
     function pumpInits(){
       if (initInProgress || !initQueue.length) return;
       const job = initQueue.shift();
@@ -4696,7 +4738,7 @@
       }
     }
 
-    function renderAll(){ if (bindProgress()) refreshLessonProgressUI(); renderPkgSel(); renderFileTabs(); const p = curPkg(); editorFile = p ? p.active : null; setEditorDoc(p ? p.files[p.active] : ''); syncPitOp(); if (typeof renderPitOps === 'function') renderPitOps(); for (const al of [alliances.red, alliances.blue]){ renderHubCode(al); renderHubOps(al); updateLoadState(al); } }
+    function renderAll(){ if (bindProgress()) refreshLessonProgressUI(); renderPkgSel(); renderFileTabs(); const p = curPkg(); editorFile = p ? p.active : null; setEditorDoc(p ? p.files[p.active] : ''); syncPitOp(); if (typeof renderPitOps === 'function') renderPitOps(); for (const al of [alliances.red, alliances.blue]){ renderHubCode(al); renderHubOps(al); updateLoadState(al); } refreshPodBanner(); }
 
     function renderPkgSel(){
       const sel = document.getElementById('pkgsel');
@@ -5157,12 +5199,156 @@
       document.getElementById('pit-sheet-body').innerHTML = cfg.body || '';
       const go = document.getElementById('pit-sheet-go');
       go.textContent = cfg.go || 'Go ▸'; go.disabled = false; go.onclick = cfg.onGo || null;
+      document.querySelector('.pit-sheet').classList.toggle('wide', !!cfg.wide);
       if (cfg.onOpen) cfg.onOpen();
       pitScrim.classList.add('show');
     }
     function closeSheet(){ pitScrim.classList.remove('show'); }
     document.getElementById('pit-sheet-cancel').addEventListener('click', closeSheet);
     pitScrim.addEventListener('click', e => { if (e.target === pitScrim) closeSheet(); });
+
+    // ---- "Robot setup" review: one copy of the Pinpoint pod settings, in RobotConfig.java ----
+    // Only for packages that HAVE RobotConfig.java but still hard-code the pod setup in Localization /
+    // PinpointLocalizer (older autos, real-robot teams). Nothing changes until the student approves.
+    var PODFIX_SNOOZE = 'impulse.podfix.snooze.';   // sessionStorage, per package: "Not now"
+    function escH(s){ return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+    function podAnalysis(){
+      const p = curPkg();
+      if (!p || !window.PodConfig) return null;
+      try { return PodConfig.analyze(p.files); } catch (e) { return null; }
+    }
+    function refreshPodBanner(){
+      const el = document.getElementById('podfix-banner'); if (!el) return;
+      const a = podAnalysis();
+      let snoozed = false; try { snoozed = sessionStorage.getItem(PODFIX_SNOOZE + store.current) === '1'; } catch (e) {}
+      if (!a || !a.needsPrompt || snoozed){ el.classList.remove('show'); el.innerHTML = ''; return; }
+      const where = a.hardCoded.map(s => '<code>' + escH(s.file) + '</code>').join(' and ');
+      el.innerHTML = '<span>\uD83D\uDD27 <b>Robot setup:</b> your Pinpoint pod settings '
+        + (a.mismatch ? '<b>disagree</b> between files, so TeleOp and auto will think the robot is in different places on a real robot.'
+                      : 'are copied into ' + where + ' instead of coming from <code>RobotConfig.java</code>.')
+        + ' Move them into <code>RobotConfig.java</code> so there\u2019s only one copy?</span>'
+        + '<button id="podfix-review">Review\u2026</button><button id="podfix-later" class="dim">Not now</button>';
+      el.classList.add('show');
+      document.getElementById('podfix-review').onclick = openPodFix;
+      document.getElementById('podfix-later').onclick = () => {
+        try { sessionStorage.setItem(PODFIX_SNOOZE + store.current, '1'); } catch (e) {}
+        refreshPodBanner();
+        console.log('[robot setup] Hidden for now. It will come back next session; INIT keeps warning while the copies differ.');
+      };
+    }
+    // minimal line diff (LCS) showing only the changed hunks with 2 lines of context
+    function lineDiffHtml(before, after){
+      const A = String(before || '').split(/\r?\n/), B = String(after || '').split(/\r?\n/);
+      const n = A.length, m = B.length;
+      const dp = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+      for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+        dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      const ops = [];
+      let i = 0, j = 0;
+      while (i < n || j < m){
+        if (i < n && j < m && A[i] === B[j]){ ops.push([' ', A[i]]); i++; j++; }
+        else if (j < m && (i >= n || dp[i][j + 1] >= dp[i + 1][j])){ ops.push(['+', B[j]]); j++; }
+        else { ops.push(['-', A[i]]); i++; }
+      }
+      const keep = ops.map(() => false);
+      ops.forEach((o, k) => { if (o[0] !== ' ') for (let d = -2; d <= 2; d++) if (ops[k + d]) keep[k + d] = true; });
+      let html = '', gap = false;
+      ops.forEach((o, k) => {
+        if (!keep[k]){ gap = true; return; }
+        if (gap && html){ html += '<span>  \u2026</span>\n'; }
+        gap = false;
+        html += o[0] === '+' ? '<span class="a">+ ' + escH(o[1]) + '</span>\n'
+              : o[0] === '-' ? '<span class="d">- ' + escH(o[1]) + '</span>\n'
+              : '  ' + escH(o[1]) + '\n';
+      });
+      return html;
+    }
+    function openPodFix(){
+      writeActive();
+      const p = curPkg(), a = podAnalysis();
+      if (!p || !a) return;
+      const PODS = ['goBILDA_4_BAR_POD', 'goBILDA_SWINGARM_POD'];
+      // the choices: every configuration actually in use, plus RobotConfig's own values if nothing uses them
+      const cands = a.groups.map(g => ({ cfg: g.cfg, label: g.files.map(f => a.usedBy[f] || f).join(' + ') }));
+      if (a.rc && a.rc.offsets && !cands.some(c => PodConfig.sameCfg(c.cfg, a.rc)))
+        cands.push({ cfg: a.rc, label: 'RobotConfig.java (nothing uses these yet)' });
+      const mmIn = mm => (mm == null || !isFinite(mm)) ? '\u2013' : mm.toFixed(1) + ' mm <span style="color:#8b97a8">(' + (mm / 25.4).toFixed(2) + '\u2033)</span>';
+      const rows = cands.map((c, k) => '<tr><td><input type="radio" name="podfix-pick" value="' + k + '"' + (cands.length === 1 ? ' checked' : '') + '></td>'
+        + '<td>' + escH(c.label) + '</td>'
+        + '<td class="num">' + mmIn(c.cfg.offsets && c.cfg.offsets.x) + '</td><td class="num">' + mmIn(c.cfg.offsets && c.cfg.offsets.y) + '</td>'
+        + '<td>' + escH(c.cfg.dirs ? c.cfg.dirs.join(' / ') : '\u2013') + '</td><td>' + escH((c.cfg.pods || '\u2013').replace('goBILDA_', '')) + '</td></tr>').join('');
+      const sel = (id, opts) => '<select id="' + id + '">' + opts.map(o => '<option>' + o + '</option>').join('') + '</select>';
+      const extraPods = cands.map(c => c.cfg.pods).filter(x => x && !PODS.includes(x));
+      openSheet({
+        ic: '\uD83D\uDD27', title: 'Robot setup \u2192 RobotConfig.java', sub: 'One copy of your Pinpoint pod settings, used by TeleOp AND autonomous', go: 'Approve \u2713', wide: true,
+        body: '<p style="font-size:12px;margin:0 0 6px">TeleOp sets up the Pinpoint in <code>Localization.java</code>; autonomous sets it up again in <code>PinpointLocalizer.java</code>. '
+          + 'Two copies can drift apart, and then TeleOp and auto disagree about where the robot is \u2014 every turn makes it look like the robot slid. '
+          + '(Only on a real robot: the simulator ignores pod settings.) Pick the values that match <b>your</b> robot, or type them in. Afterwards they live only in <code>RobotConfig.java</code>.</p>'
+          + '<table class="podfix-tbl"><tr><th></th><th>Used by</th><th>Forward pod: left of center</th><th>Strafe pod: forward of center</th><th>Directions X / Y</th><th>Pods</th></tr>' + rows
+          + '<tr><td><input type="radio" name="podfix-pick" value="custom"></td><td colspan="5">Enter my own values (below)</td></tr></table>'
+          + (a.unreadable.length ? '<p style="font-size:12px;color:#ffcf5c">\u26a0 Couldn\u2019t read every value in ' + escH(a.unreadable.join(', ')) + ' \u2014 check the numbers below by hand.</p>' : '')
+          + '<div class="podfix-form">'
+          + '<label for="podfix-x">Forward pod, left of center</label><input id="podfix-x" type="number" step="0.1"><span id="podfix-xin"></span>'
+          + '<label for="podfix-y">Strafe pod, forward of center</label><input id="podfix-y" type="number" step="0.1"><span id="podfix-yin"></span>'
+          + '<label for="podfix-dx">X (forward) pod direction</label>' + sel('podfix-dx', ['FORWARD', 'REVERSED']) + '<span></span>'
+          + '<label for="podfix-dy">Y (strafe) pod direction</label>' + sel('podfix-dy', ['FORWARD', 'REVERSED']) + '<span></span>'
+          + '<label for="podfix-pods">Pod type</label>' + sel('podfix-pods', PODS.concat(extraPods)) + '<span></span>'
+          + '</div>'
+          + '<p style="font-size:11px;color:#93c5fd;margin:2px 0 6px">Millimeters (inches \u00d7 25.4). <b>Left of center is +, right is \u2212. Forward of center is +, behind is \u2212.</b> '
+          + 'Only the forward pod\u2019s side-to-side spot and the strafe pod\u2019s front-to-back spot matter. Check on the robot afterwards: spin in place a full turn \u2014 x and y should stay within about an inch.</p>'
+          + '<div style="font-size:12px;font-weight:700;margin:4px 0 2px">What will change</div><div class="podfix-diff" id="podfix-diff">Pick a row above to see the changes.</div>',
+        onGo: () => {
+          const cfg = readForm();
+          if (!cfg){ alert('Pick a row, or enter all the values, first.'); return; }
+          const plan = PodConfig.planRobotConfigFix(p.files, cfg);
+          for (const f of plan.changed) p.files[f] = plan.files[f];
+          try { sessionStorage.removeItem(PODFIX_SNOOZE + store.current); } catch (e) {}
+          saveStore(); closeSheet(); renderAll();
+          console.log('[robot setup] Moved the Pinpoint pod settings into RobotConfig.java (' + PodConfig.fmtCfg(cfg) + '). Updated: '
+            + plan.changed.join(', ') + '. On the real robot: spin in place a full turn -- x and y should stay within about an inch.');
+        },
+        onOpen: () => {
+          const go = document.getElementById('pit-sheet-go');
+          const $ = id => document.getElementById(id);
+          const fill = c => {
+            $('podfix-x').value = c.offsets ? c.offsets.x.toFixed(1) : '';
+            $('podfix-y').value = c.offsets ? c.offsets.y.toFixed(1) : '';
+            if (c.dirs){ $('podfix-dx').value = c.dirs[0]; $('podfix-dy').value = c.dirs[1]; }
+            if (c.pods) $('podfix-pods').value = c.pods;
+          };
+          const picked = () => (document.querySelector('input[name="podfix-pick"]:checked') || {}).value;
+          readForm = () => {
+            if (picked() == null) return null;
+            const x = parseFloat($('podfix-x').value), y = parseFloat($('podfix-y').value);
+            if (!isFinite(x) || !isFinite(y)) return null;
+            return { offsets: { x, y }, dirs: [$('podfix-dx').value, $('podfix-dy').value], pods: $('podfix-pods').value };
+          };
+          const update = () => {
+            const x = parseFloat($('podfix-x').value), y = parseFloat($('podfix-y').value);
+            $('podfix-xin').textContent = isFinite(x) ? '= ' + (x / 25.4).toFixed(2) + '\u2033 ' + (x > 0 ? 'left' : x < 0 ? 'right' : '') : '';
+            $('podfix-yin').textContent = isFinite(y) ? '= ' + (y / 25.4).toFixed(2) + '\u2033 ' + (y > 0 ? 'forward' : y < 0 ? 'back' : '') : '';
+            const cfg = readForm();
+            go.disabled = !cfg;
+            if (!cfg){ $('podfix-diff').textContent = 'Pick a row above (or fill in every value) to see the changes.'; return; }
+            const plan = PodConfig.planRobotConfigFix(p.files, cfg);
+            $('podfix-diff').innerHTML = plan.changed.map(f => '<span class="f">' + escH(f) + '</span>\n' + lineDiffHtml(p.files[f], plan.files[f])).join('\n') || 'Nothing to change.';
+          };
+          document.querySelectorAll('input[name="podfix-pick"]').forEach(r => r.addEventListener('change', () => {
+            if (r.value !== 'custom') fill(cands[+r.value].cfg);
+            update();
+          }));
+          ['podfix-x', 'podfix-y', 'podfix-dx', 'podfix-dy', 'podfix-pods'].forEach(id => $(id).addEventListener('input', () => {
+            const custom = document.querySelector('input[name="podfix-pick"][value="custom"]');
+            const k = picked();
+            if (k !== 'custom'){ custom.checked = true; }
+            update();
+          }));
+          if (cands.length === 1) fill(cands[0].cfg); else if (a.rc) fill(a.rc);
+          update();
+        }
+      });
+    }
+    var readForm = () => null;
 
     function sheetDeploySim(){
       openSheet({ ic: '🖥️', title: 'Deploy → Simulator', sub: 'Compile & load into the test-stand Driver Hub', go: 'Deploy ▸',
@@ -5355,6 +5541,7 @@
           writeActive();
           const p = curPkg(); if (!p){ log('No package selected.', 'err'); return; }
           const ob = (document.getElementById('sheet-ob') || {}).checked;
+          podSetupWarn(p.files, log);   // real robot: this is exactly where mismatched pod settings bite
           deployed = true;
           await be.deployFiles(p.files, ob, log);
         } else {
@@ -6843,6 +7030,12 @@
         for (const f of templates) {
           if (!p.files[f]) {
             try { p.files[f] = await (await fetch(tplDir + f)).text(); } catch (e) { p.files[f] = ''; }
+            // PinpointLocalizer must not bring its own copy of the pod settings into a package that already
+            // has one: point it at RobotConfig.configurePinpoint, or at Localization's constructor.
+            if (f === 'PinpointLocalizer.java' && p.files[f] && window.PodConfig) {
+              const mode = PodConfig.templateMode(p.files);
+              if (mode !== 'standalone') p.files[f] = PodConfig.delegate(p.files[f], mode);
+            }
           }
         }
 

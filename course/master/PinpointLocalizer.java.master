@@ -25,8 +25,11 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
  *  to steer along a path. THIS class is that Localizer.
  *
  *  It is backed by the SAME goBILDA Pinpoint the Localization subsystem uses,
- *  configured the SAME way (identical pod offsets, resolution, and encoder
- *  directions), so the two can never disagree about the one sensor they share.
+ *  and it does NOT keep its own copy of the pod settings. Instead it asks the
+ *  Localization subsystem to set the Pinpoint up (new Localization(hardwareMap)
+ *  below), so the pod offsets, pod type, and encoder directions live in ONE
+ *  place -- Localization.java -- and TeleOp and autonomous can never disagree.
+ *  Measured your real robot's pods? Change them in Localization.java only.
  *  There is no camera and no sensor fusion here -- the Pinpoint's dead-wheel
  *  odometry alone drives the autonomous.
  *
@@ -45,22 +48,12 @@ public class PinpointLocalizer implements Localizer {
     public PinpointLocalizer(HardwareMap hardwareMap) {
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
 
-        // EXACTLY the same pod configuration as the Localization subsystem --
-        // one robot, one sensor, so the two must always agree. HOLD THE ROBOT
-        // STILL here: resetPosAndIMU() calibrates the gyro.
-        pinpoint.setOffsets(0.0, 0.0, DistanceUnit.MM);
-        pinpoint.setEncoderResolution(
-            GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
-        // Which way each pod COUNTS. The frame Pedro Pathing wants is:
-        //   push the robot FORWARD -> X counts UP
-        //   push the robot LEFT    -> Y counts UP   (so moving RIGHT makes Y go DOWN)
-        //   spin COUNTER-clockwise -> heading counts UP
-        // On OUR robot the strafe pod was mounted so LEFT counted the WRONG way,
-        // so the Y pod is REVERSED here to put +Y back on the left.
-        pinpoint.setEncoderDirections(
-            GoBildaPinpointDriver.EncoderDirection.FORWARD,    // X (forward) pod
-            GoBildaPinpointDriver.EncoderDirection.REVERSED);  // Y (strafe) pod -> +Y = left
-        pinpoint.resetPosAndIMU();
+        // Set up the Pinpoint EXACTLY the way TeleOp does, by letting the Localization
+        // subsystem do it: its constructor applies the pod offsets, pod type, and encoder
+        // directions from Localization.java, then zeroes the Pinpoint. One robot, one
+        // sensor, ONE copy of its settings. HOLD THE ROBOT STILL here: the reset calibrates
+        // the gyro.
+        new Localization(hardwareMap);
         // The real Pinpoint keeps calibrating ~0.25 s after a reset and silently zeroes a setPosition()
         // sent during that time -- wait it out so the start pose sticks (the sim is instant).
         try { Thread.sleep(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
