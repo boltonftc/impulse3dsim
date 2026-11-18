@@ -1,0 +1,244 @@
+<h1>Adding a Subsystem: The Recipe</h1>
+
+<p>Every mechanism you've added so far (the intake, the feeder, the flywheel) followed the <strong>same steps</strong>.
+Once you can see those steps as a recipe, adding <em>any</em> new mechanism to your robot is a checklist, not a mystery.
+This lesson teaches the recipe first, then walks through it with a real example: an <strong>alternate pollen
+extractor</strong> made of two continuous-rotation (CR) servos on the front of the robot.</p>
+
+<div class="blk blk-challenge">
+  <div class="blk-head">&#9888; This is an ALTERNATIVE to the Extractor Arm lesson</div>
+  <p>The <strong>Extractor Arm</strong> lesson builds a different extractor: one positional servo that swings a bar down.
+  This lesson builds two spinning wheels instead. A robot has <strong>one or the other</strong>, so add
+  <strong>one</strong> of them to your code, not both. They would both want <strong>D-pad down</strong>, and one tap
+  would run two mechanisms at once.</p>
+</div>
+
+<div class="blk blk-challenge">
+  <div class="blk-head">&#128274; Earn the code</div>
+  <p>The reward is the complete <code>AltExtractor</code> subsystem plus every line you add to <code>Robot</code>, your
+  TeleOp and your autos. To unlock it, score <strong>14 out of 15</strong> on the quiz. The questions come from a pool
+  of 30 and most of them show you a line of code and ask what it does, so read every code block here slowly.</p>
+</div>
+
+<p><strong>No simulator support:</strong> the simulator robot has no CR-servo extractor, so nothing moves on the
+field. Your code still compiles and runs, and telemetry shows the extractor turning <strong>ON</strong> and
+<strong>OFF</strong>. On a real robot with the servos, the wheels spin.</p>
+
+<hr>
+
+<h2>1. The recipe</h2>
+
+<figure>
+  <img src="images/subsystem_recipe.png" alt="A recipe card titled Adding a Subsystem with seven numbered steps, each with a small icon: 1 a Driver Hub screen with a device name, 2 a Java file labeled Subsystem, 3 the Robot class with a list of subsystems, 4 a gamepad, 5 a Driver Hub telemetry line, 6 a path on the field for autonomous, 7 a checkmark with a test stand.">
+</figure>
+
+<p>Add any mechanism the same way, in this order:</p>
+<ol>
+  <li><strong>Configure the hardware.</strong> On the Driver Hub, add each device to the robot configuration with the
+  right <em>type</em> and an exact <em>name</em>. The name is how your code finds it.</li>
+  <li><strong>Write the subsystem class</strong> (a new file). It always has the same five parts:
+    <ul>
+      <li><strong>constants</strong>: named numbers to tune (powers, positions);</li>
+      <li><strong>fields</strong>: the hardware, plus a <em>state</em> that remembers what we want;</li>
+      <li>a <strong>constructor</strong>: find the hardware, set directions, start safe, and survive a robot that
+      doesn't have it;</li>
+      <li><strong>commands</strong>: small methods that only change the state;</li>
+      <li><strong><code>update()</code></strong>: runs every loop and makes the hardware match the state.</li>
+    </ul></li>
+  <li><strong>Register it in <code>Robot.java</code>.</strong> A field, a line that builds it, and
+  <code>subsystems.add(...)</code> so the scheduler calls its <code>update()</code>.</li>
+  <li><strong>Map the buttons in your TeleOp.</strong> Buttons call <em>commands</em>; they never touch the hardware.</li>
+  <li><strong>Show it on telemetry.</strong> One line, so drivers (and you, debugging) can see the state.</li>
+  <li><strong>Use it in autonomous</strong> (if needed). The same commands, called from your auto.</li>
+  <li><strong>Test.</strong> Simulator first (does it compile and does telemetry change?), then the real robot with
+  hands clear.</li>
+</ol>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why this order works</div>
+  <p>Each step only depends on the one before it. The configuration name is used by the subsystem; the subsystem is
+  used by <code>Robot</code>; <code>Robot</code> is used by the TeleOp and autos. And because buttons only call
+  commands, the TeleOp and autos never need to know <em>how</em> the mechanism works, only <em>what</em> to ask it to
+  do.</p>
+</div>
+
+<hr>
+
+<h2>2. The example: an alternate pollen extractor</h2>
+
+<figure>
+  <img src="images/alt_extractor_robot.png" alt="Front view of a robot's intake. Two grippy wheels sit side by side with a yellow pollen ball between them. Curved arrows show the left wheel spinning clockwise and the right wheel counter-clockwise, labeled 'Pulls ball in!'. The servos are labeled extractor_left and extractor_right, and a banner reads 'mirror-mounted: one direction reversed in code'.">
+</figure>
+
+<p>Two CR servos sit on the front of the robot, one on each side, with grippy wheels that pull pollen in. The driver
+<strong>taps D-pad down</strong> to start them and <strong>taps it again</strong> to stop them. No reverse for now.</p>
+
+<h3>Step 1: Configure the hardware</h3>
+<p>On the Driver Hub, under <em>Configure Robot</em>, add both servos to free servo ports as
+<strong>Continuous Rotation Servo</strong> (not plain <em>Servo</em>), named exactly:</p>
+<ul>
+  <li><code>extractor_left</code></li>
+  <li><code>extractor_right</code></li>
+</ul>
+<p>A <em>positional</em> servo is told <em>where to go</em> (0.0 to 1.0). A <strong>CR servo</strong> is told
+<em>how fast to spin</em> (&minus;1.0 to 1.0), like a small motor. If you configure it as the wrong type,
+<code>hardwareMap.get(CRServo.class, ...)</code> won't find it.</p>
+
+<h3>Step 2: Write the subsystem, <code>AltExtractor.java</code></h3>
+
+<p><strong>Constants.</strong> One named number for how fast the wheels spin:</p>
+<pre><code>private static final double RUN_POWER = 1.0;   // full speed while running</code></pre>
+<p><code>static final</code> means one shared value that never changes while the program runs. If the wheels pull too
+hard, you change this one line.</p>
+
+<p><strong>Fields.</strong> The two servos, and the state:</p>
+<pre><code>private final CRServo left;      // null if this robot has no alt extractor
+private final CRServo right;
+private boolean running = false; // does the driver WANT the wheels spinning?</code></pre>
+<ul>
+  <li><code>private</code>: only <code>AltExtractor</code> may touch the servos. Everyone else has to ask through a
+  command.</li>
+  <li><code>final</code>: each servo is found once, in the constructor, and never swapped.</li>
+  <li><code>running</code> is the whole <em>state</em>. It's just on or off, so a <code>boolean</code> is enough.
+  (The intake needed an enum because it had three choices. If you add reverse later, turn this into an enum.)</li>
+</ul>
+
+<p><strong>One subsystem, two servos.</strong> Notice we didn't make two subsystems. The two wheels always work
+together, so one subsystem owns both. A subsystem is a <em>mechanism</em>, not a single device.</p>
+
+<p><strong>The constructor.</strong></p>
+<pre><code>public AltExtractor(HardwareMap hardwareMap) {
+    CRServo foundLeft = null;
+    CRServo foundRight = null;
+    try {
+        foundLeft  = hardwareMap.get(CRServo.class, "extractor_left");
+        foundRight = hardwareMap.get(CRServo.class, "extractor_right");
+    } catch (IllegalArgumentException e) {
+        foundLeft = null;    // either one is missing: run without the extractor
+        foundRight = null;
+    }
+    left = foundLeft;
+    right = foundRight;
+    if (hasExtractor()) {
+        right.setDirection(DcMotorSimple.Direction.REVERSE);  // mirror-mounted
+        left.setPower(0.0);                                   // start stopped
+        right.setPower(0.0);
+    }
+}</code></pre>
+<ul>
+  <li><strong>try / catch.</strong> If a name isn't in the configuration, <code>hardwareMap.get</code> throws an
+  <code>IllegalArgumentException</code>. We catch it and set <strong>both</strong> servos to <code>null</code>, so the
+  extractor is either completely there or completely off. That's why the code compiles and runs in the simulator and
+  on robots without these servos.</li>
+  <li><strong>Why reverse one?</strong> The servos are <em>mirror-mounted</em>: the right one faces the opposite way.
+  Given the same signal, both spin the same way <em>as seen from their own shaft</em>, which means one wheel pulls
+  pollen in while the other pushes it out. Reversing the right one makes &ldquo;positive power&rdquo; mean &ldquo;pull
+  in&rdquo; for both. You fix direction <strong>once, here</strong>, and never think about it again. On the real robot,
+  if both wheels push <em>out</em>, reverse the <em>left</em> one instead of the right.</li>
+  <li><strong>Start safe.</strong> Power 0 at INIT, so nothing spins until a driver asks.</li>
+</ul>
+<pre><code>private boolean hasExtractor() {
+    return left != null &amp;&amp; right != null;
+}</code></pre>
+
+<p><strong>Commands.</strong> They only change the state. None of them touch a servo:</p>
+<pre><code>public void on()     { running = true; }
+public void off()    { running = false; }
+public void toggle() { running = !running; }   // ! means "the opposite of"
+
+public boolean isRunning() { return running; }</code></pre>
+<p>The TeleOp uses <code>toggle()</code>. Autos use <code>on()</code> and <code>off()</code>, because an auto needs to
+know <em>exactly</em> what state it's asking for, not &ldquo;whatever the opposite of now is&rdquo;.</p>
+
+<p><strong><code>update()</code></strong>, called by the scheduler every loop:</p>
+<pre><code>@Override
+public void update() {
+    if (!hasExtractor()) {
+        return;                                   // no extractor on this robot
+    }
+    double power = running ? RUN_POWER : 0.0;     // ON: run power, OFF: stop
+    left.setPower(power);
+    right.setPower(power);
+}</code></pre>
+<p><code>running ? RUN_POWER : 0.0</code> is the <strong>ternary operator</strong>: &ldquo;if <code>running</code> is
+true, use <code>RUN_POWER</code>, otherwise use <code>0.0</code>&rdquo;. It's a one-line <code>if/else</code> that
+gives back a value.</p>
+
+<h3>Step 3: Register it in <code>Robot.java</code></h3>
+<pre><code>// with the other subsystem fields:
+public final AltExtractor altExtractor;
+
+// in the constructor, with the other subsystems:
+altExtractor = new AltExtractor(hardwareMap);
+subsystems.add(altExtractor);</code></pre>
+<ul>
+  <li>Forget the <code>new AltExtractor(...)</code> line and it <strong>won't compile</strong>: a
+  <code>final</code> field must be given a value in the constructor.</li>
+  <li>Forget <code>subsystems.add(...)</code> and it <strong>compiles but never moves</strong>: the scheduler never
+  calls its <code>update()</code>, so the state changes but no power is ever sent. This is the sneakiest mistake in the
+  recipe.</li>
+</ul>
+
+<h3>Step 4: Map the button in your TeleOp</h3>
+
+<figure>
+  <img src="images/tap_toggle_flow.png" alt="A flow diagram left to right: a gamepad with D-pad down highlighted, an arrow labeled 'first loop pressed only (edge detection)' to a box toggle(), an arrow to a switch showing running = ON / OFF, an arrow labeled update() every loop to two CR servos spinning, and below, a Driver Hub telemetry line reading Alt extractor: ON.">
+</figure>
+
+<p>Tap-to-toggle needs <strong>edge detection</strong>, just like the intake's A button. Add a field to the TeleOp
+class (outside the loop, next to <code>previousA</code>):</p>
+<pre><code>private boolean previousDpadDown = false;</code></pre>
+<p>And inside the loop:</p>
+<pre><code>boolean pressedDown = gamepad1.dpad_down &amp;&amp; !previousDpadDown;   // true on the FIRST loop only
+if (pressedDown) robot.altExtractor.toggle();
+previousDpadDown = gamepad1.dpad_down;                               // remember for next loop</code></pre>
+
+<div class="blk blk-key">
+  <div class="blk-head">Why edge detection here, but not in the Extractor Arm lesson?</div>
+  <p>The loop runs about 50 times a second, so a quick tap is held for several loops. In the Extractor Arm lesson,
+  D-pad down always means &ldquo;deploy&rdquo;, so saying it 10 times changes nothing. Here, a tap
+  <em>toggles</em>: without edge detection, holding the button would flip the extractor on, off, on, off... every loop.
+  <code>pressedDown</code> is true only on the one loop where the button is down now <em>and wasn't</em> last loop.</p>
+  <p>The field must live <strong>outside</strong> the loop. Declared inside, it would start over as
+  <code>false</code> every loop and forget the last one.</p>
+</div>
+
+<p>In the simulator, the <code>/</code> key is D-pad down.</p>
+
+<h3>Step 5: Telemetry</h3>
+<pre><code>telemetry.addData("Alt extractor", robot.altExtractor.isRunning() ? "ON" : "OFF");</code></pre>
+<p>In the simulator, this line is how you test the whole recipe: tap <code>/</code> and watch it flip between ON and
+OFF.</p>
+
+<h3>Step 6: Use it in autonomous</h3>
+<pre><code>robot.altExtractor.on();     // start pulling pollen
+// ... drive, calling follower.update() and robot.update() every loop ...
+robot.altExtractor.off();    // done
+robot.update();              // send it to the servos right away</code></pre>
+<p>Remember: <code>on()</code> only changes the state. The servos only start when <code>robot.update()</code> runs, so
+any waiting you do in an auto must keep calling <code>robot.update()</code>.</p>
+
+<h3>Step 7: Test</h3>
+<ul>
+  <li><strong>Simulator:</strong> it compiles, INIT runs, and telemetry flips ON/OFF with each tap.</li>
+  <li><strong>Real robot:</strong> hands clear. Tap D-pad down: both wheels should pull <em>inward</em>. Both push
+  <em>out</em>? Reverse the left servo instead of the right. One pulls in and one pushes out? Your servos aren't
+  mirror-mounted after all, so remove the reverse line. Telemetry says ON but nothing spins? Check
+  the two configuration names and the servo type: if either is wrong, the try/catch quietly turned the extractor
+  off.</li>
+</ul>
+
+<div class="blk blk-todo">
+  <div class="blk-head">To Do</div>
+  <ul>
+    <li>Learn the seven steps of the recipe. They work for every mechanism you'll ever add.</li>
+    <li>Read every code block above until you can say what each line does, out loud.</li>
+    <li>Take the quiz: <strong>14 out of 15</strong> unlocks the full code.</li>
+    <li><strong>Only if your robot has this extractor</strong> (and not the Extractor Arm): add the code, then test it
+    with the steps above.</li>
+  </ul>
+</div>
+
+<hr>
+
+<span class="act" data-action="complete" data-arg="Mark Complete">&#10003; Mark Complete</span>

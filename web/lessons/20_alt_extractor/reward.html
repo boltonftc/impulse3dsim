@@ -1,0 +1,121 @@
+<p>Add these pieces to your code package <strong>only if your robot has the two-wheel CR-servo extractor</strong>, and
+<strong>not</strong> the Extractor Arm. (Thanks to the try/catch, the code is safe on a robot without the servos, and it
+compiles and runs in the simulator, where telemetry shows ON/OFF.)</p>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>&#128275; 1. New file: <code>AltExtractor.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+
+/*
+ * AltExtractor -- the alternate pollen extractor: two CR servos on the front of the robot,
+ * mirror-mounted, that spin together to pull pollen in. Tap D-pad down to start, tap again to stop.
+ * (An ALTERNATIVE to the Extractor Arm -- a robot has one or the other.)
+ *
+ * Driver Hub configuration: two "Continuous Rotation Servo" devices named
+ *   extractor_left  and  extractor_right
+ */
+public class AltExtractor implements Subsystem {
+
+    private static final double RUN_POWER = 1.0;   // full speed while running
+
+    private final CRServo left;      // null if this robot has no alt extractor
+    private final CRServo right;
+    private boolean running = false; // does the driver WANT the wheels spinning?
+
+    public AltExtractor(HardwareMap hardwareMap) {
+        CRServo foundLeft = null;
+        CRServo foundRight = null;
+        try {
+            foundLeft  = hardwareMap.get(CRServo.class, "extractor_left");
+            foundRight = hardwareMap.get(CRServo.class, "extractor_right");
+        } catch (IllegalArgumentException e) {
+            foundLeft = null;    // either one is missing: run without the extractor
+            foundRight = null;
+        }
+        left = foundLeft;
+        right = foundRight;
+        if (hasExtractor()) {
+            right.setDirection(DcMotorSimple.Direction.REVERSE);  // mirror-mounted
+            left.setPower(0.0);                                   // start stopped
+            right.setPower(0.0);
+        }
+    }
+
+    private boolean hasExtractor() {
+        return left != null &amp;&amp; right != null;
+    }
+
+    /** Start the wheels (autos use this). */
+    public void on()     { running = true; }
+
+    /** Stop the wheels (autos use this). */
+    public void off()    { running = false; }
+
+    /** Flip: on if off, off if on (TeleOp uses this, with edge detection). */
+    public void toggle() { running = !running; }
+
+    /** True while the wheels are supposed to be spinning -- for telemetry. */
+    public boolean isRunning() { return running; }
+
+    @Override
+    public void update() {
+        if (!hasExtractor()) {
+            return;                                   // no extractor on this robot
+        }
+        double power = running ? RUN_POWER : 0.0;     // ON: run power, OFF: stop
+        left.setPower(power);
+        right.setPower(power);
+    }
+}</code></pre>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>2. In <code>Robot.java</code></span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>    // with the other subsystem fields:
+    public final AltExtractor altExtractor;
+
+    // in the constructor, with the other subsystems:
+    altExtractor = new AltExtractor(hardwareMap);
+    subsystems.add(altExtractor);</code></pre>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>3. In your TeleOp (<code>MecanumDrive.java</code>): a field, next to <code>previousA</code></span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>    private boolean previousDpadDown = false;</code></pre>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>4. In your TeleOp, inside the loop</span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>            // Alt extractor: tap D-pad down to start, tap again to stop (edge detection).
+            boolean pressedDown = gamepad1.dpad_down &amp;&amp; !previousDpadDown;
+            if (pressedDown) robot.altExtractor.toggle();
+            previousDpadDown = gamepad1.dpad_down;
+            telemetry.addData("Alt extractor", robot.altExtractor.isRunning() ? "ON" : "OFF");</code></pre>
+</div>
+
+<div class="blk blk-code">
+  <div class="blk-head"><span>5. In an auto (optional), e.g. inside a Path Capture action block</span><span class="copybtn">&#10850; Copy</span></div>
+<pre><code>        robot.altExtractor.on();      // start pulling pollen
+        // ... while waiting or driving, keep calling follower.update() and robot.update() ...
+        robot.altExtractor.off();     // done
+        robot.update();               // send it to the servos right away</code></pre>
+</div>
+
+<div class="blk blk-hint">
+  <div class="blk-head">Make it yours</div>
+  <ul>
+    <li><strong>Configuration:</strong> two <em>Continuous Rotation Servo</em> devices named
+    <code>extractor_left</code> and <code>extractor_right</code>.</li>
+    <li><strong>Wrong way?</strong> Both push out: reverse <code>left</code> instead of <code>right</code>. One in, one
+    out: remove the reverse line.</li>
+    <li><strong>Too strong or too fast?</strong> Lower <code>RUN_POWER</code> (try 0.6).</li>
+    <li><strong>Two drivers?</strong> Use <code>gamepad2.dpad_down</code> so the second driver runs it.</li>
+    <li><strong>Want reverse later?</strong> Change <code>boolean running</code> into an enum
+    (<code>FORWARD, OFF, REVERSE</code>), like the Intake, add a <code>reverse()</code> command, a switch in
+    <code>update()</code>, and map D-pad up to it.</li>
+  </ul>
+</div>

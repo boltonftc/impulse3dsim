@@ -1,0 +1,308 @@
+{
+  "title": "Adding a Subsystem Quiz",
+  "draw": 15,
+  "pass": 0.93,
+  "intro": "15 questions drawn from a pool of 30. You need 14 out of 15 to unlock the AltExtractor code. Most questions show a line of code and ask what it does, so read carefully. A few tries is normal.",
+  "questions": [
+    {
+      "q": "What is the FIRST step of the recipe for adding a new mechanism?",
+      "correct": "Add the device to the Driver Hub configuration",
+      "wrong": [
+        "Write the button mapping in the TeleOp",
+        "Add a telemetry line for the new state",
+        "Call the new commands from an autonomous"
+      ],
+      "explain": "Everything else depends on the configuration name: the subsystem uses it to find the hardware, Robot builds the subsystem, and the TeleOp uses Robot."
+    },
+    {
+      "q": "How should the two extractor servos be set up in the Driver Hub configuration?",
+      "correct": "As Continuous Rotation Servo",
+      "wrong": [
+        "As Servo",
+        "As goBILDA 5202/3/4 motor",
+        "As REV Touch Sensor"
+      ],
+      "explain": "The code asks for a CRServo. A plain Servo is a positional servo, a different type, so hardwareMap.get(CRServo.class, ...) wouldn't find it."
+    },
+    {
+      "q": "hardwareMap.get(CRServo.class, \"extractor_left\")  What must the text \"extractor_left\" match?",
+      "correct": "The device name in the robot configuration",
+      "wrong": [
+        "The name of the AltExtractor.java file",
+        "The name of the field in Robot.java",
+        "The label printed on the servo's case"
+      ],
+      "explain": "hardwareMap is the robot's phone book. It looks the device up by the exact name typed into the Driver Hub configuration."
+    },
+    {
+      "q": "A CR servo is given setPower(1.0). What does it do?",
+      "correct": "Spins continuously at full speed",
+      "wrong": [
+        "Moves to one end of its travel and holds",
+        "Moves to its middle position and stops",
+        "Spins one full turn and then stops"
+      ],
+      "explain": "A continuous-rotation servo works like a small motor: setPower sets its speed and direction. A positional servo would use setPosition to go to a place."
+    },
+    {
+      "q": "private static final double RUN_POWER = 1.0;  What does final mean here?",
+      "correct": "The value can't change while the program runs",
+      "wrong": [
+        "It is the last constant in the class",
+        "Only the TeleOp is allowed to read it",
+        "The servos run it at the end of a match"
+      ],
+      "explain": "final means once it is set it never changes. Together with static (one shared copy), that makes it a constant."
+    },
+    {
+      "q": "private boolean running = false;  What does this field remember?",
+      "correct": "Whether the driver wants the wheels spinning",
+      "wrong": [
+        "Whether the servos are turning this instant",
+        "How many pollen the wheels have pulled in",
+        "Whether D-pad down is pressed this loop"
+      ],
+      "explain": "running is the subsystem's state: what we WANT. update() reads it every loop and makes the servos match."
+    },
+    {
+      "q": "Why are the servo fields declared private final CRServo left;?",
+      "correct": "Only this class touches them, and they're set once",
+      "wrong": [
+        "So the TeleOp can spin each servo directly",
+        "So a new servo can replace one mid-match",
+        "Because Java requires every CRServo to be final"
+      ],
+      "explain": "private keeps everyone else out (they must use the commands), and final means the constructor sets them once and they never change."
+    },
+    {
+      "q": "Why is there ONE AltExtractor subsystem for two servos, instead of one subsystem per servo?",
+      "correct": "The two wheels always work together as one mechanism",
+      "wrong": [
+        "A subsystem may only hold one type of device",
+        "Robot.java can only add one new subsystem",
+        "Two subsystems would need two different buttons"
+      ],
+      "explain": "A subsystem is a mechanism, not a single device. Both wheels start and stop together, so one subsystem owns both."
+    },
+    {
+      "q": "right.setDirection(DcMotorSimple.Direction.REVERSE);  Why is this line here?",
+      "correct": "The servos are mirror-mounted, so one must spin backward",
+      "wrong": [
+        "So the right wheel spins twice as fast",
+        "So the extractor runs backward when it's off",
+        "Because right-side servos are always wired backward"
+      ],
+      "explain": "Mirror-mounted servos spin opposite ways for the same signal as seen from the robot. Reversing one makes positive power mean 'pull in' for both."
+    },
+    {
+      "q": "If you left out the REVERSE line, what would mirror-mounted wheels do with the same power?",
+      "correct": "One pulls pollen in while the other pushes it out",
+      "wrong": [
+        "Both pull pollen in, just a bit slower",
+        "The code would stop compiling",
+        "Neither servo would turn at all"
+      ],
+      "explain": "Without the reverse, the two wheels fight each other. Fixing the direction once in the constructor means the rest of the code never has to think about it."
+    },
+    {
+      "q": "catch (IllegalArgumentException e) { foundLeft = null; foundRight = null; }  When does this run?",
+      "correct": "When a servo name is missing from the configuration",
+      "wrong": [
+        "When a servo spins the wrong direction",
+        "When the driver presses two buttons together",
+        "When a power value is bigger than 1.0"
+      ],
+      "explain": "hardwareMap.get throws IllegalArgumentException if no device has that name. Catching it lets the robot run without the extractor instead of crashing at INIT."
+    },
+    {
+      "q": "Why does the catch set BOTH servos to null, even if only the right one was missing?",
+      "correct": "So the extractor is either fully there or fully off",
+      "wrong": [
+        "Java requires every variable in a try to be reset",
+        "So the left servo spins faster on its own",
+        "Because null makes the servos stop at INIT"
+      ],
+      "explain": "One wheel spinning alone would push pollen sideways. hasExtractor() checks both, so a half-configured extractor safely does nothing."
+    },
+    {
+      "q": "In the simulator (no extractor servos), what happens when this code runs?",
+      "correct": "It runs; telemetry shows ON/OFF and nothing moves",
+      "wrong": [
+        "The OpMode crashes at INIT with an error",
+        "The intake roller spins in their place",
+        "The code won't compile in the simulator"
+      ],
+      "explain": "The try/catch finds no servos and stores null, hasExtractor() is false, and update() returns early. The state still flips, so telemetry still changes."
+    },
+    {
+      "q": "left.setPower(0.0); right.setPower(0.0);  Why are these in the constructor?",
+      "correct": "So nothing spins when INIT runs",
+      "wrong": [
+        "To calibrate the servos' zero position",
+        "To turn on the servos' brake mode",
+        "To start the extractor running at INIT"
+      ],
+      "explain": "Starting safe is part of every constructor in the recipe: nothing moves until a driver asks for it."
+    },
+    {
+      "q": "public void toggle() { running = !running; }  What does it do?",
+      "correct": "Flips running from true to false, or false to true",
+      "wrong": [
+        "Sets running to false every time",
+        "Spins the servos for one loop only",
+        "Reverses the direction of both servos"
+      ],
+      "explain": "! means 'not'. If running was true it becomes false, and the other way around."
+    },
+    {
+      "q": "Why don't toggle(), on() and off() call setPower themselves?",
+      "correct": "Commands only change state; update() moves the hardware",
+      "wrong": [
+        "CR servos can't be set from public methods",
+        "setPower only works inside the constructor",
+        "Two methods can't use the same servo in Java"
+      ],
+      "explain": "Every subsystem in this course works this way: commands change the state, and update(), called every loop, makes the hardware match."
+    },
+    {
+      "q": "Why does AltExtractor have on() and off() as well as toggle()?",
+      "correct": "Autos need to ask for an exact state, not a flip",
+      "wrong": [
+        "toggle() doesn't work inside an autonomous",
+        "on() spins the wheels faster than toggle()",
+        "Every subsystem must have exactly three commands"
+      ],
+      "explain": "A flip depends on what the state was. An auto should say exactly what it wants: on() means on, no matter what."
+    },
+    {
+      "q": "double power = running ? RUN_POWER : 0.0;  What does this line do?",
+      "correct": "power is RUN_POWER if running, otherwise 0.0",
+      "wrong": [
+        "power is 0.0 if running, otherwise RUN_POWER",
+        "running is set to the value of RUN_POWER",
+        "power is RUN_POWER plus 0.0 when running"
+      ],
+      "explain": "The ternary operator: condition ? valueIfTrue : valueIfFalse. A one-line if/else that gives back a value."
+    },
+    {
+      "q": "if (!hasExtractor()) { return; }  Why is this at the top of update()?",
+      "correct": "To skip the servos on a robot that doesn't have them",
+      "wrong": [
+        "To stop the wheels while the button is up",
+        "To make update() run only once per match",
+        "To reset running back to false each loop"
+      ],
+      "explain": "On a robot without the servos, left and right are null. Calling setPower on null would crash, so update() returns early."
+    },
+    {
+      "q": "public class AltExtractor implements Subsystem  What does implements Subsystem promise?",
+      "correct": "The class has an update() the scheduler can call",
+      "wrong": [
+        "The class is a child of the Robot class",
+        "The class gets its own Driver Hub button",
+        "The class can only control one servo"
+      ],
+      "explain": "Subsystem is an interface with update(). Robot keeps a list of Subsystems and calls update() on each one every loop."
+    },
+    {
+      "q": "You forget subsystems.add(altExtractor); in Robot.java. What happens?",
+      "correct": "It compiles, but the servos never move",
+      "wrong": [
+        "It won't compile at all",
+        "The servos run nonstop from INIT",
+        "The robot crashes when INIT runs"
+      ],
+      "explain": "The state still flips and telemetry still changes, but nobody calls update(), so no power is ever sent. The sneakiest mistake in the recipe."
+    },
+    {
+      "q": "public final AltExtractor altExtractor; is in Robot.java, but you forget altExtractor = new AltExtractor(hardwareMap);. What happens?",
+      "correct": "Compile error: the final field is never given a value",
+      "wrong": [
+        "It compiles, and the extractor does nothing",
+        "Java builds a default extractor for you",
+        "Only the telemetry line stops working"
+      ],
+      "explain": "A final field must be assigned in the constructor. Java refuses to compile a final field that might never get a value."
+    },
+    {
+      "q": "boolean pressedDown = gamepad1.dpad_down && !previousDpadDown;  When is pressedDown true?",
+      "correct": "Only on the first loop the button is down",
+      "wrong": [
+        "Every loop while the button is held",
+        "Only on the loop the button is let go",
+        "Whenever the extractor is already on"
+      ],
+      "explain": "It's true when the button is down now AND wasn't down last loop: the moment it's pressed. That's edge detection."
+    },
+    {
+      "q": "You forget the line previousDpadDown = gamepad1.dpad_down;. What happens when the driver holds D-pad down?",
+      "correct": "It flips on and off every loop",
+      "wrong": [
+        "It can never be turned on",
+        "The code won't compile without it",
+        "It turns on but never off"
+      ],
+      "explain": "previousDpadDown stays false forever, so pressedDown is true every loop the button is held, and toggle() runs about 50 times a second."
+    },
+    {
+      "q": "Why does tap-to-toggle need edge detection when the Extractor Arm's D-pad down didn't?",
+      "correct": "A toggle flips each time; deploy always meant the same",
+      "wrong": [
+        "D-pad down is noisier than the other buttons",
+        "CR servos need it, but positional servos don't",
+        "Edge detection makes the servos spin faster"
+      ],
+      "explain": "Saying 'deploy' 10 times in a row changes nothing. Saying 'flip' 10 times in a row changes it 10 times."
+    },
+    {
+      "q": "Someone moves private boolean previousDpadDown = false; inside the while loop. What happens?",
+      "correct": "It restarts as false each loop, so holding keeps flipping",
+      "wrong": [
+        "Nothing changes; it works exactly the same",
+        "The extractor can never be turned on",
+        "Compile error: no variables inside loops"
+      ],
+      "explain": "A variable declared inside the loop is created fresh every loop and forgets the last one. Memory between loops has to be a field."
+    },
+    {
+      "q": "The extractor starts OFF and the driver taps D-pad down three times. What is it now?",
+      "correct": "ON",
+      "wrong": [
+        "OFF",
+        "ON, at a third of full power",
+        "Running backward"
+      ],
+      "explain": "Each tap flips it once: off to on, on to off, off to on."
+    },
+    {
+      "q": "An auto calls robot.altExtractor.on(); then waits in a loop that never calls robot.update(). What happens?",
+      "correct": "The wheels never start, because update() sends the power",
+      "wrong": [
+        "They spin, since on() already set the power",
+        "They spin for one loop and then stop",
+        "The auto refuses to compile"
+      ],
+      "explain": "on() only changes the state. The power reaches the servos in update(), so any waiting in an auto must keep calling robot.update()."
+    },
+    {
+      "q": "Telemetry says 'Alt extractor: ON' but the real robot's wheels don't move. Most likely cause?",
+      "correct": "A configuration name or servo type doesn't match",
+      "wrong": [
+        "running is false even though it says ON",
+        "The edge detection is written backwards",
+        "RUN_POWER is too big for a CR servo"
+      ],
+      "explain": "If either servo isn't found, the try/catch sets both to null and update() quietly does nothing, while the state and telemetry still change."
+    },
+    {
+      "q": "Why shouldn't a team add both this lesson's code and the Extractor Arm code?",
+      "correct": "Both use D-pad down, so one tap runs two mechanisms",
+      "wrong": [
+        "A Robot can't hold two extractor subsystems",
+        "Java forbids two classes named like Extractor",
+        "The simulator only allows one front servo"
+      ],
+      "explain": "They are alternative designs for the same job. A robot has one or the other, so add only the one your robot actually has."
+    }
+  ]
+}
