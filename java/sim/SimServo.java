@@ -21,9 +21,13 @@ public class SimServo implements ServoImplEx {
     @Override public double getPosition() { return position; }
     /** Position the hardware actually goes to: a REVERSE servo mirrors the commanded value. */
     public double getEffectivePosition() { return direction == Direction.REVERSE ? 1.0 - position : position; }
-    /** Where the pulse lands across the servo's full 500..2500 us travel (0..1); 0.5 stays centered for any symmetric range. */
+    /**
+     * Where the pulse lands across the servo's full 500..2500 us travel (0..1); 0.5 stays centered for any symmetric range.
+     * Uses the COMMANDED position and ignores setDirection: real turrets are geared/mounted either way, and teams pick
+     * REVERSE (or not) so that a higher commanded position turns CCW on their robot. The sim honors that intent either way.
+     */
     public double getPulseFraction() {
-        double us = pwmRange.usPulseLower + getEffectivePosition() * (pwmRange.usPulseUpper - pwmRange.usPulseLower);
+        double us = pwmRange.usPulseLower + position * (pwmRange.usPulseUpper - pwmRange.usPulseLower);
         return Math.max(0.0, Math.min(1.0, (us - 500.0) / 2000.0));
     }
     @Override public void scaleRange(double min, double max) { }

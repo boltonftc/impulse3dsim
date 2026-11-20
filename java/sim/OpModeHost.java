@@ -239,6 +239,9 @@ public class OpModeHost {
             hw.put("front_left_motor", fl);  hw.put("front_right_motor", fr);
             hw.put("back_left_motor", bl);   hw.put("back_right_motor", br);
             hw.put("intake_motor", intake);
+            // 2nd-stage intake motor used as the indexer on some robots (Feeder.java) -- feeds the shooter like the "feeder" CRServo.
+            final SimMotor feederMotor = new SimMotor("feeder_motor");
+            hw.put("feeder_motor", feederMotor);
             final SimServo dumpServo = new SimServo("dump_servo");
             hw.put("dump_servo", dumpServo);
 
@@ -307,7 +310,9 @@ public class OpModeHost {
                     // models the RPM from it). This closes the loop the encoder + PID lessons depend on.
                     shooter.setVelocity(simFlywheelTicks(s));
                     double shooterPow = Math.max(-1.0, Math.min(1.0, shooter.getEffectivePower()));
-                    mech(s, intake.getEffectivePower(), feeder.getEffectivePower(), shooterPow, hood.getPosition(), dumpServo.getPosition(), turret.getPulseFraction(), extractor.getEffectivePosition());
+                    double feedPow = Math.abs(feederMotor.getEffectivePower()) > Math.abs(feeder.getEffectivePower())
+                            ? feederMotor.getEffectivePower() : feeder.getEffectivePower();
+                    mech(s, intake.getEffectivePower(), feedPow, shooterPow, hood.getPosition(), dumpServo.getPosition(), turret.getPulseFraction(), extractor.getEffectivePosition());
 
                     samples++;
                     // ~60 Hz control rate; under CheerpJ this loop shares the browser main thread, so a tighter sleep starves rendering.
