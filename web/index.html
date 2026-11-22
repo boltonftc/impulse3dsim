@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.42';
+    window.APP_VERSION = '2.8.43';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -6934,6 +6934,12 @@
         push('        Pose actualStart = follower.getPose();');
         push('        telemetry.addData("Actual pose at START", "(%.1f, %.1f, %.1f deg)", actualStart.getX(), actualStart.getY(), Math.toDegrees(actualStart.getHeading()));');
         push('        telemetry.update();');
+        if (autoAim) {
+          // without this the turret sits at its INIT center until the first path loop, so anything
+          // the student adds before the first path (e.g. a preload volley) shoots unaimed.
+          push('        aim.aim(robot.localization, robot.turret);   // aim from the start pose before anything else');
+          push('        robot.update();');
+        }
         push('');
 
         segments.forEach((seg, si) => {
