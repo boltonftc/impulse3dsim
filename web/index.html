@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.45';
+    window.APP_VERSION = '2.8.46';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -1281,7 +1281,10 @@
         <h4>1 · Record the path</h4>
         <p>Hold <kbd>C</kbd> (or the controller's <kbd>LB</kbd>) to drop a pose wherever the robot currently sits.
            The cyan ▲ <b>Start</b> marker is the robot's initial Pinpoint pose — where you physically place it before the match.</p>
-        <p>Drag a pose disc to move it, drag its arrow tip to re-aim it, or edit the x / y / heading numbers directly in the list.</p>
+        <p>Drag a pose disc to move it, drag its arrow tip to re-aim it, or edit the x / y / heading numbers directly in the list.
+           To <b>add a pose in the middle</b> of the path, click the <b>＋</b> in the middle of a leg (or click and drag it
+           to place the new pose). It gets that leg's speed and a heading halfway between its neighbours. Clicking a pose
+           in the field highlights its row in the list, and clicking a row highlights the pose.</p>
 
         <h4>2 · Mark actions</h4>
         <p>Press <kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd>/<kbd>4</kbd> (or controller <kbd>A</kbd>/<kbd>B</kbd>/<kbd>X</kbd>/<kbd>Y</kbd>)
@@ -1310,7 +1313,7 @@
         <ul>
           <li><code>// CAP:FILE version=3</code> near the top — proves the file came from this tool. (Older
               <code>version=1</code>/<code>2</code> files still load.)</li>
-          <li>a <code>// CAP:POSE seq=N kind=init|pose</code> line (plus <code>speed=…</code> if that pose has one) immediately
+          <li>a <code>// CAP:POSE seq=N kind=init|pose</code> line (plus <code>speed=…</code> and an <code>id=…</code>) immediately
               above each <code>Pose x = new Pose(x, y, Math.toRadians(h));</code> — those three values must stay
               <b>plain numbers</b> (no variables or expressions).</li>
           <li>each action wrapped in a matching
@@ -6500,7 +6503,9 @@
       const IN_PER_M = 39.3700787402;
       let captureMode = false;
       let nextId = 1;
-      let entries = [];   // {id,type:'init'|'pose', sx,sz,yaw, speed?} | {id,type:'action', action:'A'|'B'|'X'|'Y', anchorId, code, srcSeq?}
+      let entries = [];   // {id,uid,type:'init'|'pose', sx,sz,yaw, speed?} | {id,uid,type:'action', action:'A'|'B'|'X'|'Y', anchorId, code}
+      // permanent per-entry id (survives inserts/reorders; written as id= in the CAP markers)
+      const newUid = () => { let u; do { u = Math.random().toString(36).slice(2, 7); } while (entries.some(e => e.uid === u)); return u; };
 
       const capGroup = new THREE.Group(); scene.add(capGroup);
       const MARK_Y = CH + 0.02;              // just above the robot's own floor contact height
@@ -6583,6 +6588,10 @@
         return legMatCache.get(k);
       }
       const rotateArrowGeo = new THREE.ConeGeometry(0.023, 0.05, 10);   // bigger turn-handle cones = an easier mouse target
+      // "+" split handle at the middle of every leg: click (or click-and-drag) to insert a pose there
+      const splitGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.012, 20, 1);
+      const splitSideMat = new THREE.MeshBasicMaterial({ color: 0x94a3b8 });
+      const splitTopMat = new THREE.MeshBasicMaterial({ map: makeLetterTexture('+', '#f8fafc', '#0f172a') });
       const UP = new THREE.Vector3(0, 1, 0);
       // fat "line" = a thin tube swept along the points (LineBasicMaterial.linewidth is ignored by WebGL,
       // so real thickness needs geometry). Used for both the heading arc and the path between poses.
@@ -6594,7 +6603,7 @@
 
       const poseObjs = new Map();    // id -> { mesh, rotArc, rotArrowA, rotArrowB }
       const actionObjs = new Map();  // id -> mesh
-      let lineObj = null, arrowMeshes = [], actionLineObjs = [];
+      let lineObj = null, arrowMeshes = [], actionLineObjs = [], splitObjs = [], pathCurve = null;
 
       // ---- selection: a pose disc / action badge in the field and its row in the list highlight each other ----
       // The ring is parented to the selected disc/badge, so it follows drags and re-aims for free.
@@ -6679,6 +6688,8 @@
         if (lineObj) { capGroup.remove(lineObj); lineObj.geometry.dispose(); lineObj = null; }
         for (const a of arrowMeshes) capGroup.remove(a);
         arrowMeshes = [];
+        for (const s of splitObjs) capGroup.remove(s);
+        splitObjs = []; pathCurve = null;
 
         const poses = entries.filter(e => e.type === 'pose');
         const init = entries.find(e => e.type === 'init');
@@ -6704,15 +6715,41 @@
           capGroup.add(lineObj);
           for (let i = 0; i < segs; i++) {
             if (pts[i].distanceTo(pts[i + 1]) < 0.01) continue;   // duplicate/near-duplicate pose -- no direction to show
-            const t = (i + 0.5) / segs;                            // parametric midpoint of this segment along the curve
+            const t = (i + 0.3) / segs;                            // a third of the way along: the + handle owns the midpoint
             const cone = new THREE.Mesh(arrowGeo, legArrowMat(legSpeed(i)));
             cone.position.copy(curve.getPoint(t));
             cone.quaternion.setFromUnitVectors(UP, curve.getTangent(t).normalize());
             capGroup.add(cone);
             arrowMeshes.push(cone);
+            // split handle (+) at the leg's midpoint, only on legs long enough to need another pose
+            if (pts[i].distanceTo(pts[i + 1]) < 0.15) continue;
+            const split = new THREE.Mesh(splitGeo, [splitSideMat, splitTopMat, splitSideMat]);
+            split.position.copy(curve.getPoint((i + 0.5) / segs)); split.position.y = MARK_Y + 0.004;
+            split.userData = { kind: 'split', leg: i, t: (i + 0.5) / segs };
+            capGroup.add(split);
+            splitObjs.push(split);
           }
+          pathCurve = curve;
         }
         rebuildActionBadges();
+      }
+
+      // split a leg: insert a new pose at curve parameter t on leg i (between waypoint i and i+1). It takes the
+      // leg's speed (so both halves drive the same as before) and the heading halfway between its neighbours.
+      function insertPoseOnLeg(leg, t) {
+        const init = entries.find(e => e.type === 'init');
+        const wp = init ? [init, ...entries.filter(e => e.type === 'pose')] : entries.filter(e => e.type === 'pose');
+        const a = wp[leg], b = wp[leg + 1];
+        if (!a || !b || !pathCurve) return null;
+        const p = pathCurve.getPoint(t);
+        const entry = { id: nextId++, uid: newUid(), type: 'pose', sx: p.x, sz: p.z, yaw: wrapRad(a.yaw + wrapRad(b.yaw - a.yaw) / 2) };
+        if (b.speed != null) entry.speed = b.speed;
+        entries.splice(entries.indexOf(b), 0, entry);   // right before b: after any button press that ends a's chain
+        createPoseVisual(entry);
+        rebuildPath();
+        renderCapList();
+        selectEntry(entry.id, true);
+        return entry;
       }
 
       // action badges: fanned out on a small arc beside their anchor pose, chained by a line in press order
@@ -6770,7 +6807,7 @@
 
       function recordPose() {
         const r = currentRobotPose();
-        const entry = { id: nextId++, type: 'pose', sx: r.sx, sz: r.sz, yaw: r.yaw };
+        const entry = { id: nextId++, uid: newUid(), type: 'pose', sx: r.sx, sz: r.sz, yaw: r.yaw };
         entries.push(entry);
         createPoseVisual(entry);
         rebuildPath();
@@ -6779,7 +6816,7 @@
       function recordAction(label) {
         let anchorId = null;
         for (let i = entries.length - 1; i >= 0; i--) if (entries[i].type === 'pose') { anchorId = entries[i].id; break; }
-        entries.push({ id: nextId++, type: 'action', action: label, anchorId, code: null });
+        entries.push({ id: nextId++, uid: newUid(), type: 'action', action: label, anchorId, code: null });
         rebuildActionBadges();
         renderCapList();
       }
@@ -6800,6 +6837,7 @@
         raycaster.setFromCamera(ndc, cam);
         const meshes = [];
         for (const rec of poseObjs.values()) meshes.push(rec.mesh, rec.rotArrowA, rec.rotArrowB);
+        meshes.push(...splitObjs);
         const hits = raycaster.intersectObjects(meshes, false);
         return hits.length ? hits[0].object : null;
       }
@@ -6818,6 +6856,15 @@
           // not a pose: an action badge still selects (badges aren't draggable)
           const bh = raycaster.intersectObjects([...actionObjs.values()], false)[0];
           if (bh) selectEntry(bh.object.userData.id, true);
+          return;
+        }
+        if (hit.userData.kind === 'split') {
+          // insert a pose on that leg and start dragging it straight away (click = drop it at the midpoint)
+          const ne = insertPoseOnLeg(hit.userData.leg, hit.userData.t);
+          if (!ne) return;
+          dragState = { id: ne.id, kind: 'pose' };
+          try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+          e.stopPropagation();
           return;
         }
         selectEntry(hit.userData.id, true);
@@ -6937,7 +6984,7 @@
         clearAll(); setCapturing(true);
         // seed the Pinpoint's initial pose at wherever the robot currently sits; editable/movable like a pose
         const r = currentRobotPose();
-        const initEntry = { id: nextId++, type: 'init', sx: r.sx, sz: r.sz, yaw: r.yaw };
+        const initEntry = { id: nextId++, uid: newUid(), type: 'init', sx: r.sx, sz: r.sz, yaw: r.yaw };
         entries.push(initEntry);
         createPoseVisual(initEntry);
         rebuildPath();
@@ -7033,7 +7080,11 @@
         // what lets parseCapturedJava() reconstruct the original capture order on re-load.
         const seqOf = new Map();
         list.forEach((e, i) => seqOf.set(e, i + 1));
-        const segId = (seg, i) => seg.own.length ? 'p' + seqOf.get(seg.own[0]) : 'a' + (seg.actionEntry ? seqOf.get(seg.actionEntry) : i);
+        // permanent id of an entry (written as id= in its CAP marker). Sections are keyed by it, not by seq, so
+        // inserting a pose mid-path can't shift a STUDENT-CODE block onto a different pose/action. Entries from
+        // older files without an id get "s<seq>" -- still right, because their order hasn't changed yet.
+        const uidOf = e => e.uid || ('s' + seqOf.get(e));
+        const segId = (seg, i) => seg.own.length ? 'p' + uidOf(seg.own[0]) : 'a' + (seg.actionEntry ? uidOf(seg.actionEntry) : i);
         const effSpeed = p => cleanSpeed(p.speed) || defSpeed;            // speed of the leg arriving at pose p
         const speedExpr = s => (s === defSpeed ? 'SPEED' : speedLit(s));
         let usesSpeedHelper = false;
@@ -7112,8 +7163,8 @@
         for (const [p, name] of poseVarName) {
           const f = toFtc(p.sx, p.sz, p.yaw);
           const sp = p.type === 'pose' ? cleanSpeed(p.speed) : null;
-          sec = 'pose:' + seqOf.get(p);
-          push('        // CAP:POSE seq=' + seqOf.get(p) + ' kind=' + (p.type === 'init' ? 'init' : 'pose') + (sp != null ? ' speed=' + speedLit(sp) : ''));
+          sec = 'pose:' + uidOf(p);
+          push('        // CAP:POSE seq=' + seqOf.get(p) + ' kind=' + (p.type === 'init' ? 'init' : 'pose') + (sp != null ? ' speed=' + speedLit(sp) : '') + ' id=' + uidOf(p));
           push('        Pose ' + name + ' = new Pose(' + f.x.toFixed(2) + ', ' + f.y.toFixed(2)
             + ', Math.toRadians(' + (f.heading * 180 / Math.PI).toFixed(1) + '));');
         }
@@ -7128,7 +7179,7 @@
           for (let k = 0; k < seg.poses.length - 1; k++) {
             const pa = seg.poses[k], pb = seg.poses[k + 1];
             const a = poseVarName.get(pa), b = poseVarName.get(pb);
-            sec = 'leg:' + seqOf.get(pb);
+            sec = 'leg:' + uidOf(pb);
             push('                .addPath(new BezierLine(' + a + ', ' + b + '))');
             push('                .setLinearHeadingInterpolation(' + a + '.getHeading(), ' + b + '.getHeading())');
             // the chain's first leg gets its speed from followPath(); later legs only need a change marker
@@ -7197,13 +7248,13 @@
           }
           if (seg.actionAfter) {
             const seq = seqOf.get(seg.actionEntry);
-            sec = 'act:' + seq;
+            sec = 'act:' + uidOf(seg.actionEntry);
             if (autoAim) {
               push('        robot.update();');
               push('        aim.aim(robot.localization, robot.turret);   // final aim from where we stopped (the servo holds it)');
               push('        robot.update();');
             }
-            push('        // CAP:ACTION seq=' + seq + ' button=' + seg.actionAfter);
+            push('        // CAP:ACTION seq=' + seq + ' button=' + seg.actionAfter + ' id=' + uidOf(seg.actionEntry));
             const code = seg.actionEntry && seg.actionEntry.code;
             for (const line of (code ? code.split('\n') : actionPlaceholder(seg.actionAfter))) push(line);
             push('        // CAP:ACTION-END seq=' + seq);
@@ -7260,8 +7311,9 @@
       function generateJava(className, list, opts) { return generateJavaLines(className, list, opts).lines.join('\n'); }
 
       // identity of each generated line: section + text with numbers blurred + occurrence in that section
-      // (numbers blurred so moving a pose, renumbering pose7 -> pose8, or a new speed keeps the same identity)
-      const normLine = s => s.trim().replace(/\s+/g, ' ').replace(/-?\d+(\.\d+)?/g, '#');
+      // (numbers blurred so moving a pose, renumbering pose7 -> pose8, or a new speed keeps the same identity;
+      // a marker's id= is dropped so a file from before ids existed still lines up with what we write now)
+      const normLine = s => s.trim().replace(/ id=[A-Za-z0-9_]+/, '').replace(/\s+/g, ' ').replace(/-?\d+(\.\d+)?/g, '#');
       function lineKeys(gen) {
         const seen = new Map();
         return gen.lines.map((s, i) => {
@@ -7350,7 +7402,7 @@
             if (/^import\s/.test(t) && (extraImports.includes(t) || GEN_IMPORTS.includes(t))) return;   // carried over
             if (clsIdx >= 0 && i < clsIdx && t.startsWith('//')) return;   // header prose: rewritten by every tool version
             lost.push(t);
-          } else if (!/^(Pose \w+ = new Pose\(|telemetryPose\(|\/\/ CAP:(POSE|FILE))/.test(t)) {
+          } else if (!/^(Pose \w+ = new Pose\(|telemetryPose\(|\/\/ CAP:)/.test(t)) {
             // same shape as the generated line -- flag it only if a number was actually changed (1 vs 1.0 is fine)
             const nums = s => (s.match(/-?\d+(\.\d+)?/g) || []).map(Number);
             const a = nums(t), g = nums(oldGen.lines[matchOf.get(i)]);
@@ -7359,9 +7411,9 @@
         });
 
         // CAP:ACTION code: take it from the file (newer than what the GUI loaded) for actions that came from it
-        const oldActions = new Map(old.entries.filter(e => e.type === 'action').map(e => [e.srcSeq, e]));
+        const oldActions = new Map(old.entries.filter(e => e.type === 'action').map(e => [e.uid, e]));
         if (opts.refreshActions) {
-          for (const e of newEntries) if (e.type === 'action' && e.srcSeq != null && oldActions.has(e.srcSeq)) e.code = oldActions.get(e.srcSeq).code;
+          for (const e of newEntries) if (e.type === 'action' && e.uid != null && oldActions.has(e.uid)) e.code = oldActions.get(e.uid).code;
         }
         const newCodes = new Set(newEntries.filter(e => e.type === 'action' && e.code).map(e => e.code));
         for (const a of oldActions.values()) {
@@ -7526,7 +7578,8 @@
         let m;
         while ((m = poseRe.exec(source))) {
           const sp = (m[3].match(/\bspeed=([\d.]+)/) || [])[1];
-          poseItems.push({ seq: parseInt(m[1], 10), kind: m[2], speed: cleanSpeed(sp), fx: parseFloat(m[4]), fy: parseFloat(m[5]), fh: parseFloat(m[6]) });
+          const uid = (m[3].match(/\bid=([A-Za-z0-9_]+)/) || [])[1];
+          poseItems.push({ seq: parseInt(m[1], 10), kind: m[2], speed: cleanSpeed(sp), uid, fx: parseFloat(m[4]), fy: parseFloat(m[5]), fh: parseFloat(m[6]) });
         }
         const poseMarkerCount = (source.match(/\/\/ CAP:POSE seq=/g) || []).length;
         if (poseItems.length !== poseMarkerCount) {
@@ -7538,11 +7591,12 @@
 
         const actionStartCount = (source.match(/\/\/ CAP:ACTION seq=\d+ button=/g) || []).length;
         const actionEndCount = (source.match(/\/\/ CAP:ACTION-END seq=\d+/g) || []).length;
-        const actionRe = /\/\/ CAP:ACTION seq=(\d+) button=([ABXY])[ \t]*\n([\s\S]*?)\/\/ CAP:ACTION-END seq=\1\b/g;
+        const actionRe = /\/\/ CAP:ACTION seq=(\d+) button=([ABXY])([^\n]*)\n([\s\S]*?)\/\/ CAP:ACTION-END seq=\1\b/g;
         const actionItems = [];
         while ((m = actionRe.exec(source))) {
           // drop the END line's own indentation (and the newline before it) so a save doesn't add a blank line each time
-          actionItems.push({ seq: parseInt(m[1], 10), button: m[2], code: m[3].replace(/[ \t]*$/, '').replace(/\n$/, '') });
+          actionItems.push({ seq: parseInt(m[1], 10), button: m[2], uid: (m[3].match(/\bid=([A-Za-z0-9_]+)/) || [])[1],
+            code: m[4].replace(/[ \t]*$/, '').replace(/\n$/, '') });
         }
         if (actionItems.length !== actionStartCount || actionItems.length !== actionEndCount) {
           return { ok: false, reason: 'Found ' + actionStartCount + ' "CAP:ACTION" marker(s) and ' + actionEndCount + ' "CAP:ACTION-END" marker(s), but only ' + actionItems.length + ' matched pair(s) -- an action\'s start/end markers may be missing, reordered, or nested inside another one.' };
@@ -7564,12 +7618,12 @@
           if (node.isPose) {
             const conv = poseFromFtc(node.it.fx, node.it.fy, node.it.fh * Math.PI / 180);
             const id = idc++;
-            const e = { id, type: node.it.kind, sx: conv.sx, sz: conv.sz, yaw: conv.yaw };
+            const e = { id, uid: node.it.uid || ('s' + node.it.seq), type: node.it.kind, sx: conv.sx, sz: conv.sz, yaw: conv.yaw };
             if (node.it.kind === 'pose' && node.it.speed != null) e.speed = node.it.speed;
             newEntries.push(e);
             lastPoseId = id;
           } else {
-            newEntries.push({ id: idc++, type: 'action', action: node.it.button, anchorId: lastPoseId, code: node.it.code, srcSeq: node.it.seq });
+            newEntries.push({ id: idc++, uid: node.it.uid || ('s' + node.it.seq), type: 'action', action: node.it.button, anchorId: lastPoseId, code: node.it.code });
           }
         }
         const constants = source.match(/^[ \t]*FollowerConstants constants = new FollowerConstants\(\)[^;]*;[ \t]*$/m);
