@@ -16,10 +16,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  # Upload and deploy are separate jobs (GitHub's standard layout): the artifact is
+  # finalized when the build job ends, so deploy-pages never races its registration
+  # ("No artifacts named ... were found").
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,6 +38,13 @@ jobs:
           path: web
           name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
 
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
