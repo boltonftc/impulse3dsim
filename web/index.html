@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.44';
+    window.APP_VERSION = '2.8.45';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -156,6 +156,8 @@
     #panel-capture #cap-begin.capturing{background:#dc2626;color:#fff;border-color:#fca5a5}
     #panel-capture #cap-begin.capturing:hover{background:#ef4444}
     #panel-capture #cap-list{font-size:.75rem;color:#9fb3d1;max-height:180px;overflow:auto;margin:4px 0 2px}
+    #panel-capture #cap-list .cap-row{padding:1px 4px;border-radius:5px;cursor:pointer}
+    #panel-capture #cap-list .cap-row.cap-sel{background:#164e63aa;box-shadow:inset 0 0 0 1px #38bdf8}   /* selected in the field */
     /* Help sits top-right, same button styling as the rest */
     #panel-capture .cap-help-row{display:flex;justify-content:center;margin-bottom:10px}
     #panel-capture #cap-help-btn{padding:5px 14px}
@@ -303,6 +305,10 @@
     .dh-code{flex:1;background:#1e2a16;border-color:#3f5a2a;color:#bbf7d0}
     .dh-code:disabled{opacity:1;color:#bbf7d0;cursor:default}
     .dh-load{font-size:11px;margin:4px 2px 0;min-height:14px;color:#7dd3fc}
+    /* DS-style 30 s autonomous timer (top-right of the START area); red once it runs over */
+    .dh-timer{position:absolute;right:12px;top:10px;font-family:monospace;font-size:1.15rem;font-weight:bold;color:#e2e8f0;letter-spacing:.04em}
+    .dh-timer.over{color:#f87171}
+    .dh-timer.done{opacity:.55}
     .dh-load.warn{color:#fbbf24}
     .dh-load.ok{color:#86efac}
     .carrybtn{background:#1e2a16;border:1px solid #3f5a2a;color:#bbf7d0}
@@ -990,6 +996,7 @@
         <div class="dh-op" id="dh-op">No OpMode Selected</div>
         <div class="dh-mid">
           <button id="dh-btn" class="dh-btn init">INIT</button>
+          <div class="dh-timer" id="dh-timer" title="Autonomous timer: counts 0:30 down after START, then red overtime. Outside a match the auto keeps running until it ends or you press STOP."></div>
           <button id="dh-pre" class="dh-pre" style="display:none" title="TeleOp preselect: tap to choose the TeleOp that gets queued when this Autonomous ends (you still press INIT + START). Long-press to turn it off."><span class="ico">&#9197;</span><span class="nm"></span></button>
           <select id="dh-pre-sel" class="dh-pre-sel" tabindex="-1" aria-label="Preselect TeleOp"></select>
         </div>
@@ -1018,6 +1025,7 @@
         <div class="dh-op" id="dh-op-b">No OpMode Selected</div>
         <div class="dh-mid">
           <button id="dh-btn-b" class="dh-btn init">INIT</button>
+          <div class="dh-timer" id="dh-timer-b" title="Autonomous timer: counts 0:30 down after START, then red overtime. Outside a match the auto keeps running until it ends or you press STOP."></div>
           <button id="dh-pre-b" class="dh-pre" style="display:none" title="TeleOp preselect: tap to choose the TeleOp that gets queued when this Autonomous ends (you still press INIT + START). Long-press to turn it off."><span class="ico">&#9197;</span><span class="nm"></span></button>
           <select id="dh-pre-sel-b" class="dh-pre-sel" tabindex="-1" aria-label="Preselect TeleOp"></select>
         </div>
@@ -1286,8 +1294,8 @@
         <p><b>Default speed</b> (next to Save) is the max power, 0.05&ndash;1.0, for every leg. To change one leg, type a
            speed in the <b>spd</b> box of the pose that leg <em>arrives at</em> (blank = default). Fast to cross the field,
            slow to creep into a FLOWER. The speed changes as that leg <em>starts</em>, so to arrive somewhere slowly, slow the
-           leg that ends there &mdash; or press a button there so the robot stops first. Path arrows turn from green (fast) to
-           orange (slow).</p>
+           leg that ends there &mdash; or press a button there so the robot stops first. The path is coloured by speed:
+           green (fast, 1.0) through yellow to red (slow).</p>
 
         <h4>4 · Save</h4>
         <p>Type a name and click <b>Save Capture</b>. The tool writes <code>&lt;Name&gt;.java</code> into the current
@@ -1516,8 +1524,8 @@
     alliances.red.name = 'red'; alliances.blue.name = 'blue';
     // per-alliance Driver Hub DOM ids; fromPit=true means the code comes from the Pit deploy (red),
     // false means the panel picks any saved package as the opponent (blue)
-    alliances.red.hub  = { auto:'dh-auto',   teleop:'dh-teleop',   op:'dh-op',   btn:'dh-btn',   code:'dh-code',   opstate:'opstate',   recompile:'dh-recompile',   load:'dh-load-state',   tele:'tele',   gp:'gp1',   pre:'dh-pre',   preSel:'dh-pre-sel',   fromPit:true  };
-    alliances.blue.hub = { auto:'dh-auto-b', teleop:'dh-teleop-b', op:'dh-op-b', btn:'dh-btn-b', code:'dh-code-b', opstate:'opstate-b', recompile:'dh-recompile-b', load:'dh-load-state-b', tele:'tele-b', gp:'gp1-b', pre:'dh-pre-b', preSel:'dh-pre-sel-b', fromPit:false };
+    alliances.red.hub  = { auto:'dh-auto',   teleop:'dh-teleop',   op:'dh-op',   btn:'dh-btn',   code:'dh-code',   opstate:'opstate',   recompile:'dh-recompile',   load:'dh-load-state',   timer:'dh-timer',   tele:'tele',   gp:'gp1',   pre:'dh-pre',   preSel:'dh-pre-sel',   fromPit:true  };
+    alliances.blue.hub = { auto:'dh-auto-b', teleop:'dh-teleop-b', op:'dh-op-b', btn:'dh-btn-b', code:'dh-code-b', opstate:'opstate-b', recompile:'dh-recompile-b', load:'dh-load-state-b', timer:'dh-timer-b', tele:'tele-b', gp:'gp1-b', pre:'dh-pre-b', preSel:'dh-pre-sel-b', fromPit:false };
     const bySlot = [alliances.red, alliances.blue];
     const sel = slot => bySlot[slot] || alliances.red;   // native slot index -> alliance instance
     let upMode = 1;              // 1UP = red only; 2UP = red + blue opponent (set by #upbadge)
@@ -4096,14 +4104,26 @@
       const load = document.getElementById(a.hub.load);
       if (load) { load.textContent = '\u23ed ' + t.name + ' queued \u2014 press INIT'; load.className = 'dh-load'; }
     }
-    // the Driver Station's 30 s AUTONOMOUS timer: outside a match, an Autonomous that's still running
-    // 30 s after START is stopped for you (in a match, the match clock does this at the end of AUTO)
+    // the Driver Station's 30 s AUTONOMOUS timer. In a match, the match clock ends AUTO at 0:30 (tickMatch).
+    // Outside a match it only COUNTS: 0:30 down to 0:00, then red overtime (+0:05...). The auto keeps running
+    // until it ends on its own or STOP, so students can see whether the whole thing would fit in a match.
+    // (Wall clock, the same clock the robot's sleep()/ElapsedTime use. fmtClock is the match clock's m:ss formatter.)
+    function setAutoTimer(a, text, cls){
+      const el = document.getElementById(a.hub.timer); if (!el) return;
+      el.textContent = text;
+      el.classList.toggle('over', cls === 'over' || cls === 'over done');
+      el.classList.toggle('done', /done/.test(cls || ''));
+    }
     function tickAutoTimers(){
-      if (match.running) return;
       for (const a of [alliances.red, alliances.blue]) {
-        if (a.runType === 'auto' && a.lastCode === 3 && a.autoT0 && performance.now() - a.autoT0 >= MATCH.AUTO * 1000) {
-          a.autoT0 = 0; opStopOn(a);
-        }
+        if (match.running) { if (a.autoT0 || a.timerShown) { setAutoTimer(a, ''); a.timerShown = false; } continue; }
+        if (a.runType !== 'auto' || !a.autoT0) continue;
+        const left = MATCH.AUTO - (performance.now() - a.autoT0) / 1000;
+        const ended = a.lastCode === 4 || a.lastCode === 5;   // STOPPED / ERROR: freeze the final reading
+        setAutoTimer(a, left >= 0 ? fmtClock(Math.ceil(left)) : '+' + fmtClock(Math.floor(-left)),
+          (left < 0 ? 'over' : '') + (ended ? ' done' : ''));
+        a.timerShown = true;
+        if (ended) a.autoT0 = 0;
       }
     }
     const firstLine = t => ((t || '').split('\n').find(x => x.trim()) || '').trim();
@@ -4567,6 +4587,8 @@
       a.placeOk = !!src.fqn;     // only a real, user-chosen op may place the robot (not the silent prewarm)
       const runOp = scanOps({ files }).find(o => o.fqn === fqn);
       a.runType = runOp ? runOp.type : '';   // 'auto' gets the 30 s timer + TeleOp preselect hand-off
+      a.autoT0 = 0;
+      setAutoTimer(a, a.runType === 'auto' && a.placeOk && !match.running ? fmtClock(MATCH.AUTO) : '');
       return fqn;
     }
     // init queue: only one alliance may stage into the shared flat /str/ + compile at a time.
@@ -6535,7 +6557,7 @@
       const rotateMat = new THREE.MeshStandardMaterial({ color: 0xfff2b0, emissive: 0x776a20 });
       const rotateLineMat = new THREE.LineBasicMaterial({ color: 0xfff2b0 });
       const rotateTubeMat = new THREE.MeshStandardMaterial({ color: 0xfff2b0, emissive: 0x776a20, roughness: 0.5 });
-      const pathTubeMat = new THREE.MeshStandardMaterial({ color: 0x22ff88, emissive: 0x0e5c33, roughness: 0.5 });
+      const pathTubeMat = new THREE.MeshBasicMaterial({ vertexColors: true });   // unlit: per-leg speed colours stay vivid
       const actionTubeMat = new THREE.MeshStandardMaterial({ color: 0xff9900, emissive: 0x7a4a00, roughness: 0.5 });
 
       const badgeGeo = new THREE.CylinderGeometry(BADGE_R, BADGE_R, BADGE_H, 20, 1);
@@ -6550,14 +6572,13 @@
       const lineMat = new THREE.LineBasicMaterial({ color: 0x22ff88 });
       const actionLineMat = new THREE.LineBasicMaterial({ color: 0xff9900 });
       const arrowGeo = new THREE.ConeGeometry(0.02, 0.055, 10);
-      // leg arrows are tinted by that leg's speed: orange (slow) -> green (fast); cached per 0.05 step
+      // legs are coloured by speed on one scale: red (slow, 0.1) -> yellow -> green (fast, 1.0); cached per 0.05 step
+      const speedColor = speed => new THREE.Color().setHSL(120 * Math.min(1, Math.max(0, (speed - 0.1) / 0.9)) / 360, 1, 0.5);
       const legMatCache = new Map();
       function legArrowMat(speed) {
         const k = Math.round(speed * 20);
         if (!legMatCache.has(k)) {
-          const u = Math.min(1, Math.max(0, (k / 20 - 0.1) / 0.9));
-          const c = new THREE.Color().setHSL((28 + u * (148 - 28)) / 360, 1, 0.55);
-          legMatCache.set(k, new THREE.MeshStandardMaterial({ color: c, emissive: c.clone().multiplyScalar(0.35) }));
+          legMatCache.set(k, new THREE.MeshBasicMaterial({ color: speedColor(k / 20) }));
         }
         return legMatCache.get(k);
       }
@@ -6574,6 +6595,38 @@
       const poseObjs = new Map();    // id -> { mesh, rotArc, rotArrowA, rotArrowB }
       const actionObjs = new Map();  // id -> mesh
       let lineObj = null, arrowMeshes = [], actionLineObjs = [];
+
+      // ---- selection: a pose disc / action badge in the field and its row in the list highlight each other ----
+      // The ring is parented to the selected disc/badge, so it follows drags and re-aims for free.
+      let selectedId = null;
+      const selRingMat = new THREE.MeshBasicMaterial({ color: 0xfde047 });   // pulsed yellow <-> amber in pulseSelection()
+      const selRingPose = new THREE.Mesh(new THREE.TorusGeometry(DISC_R * 1.55, 0.011, 10, 48), selRingMat);
+      const selRingBadge = new THREE.Mesh(new THREE.TorusGeometry(BADGE_R * 1.7, 0.008, 10, 36), selRingMat);
+      selRingPose.rotation.x = selRingBadge.rotation.x = Math.PI / 2;
+      selRingPose.position.y = DISC_H / 2; selRingBadge.position.y = BADGE_H / 2;
+      function applySelection(scroll) {
+        selRingPose.removeFromParent(); selRingBadge.removeFromParent();
+        if (selectedId != null) {
+          const rec = poseObjs.get(selectedId), badge = actionObjs.get(selectedId);
+          if (rec) rec.mesh.add(selRingPose); else if (badge) badge.add(selRingBadge);
+        }
+        const list = document.getElementById('cap-list'); if (!list) return;
+        for (const row of list.querySelectorAll('.cap-row')) {
+          const on = selectedId != null && row.dataset.id === String(selectedId);
+          row.classList.toggle('cap-sel', on);
+          if (on && scroll) row.scrollIntoView({ block: 'nearest' });
+        }
+      }
+      function selectEntry(id, scroll) { selectedId = id; applySelection(scroll); }
+      // bring the selection ring to life: a ~1 s breathing pulse between bright yellow and amber, swelling slightly
+      const PULSE_A = new THREE.Color(0xfff27a), PULSE_B = new THREE.Color(0xf59e0b);
+      function pulseSelection(now) {
+        if (!selRingPose.parent && !selRingBadge.parent) return;
+        const s = 0.5 + 0.5 * Math.sin(now * 0.0065);
+        selRingMat.color.copy(PULSE_A).lerp(PULSE_B, s);
+        const k = 1 + 0.18 * s;
+        selRingPose.scale.set(k, k, k); selRingBadge.scale.set(k, k, k);
+      }
 
       const ROTATE_R = DISC_R + 0.062;      // radius of the rotate-drag arc, just outside the disc
       const ROTATE_SPAN = Math.PI * 0.28;   // half-angle of the arc, centered on the current heading
@@ -6635,12 +6688,24 @@
           // one CatmullRom curve shared by the tube geometry AND the cone placement so they can't disagree
           const curve = new THREE.CatmullRomCurve3(pts);
           const segs = pts.length - 1;
-          lineObj = new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(12, segs * 8), 0.008, 8, false), pathTubeMat);
+          const legSpeed = i => cleanSpeed(chainWaypoints[i + 1].speed) || capDefaultSpeed();
+          // colour each ring of the tube by the leg it lies on. TubeGeometry places ring j at arc-length
+          // fraction j/tubular; getUtoTmapping turns that into the curve parameter, where each leg is 1/segs.
+          const tubular = Math.max(12, segs * 8), radial = 8;
+          const geo = new THREE.TubeGeometry(curve, tubular, 0.008, radial, false);
+          const cols = new Float32Array(geo.attributes.position.count * 3);
+          for (let j = 0; j <= tubular; j++) {
+            const leg = Math.min(segs - 1, Math.floor(curve.getUtoTmapping(j / tubular) * segs));
+            const c = speedColor(legSpeed(leg));
+            for (let r = 0; r <= radial; r++) { const v = (j * (radial + 1) + r) * 3; cols[v] = c.r; cols[v + 1] = c.g; cols[v + 2] = c.b; }
+          }
+          geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+          lineObj = new THREE.Mesh(geo, pathTubeMat);
           capGroup.add(lineObj);
           for (let i = 0; i < segs; i++) {
             if (pts[i].distanceTo(pts[i + 1]) < 0.01) continue;   // duplicate/near-duplicate pose -- no direction to show
             const t = (i + 0.5) / segs;                            // parametric midpoint of this segment along the curve
-            const cone = new THREE.Mesh(arrowGeo, legArrowMat(cleanSpeed(chainWaypoints[i + 1].speed) || capDefaultSpeed()));
+            const cone = new THREE.Mesh(arrowGeo, legArrowMat(legSpeed(i)));
             cone.position.copy(curve.getPoint(t));
             cone.quaternion.setFromUnitVectors(UP, curve.getTangent(t).normalize());
             capGroup.add(cone);
@@ -6688,10 +6753,11 @@
             capGroup.add(l); actionLineObjs.push(l);
           }
         }
+        applySelection(false);   // badges were just rebuilt: re-attach the ring if an action is selected
       }
 
       function clearAll() {
-        entries = []; nextId = 1;
+        entries = []; nextId = 1; selectedId = null;
         loadedFrom = null; loadedSpeed = null;   // a fresh capture is no longer "the file we loaded"
         for (const rec of poseObjs.values()) {
           capGroup.remove(rec.mesh); capGroup.remove(rec.rotArrowA); capGroup.remove(rec.rotArrowB);
@@ -6747,7 +6813,14 @@
 
       canvas.addEventListener('pointerdown', e => {
         if (e.button !== 0) return;
-        const hit = pickAt(e); if (!hit) return;
+        const hit = pickAt(e);
+        if (!hit) {
+          // not a pose: an action badge still selects (badges aren't draggable)
+          const bh = raycaster.intersectObjects([...actionObjs.values()], false)[0];
+          if (bh) selectEntry(bh.object.userData.id, true);
+          return;
+        }
+        selectEntry(hit.userData.id, true);
         dragState = { id: hit.userData.id, kind: hit.userData.kind };
         try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
         e.stopPropagation();
@@ -6777,7 +6850,8 @@
       let prevC = false, prevLb = false;
       const prevFace = [false, false, false, false];
       const faceKeys = ['1', '2', '3', '4'], faceLabels = ['A', 'B', 'X', 'Y'];
-      function poll() {
+      function poll(now) {
+        pulseSelection(now || performance.now());
         if (captureMode) {
           const cNow = !!keys['c'];
           if (cNow && !prevC) recordPose();
@@ -6817,15 +6891,19 @@
             html += '<div class="cap-row" data-id="' + e.id + '" style="margin:3px 0">' + poseIndex + '. x=<input class="cap-x" type="number" step="0.5" value="'
               + f.x.toFixed(1) + '" style="' + inputStyle + '"> y=<input class="cap-y" type="number" step="0.5" value="' + f.y.toFixed(1)
               + '" style="' + inputStyle + '"> h=<input class="cap-h" type="number" step="1" value="' + (f.heading * 180 / Math.PI).toFixed(0)
-              + '" style="' + inputStyle + '">° spd=<input class="cap-s" type="number" min="0.05" max="1" step="0.05" placeholder="def" title="Speed (max power) of the leg arriving at this pose. Blank = Default speed." value="'
+              + '" style="' + inputStyle + '">° spd=<input class="cap-s" type="number" min="0.05" max="1" step="0.05" placeholder="' + speedLit(capDefaultSpeed()) + '" title="Speed (max power, 0.05-1.0) of the leg arriving at this pose. Grey = the Default speed; type a number to give this leg its own, clear it to go back to the default." value="'
               + (e.speed != null ? speedLit(e.speed) : '') + '" style="' + inputStyle + ';width:44px"></div>';
           } else {
-            html += '<div class="cap-row" style="margin:3px 0;color:#fbbf6a">— button ' + e.action + ' —</div>';
+            html += '<div class="cap-row" data-id="' + e.id + '" style="margin:3px 0;color:#fbbf6a">— button ' + e.action + ' —</div>';
           }
         }
         el.innerHTML = html || '<span style="opacity:.6">no captures yet</span>';
+        applySelection(false);
       }
       const capListEl = document.getElementById('cap-list');
+      // clicking (or tabbing into) a row selects that pose/action in the field
+      const selectFromRow = e => { const row = e.target.closest('.cap-row'); if (row && row.dataset.id) selectEntry(parseInt(row.dataset.id, 10), false); };
+      if (capListEl) { capListEl.addEventListener('click', selectFromRow); capListEl.addEventListener('focusin', selectFromRow); }
       if (capListEl) capListEl.addEventListener('change', e => {
         const row = e.target.closest('.cap-row'); if (!row || !row.dataset.id) return;
         const entry = entries.find(x => x.id === parseInt(row.dataset.id, 10) && isWaypoint(x)); if (!entry) return;
@@ -6868,7 +6946,7 @@
       const resetBtn = document.getElementById('cap-reset');
       if (resetBtn) resetBtn.addEventListener('click', () => { clearAll(); setCapturing(false); });
       const speedEl = document.getElementById('cap-speed');
-      if (speedEl) speedEl.addEventListener('change', () => { setCapDefaultSpeed(speedEl.value); rebuildPath(); });
+      if (speedEl) speedEl.addEventListener('change', () => { setCapDefaultSpeed(speedEl.value); rebuildPath(); renderCapList(); });
 
       // Help overlay: keep the panel clean by tucking every explanation behind this button
       const helpBtn = document.getElementById('cap-help-btn');
@@ -7513,6 +7591,7 @@
         poseObjs.clear();
         entries = newEntries;
         nextId = newNextId;
+        selectedId = null;
         for (const e of entries) if (isWaypoint(e)) createPoseVisual(e);
         rebuildPath();
         renderCapList();
@@ -7547,8 +7626,8 @@
         const p = curPkg(); if (!p || !p.files[fname]) return;
         const result = parseCapturedJava(p.files[fname]);
         if (!result.ok) { alert('Can\'t open "' + fname + '" for editing:\n\n' + result.reason); return; }
+        setCapDefaultSpeed(result.meta.speed);   // before the list renders, so the grey speed placeholders show it
         loadEntries(result.entries, result.nextId);
-        setCapDefaultSpeed(result.meta.speed);
         loadedFrom = fname; loadedSpeed = cleanSpeed(result.meta.speed) || SPEED_DEFAULT;
         setCapturing(true);
         const nameInput = document.getElementById('cap-name');
