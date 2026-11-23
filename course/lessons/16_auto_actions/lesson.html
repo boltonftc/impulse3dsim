@@ -207,7 +207,9 @@ different; that's fine.)</p>
     <li><strong>Keep both <code>CAP</code> lines exactly as they are.</strong> Path Capture uses them to reopen your auto
     for editing; if one is changed or deleted, it refuses to load the file.</li>
     <li>Code between the <code>CAP</code> lines is kept when you reopen the file in Path Capture. Code you put
-    anywhere else can be lost.</li>
+    anywhere else (for example a preload shot before the first path) must be wrapped in
+    <code>// STUDENT-CODE-BEGIN</code> &hellip; <code>// STUDENT-CODE-END</code> to be kept &mdash; the top of every captured
+    file explains where those blocks work. If saving would drop any code, Path Capture lists it and asks first.</li>
   </ul>
 </div>
 

@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.43';
+    window.APP_VERSION = '2.8.44';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -177,6 +177,22 @@
     .cap-help-body ul{margin:6px 0;padding-left:20px}
     .cap-help-body li{margin:5px 0}
     .cap-help-body .cap-note{background:#134e4a44;border-left:3px solid #14b8a6;border-radius:0 8px 8px 0;padding:10px 12px;margin:12px 0;font-size:.86rem}
+    /* default-speed field + per-pose speed boxes */
+    #panel-capture .cap-speed-field{align-items:center;margin-top:8px;font-size:.78rem;color:#9fb3d1}
+    #panel-capture .cap-speed-field label{flex:1}
+    #panel-capture input#cap-speed{width:70px;background:#1e293b;border:1px solid #60a5fa;border-radius:8px;color:#e2e8f0;
+        padding:6px 8px;font-size:.82rem;font-family:inherit}
+    /* save warning: same card as Help, plus a button row */
+    .cap-help-body .cap-warn-pre{background:#020617;border:1px solid #1e293b;border-radius:8px;padding:8px 10px;margin:6px 0 10px;
+        max-height:180px;overflow:auto;font-family:monospace;font-size:.76rem;line-height:1.45;color:#fca5a5;white-space:pre}
+    .cap-help-body .cap-warn-why{color:#fca5a5}
+    .cap-help-body .cap-warn-tip{color:#5eead4}
+    .cap-warn-btns{position:sticky;bottom:0;display:flex;gap:8px;justify-content:flex-end;padding:12px 22px 16px;background:#0f172a;border-top:1px solid #1e293b}
+    .cap-warn-btns .capbtn{border:1px solid #60a5fa;border-radius:8px;padding:8px 13px;font-size:.82rem;font-weight:600;font-family:inherit;
+        cursor:pointer;background:#14b8a6;color:#042f2e;white-space:nowrap}
+    .cap-warn-btns .capbtn:hover{background:#2dd4bf}
+    .cap-warn-btns .cap-warn-danger{background:#7f1d1d;color:#fee2e2;border-color:#fca5a5}
+    .cap-warn-btns .cap-warn-danger:hover{background:#991b1b}
 
     /* ---- bottom tab bar (DIAG / SETTINGS / PIT) + the sheets that rise above it ---- */
     #bottombar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);z-index:14;display:flex;gap:6px}
@@ -1232,6 +1248,10 @@
           <input id="cap-name" type="text" value="CapturedAuto" spellcheck="false">
           <button id="cap-export" class="capbtn">Save Capture</button>
         </div>
+        <div class="cap-field cap-speed-field" title="Max power (0.05 - 1.0) for every leg that has no speed of its own. Give a pose its own speed in the list below.">
+          <label for="cap-speed">Default speed</label>
+          <input id="cap-speed" type="number" min="0.05" max="1" step="0.05" value="0.5">
+        </div>
       </div>
 
       <div id="cap-list"></div>
@@ -1262,24 +1282,63 @@
            robot do anything on its own. You are responsible for writing the actual code (for example
            <code>robot.dumper.dump();</code>) inside that action's markers.</div>
 
-        <h4>3 · Save</h4>
-        <p>Type a name and click <b>Save Capture</b>. The tool writes <code>&lt;Name&gt;.java</code> into the current
-           code package (overwriting is confirmed first).</p>
+        <h4>3 · Speed</h4>
+        <p><b>Default speed</b> (next to Save) is the max power, 0.05&ndash;1.0, for every leg. To change one leg, type a
+           speed in the <b>spd</b> box of the pose that leg <em>arrives at</em> (blank = default). Fast to cross the field,
+           slow to creep into a FLOWER. The speed changes as that leg <em>starts</em>, so to arrive somewhere slowly, slow the
+           leg that ends there &mdash; or press a button there so the robot stops first. Path arrows turn from green (fast) to
+           orange (slow).</p>
 
-        <h4>4 · Loading it back for editing</h4>
-        <p>To re-open a saved file here later, its <code>// CAP:</code> marker comments must be left <b>exactly</b> as
-           generated. If you keep them intact you can hand-edit the file and still reload it; if any marker is removed,
-           reordered, or broken, the tool refuses to load it rather than guess and lose your work.</p>
+        <h4>4 · Save</h4>
+        <p>Type a name and click <b>Save Capture</b>. The tool writes <code>&lt;Name&gt;.java</code> into the current
+           code package. Saving over a captured file <b>keeps your code</b> (see 6); if anything would be lost, Save
+           lists it first and lets you Cancel, Save as a new name, or Save anyway.</p>
+
+        <h4>5 · Loading it back for editing</h4>
+        <p>Pick the file and click <b>Load Capture</b>: its poses, actions and speeds come back so you can move poses,
+           change speeds or add more at the end, then Save again. For that, its <code>// CAP:</code> marker comments must
+           be left <b>exactly</b> as generated &mdash; if any marker is removed, reordered, or broken, the tool refuses to
+           load it rather than guess and lose your work.</p>
         <ul>
-          <li><code>// CAP:FILE version=2</code> near the top — proves the file came from this tool. (Older
-              <code>version=1</code> files still load; saving them again writes the new field coordinates.)</li>
-          <li>a <code>// CAP:POSE seq=N kind=init|pose</code> line immediately above each
-              <code>Pose x = new Pose(x, y, Math.toRadians(h));</code> — those three values must stay
+          <li><code>// CAP:FILE version=3</code> near the top — proves the file came from this tool. (Older
+              <code>version=1</code>/<code>2</code> files still load.)</li>
+          <li>a <code>// CAP:POSE seq=N kind=init|pose</code> line (plus <code>speed=…</code> if that pose has one) immediately
+              above each <code>Pose x = new Pose(x, y, Math.toRadians(h));</code> — those three values must stay
               <b>plain numbers</b> (no variables or expressions).</li>
           <li>each action wrapped in a matching
-              <code>// CAP:ACTION seq=N button=X</code> … <code>// CAP:ACTION-END seq=N</code> pair.
-              You may add your own code <b>only between</b> those two lines — that is the one region kept verbatim on reload.</li>
+              <code>// CAP:ACTION seq=N button=X</code> … <code>// CAP:ACTION-END seq=N</code> pair.</li>
         </ul>
+
+        <h4>6 · Keeping your own code</h4>
+        <p>Saving rebuilds the file from the captured path. Your code is kept in:</p>
+        <ul>
+          <li><b>STUDENT-CODE blocks</b> — wrap your lines in <code>// STUDENT-CODE-BEGIN</code> …
+              <code>// STUDENT-CODE-END</code>. Put them between any two statements in <code>runOpMode()</code>
+              (before or after START, inside a path's <code>while</code> loop, between paths, at the end) or at class level
+              for your own fields and methods. A block stays right after the line it follows; if that line disappears
+              (e.g. you re-captured), Save puts it at the nearest earlier line and tells you.</li>
+          <li><b>CAP:ACTION blocks</b> — anything between an action's two markers.</li>
+          <li><b>Automatically:</b> extra <code>import</code> lines and the <code>FollowerConstants</code> tuning block.</li>
+        </ul>
+        <div class="cap-note">Not allowed: a block in the middle of a generated statement (e.g. inside a
+           <code>pathBuilder()</code> chain), a block inside another block, or a BEGIN without its END. The top of every
+           captured file explains all of this too.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CAPTURE SAVE WARNING: shown when saving over a captured file would drop or reset student code -->
+  <div id="cap-warn" class="cap-help-overlay" hidden>
+    <div class="cap-help-card">
+      <div class="cap-help-head">
+        <h3 id="cap-warn-title">Save would change your code</h3>
+        <button class="cap-help-x" data-choice="cancel" aria-label="Cancel">✕</button>
+      </div>
+      <div class="cap-help-body" id="cap-warn-body"></div>
+      <div class="cap-warn-btns">
+        <button class="capbtn" data-choice="cancel">Cancel</button>
+        <button class="capbtn" data-choice="saveas">Save as new name…</button>
+        <button class="capbtn cap-warn-danger" data-choice="overwrite">Save anyway</button>
       </div>
     </div>
   </div>
@@ -6419,7 +6478,7 @@
       const IN_PER_M = 39.3700787402;
       let captureMode = false;
       let nextId = 1;
-      let entries = [];   // {id,type:'init'|'pose', sx,sz,yaw} | {id,type:'action', action:'A'|'B'|'X'|'Y', anchorId}
+      let entries = [];   // {id,type:'init'|'pose', sx,sz,yaw, speed?} | {id,type:'action', action:'A'|'B'|'X'|'Y', anchorId, code, srcSeq?}
 
       const capGroup = new THREE.Group(); scene.add(capGroup);
       const MARK_Y = CH + 0.02;              // just above the robot's own floor contact height
@@ -6491,7 +6550,17 @@
       const lineMat = new THREE.LineBasicMaterial({ color: 0x22ff88 });
       const actionLineMat = new THREE.LineBasicMaterial({ color: 0xff9900 });
       const arrowGeo = new THREE.ConeGeometry(0.02, 0.055, 10);
-      const arrowMat = new THREE.MeshStandardMaterial({ color: 0x22ff88, emissive: 0x0e5c33 });
+      // leg arrows are tinted by that leg's speed: orange (slow) -> green (fast); cached per 0.05 step
+      const legMatCache = new Map();
+      function legArrowMat(speed) {
+        const k = Math.round(speed * 20);
+        if (!legMatCache.has(k)) {
+          const u = Math.min(1, Math.max(0, (k / 20 - 0.1) / 0.9));
+          const c = new THREE.Color().setHSL((28 + u * (148 - 28)) / 360, 1, 0.55);
+          legMatCache.set(k, new THREE.MeshStandardMaterial({ color: c, emissive: c.clone().multiplyScalar(0.35) }));
+        }
+        return legMatCache.get(k);
+      }
       const rotateArrowGeo = new THREE.ConeGeometry(0.023, 0.05, 10);   // bigger turn-handle cones = an easier mouse target
       const UP = new THREE.Vector3(0, 1, 0);
       // fat "line" = a thin tube swept along the points (LineBasicMaterial.linewidth is ignored by WebGL,
@@ -6571,7 +6640,7 @@
           for (let i = 0; i < segs; i++) {
             if (pts[i].distanceTo(pts[i + 1]) < 0.01) continue;   // duplicate/near-duplicate pose -- no direction to show
             const t = (i + 0.5) / segs;                            // parametric midpoint of this segment along the curve
-            const cone = new THREE.Mesh(arrowGeo, arrowMat);
+            const cone = new THREE.Mesh(arrowGeo, legArrowMat(cleanSpeed(chainWaypoints[i + 1].speed) || capDefaultSpeed()));
             cone.position.copy(curve.getPoint(t));
             cone.quaternion.setFromUnitVectors(UP, curve.getTangent(t).normalize());
             capGroup.add(cone);
@@ -6623,6 +6692,7 @@
 
       function clearAll() {
         entries = []; nextId = 1;
+        loadedFrom = null; loadedSpeed = null;   // a fresh capture is no longer "the file we loaded"
         for (const rec of poseObjs.values()) {
           capGroup.remove(rec.mesh); capGroup.remove(rec.rotArrowA); capGroup.remove(rec.rotArrowB);
           capGroup.remove(rec.rotArc); rec.rotArc.geometry.dispose();
@@ -6747,7 +6817,8 @@
             html += '<div class="cap-row" data-id="' + e.id + '" style="margin:3px 0">' + poseIndex + '. x=<input class="cap-x" type="number" step="0.5" value="'
               + f.x.toFixed(1) + '" style="' + inputStyle + '"> y=<input class="cap-y" type="number" step="0.5" value="' + f.y.toFixed(1)
               + '" style="' + inputStyle + '"> h=<input class="cap-h" type="number" step="1" value="' + (f.heading * 180 / Math.PI).toFixed(0)
-              + '" style="' + inputStyle + '">°</div>';
+              + '" style="' + inputStyle + '">° spd=<input class="cap-s" type="number" min="0.05" max="1" step="0.05" placeholder="def" title="Speed (max power) of the leg arriving at this pose. Blank = Default speed." value="'
+              + (e.speed != null ? speedLit(e.speed) : '') + '" style="' + inputStyle + ';width:44px"></div>';
           } else {
             html += '<div class="cap-row" style="margin:3px 0;color:#fbbf6a">— button ' + e.action + ' —</div>';
           }
@@ -6758,6 +6829,13 @@
       if (capListEl) capListEl.addEventListener('change', e => {
         const row = e.target.closest('.cap-row'); if (!row || !row.dataset.id) return;
         const entry = entries.find(x => x.id === parseInt(row.dataset.id, 10) && isWaypoint(x)); if (!entry) return;
+        if (e.target.classList.contains('cap-s')) {
+          const sp = cleanSpeed(e.target.value);
+          if (sp == null) delete entry.speed; else entry.speed = sp;
+          e.target.value = sp == null ? '' : speedLit(sp);
+          rebuildPath();
+          return;
+        }
         const xEl = row.querySelector('.cap-x'), yEl = row.querySelector('.cap-y'), hEl = row.querySelector('.cap-h');
         const s = fromFtc(parseFloat(xEl.value) || 0, parseFloat(yEl.value) || 0, (parseFloat(hEl.value) || 0) * Math.PI / 180);
         entry.sx = s.sx; entry.sz = s.sz; entry.yaw = s.yaw;
@@ -6789,6 +6867,8 @@
       });
       const resetBtn = document.getElementById('cap-reset');
       if (resetBtn) resetBtn.addEventListener('click', () => { clearAll(); setCapturing(false); });
+      const speedEl = document.getElementById('cap-speed');
+      if (speedEl) speedEl.addEventListener('change', () => { setCapDefaultSpeed(speedEl.value); rebuildPath(); });
 
       // Help overlay: keep the panel clean by tucking every explanation behind this button
       const helpBtn = document.getElementById('cap-help-btn');
@@ -6799,12 +6879,15 @@
       if (helpOverlay) helpOverlay.addEventListener('click', e => { if (e.target === helpOverlay) helpOverlay.hidden = true; });
 
       // ---- code generation: split entries into segments at each action, splice continuity, emit Pedro ----
+      // The start (init) pose is the first waypoint, so a button pressed before the first pose still leaves
+      // the robot driving from its declared start pose (the next chain is spliced onto it below).
       function segmentEntries(list) {
         const segments = [];
-        let cur = { poses: [], actionAfter: null, actionEntry: null };
+        const fresh = () => ({ poses: [], own: [], actionAfter: null, actionEntry: null });
+        let cur = fresh();
         for (const e of list) {
-          if (e.type === 'pose') cur.poses.push(e);
-          else if (e.type === 'action') { cur.actionAfter = e.action; cur.actionEntry = e; segments.push(cur); cur = { poses: [], actionAfter: null, actionEntry: null }; }
+          if (isWaypoint(e)) { cur.poses.push(e); cur.own.push(e); }
+          else if (e.type === 'action') { cur.actionAfter = e.action; cur.actionEntry = e; segments.push(cur); cur = fresh(); }
         }
         if (cur.poses.length || cur.actionAfter) segments.push(cur);
         // continuity: prepend the last pose of the nearest previous non-empty segment
@@ -6817,49 +6900,120 @@
         return segments;
       }
 
-      function generateJava(className, list, opts) {
+      // ---- speed: one default (SPEED) plus an optional per-pose speed for the leg that ARRIVES at that pose ----
+      const SPEED_MIN = 0.05, SPEED_MAX = 1.0, SPEED_DEFAULT = 0.5;
+      function cleanSpeed(v) {
+        if (v == null || v === '') return null;
+        const n = typeof v === 'number' ? v : parseFloat(v);
+        if (!isFinite(n)) return null;
+        return Math.round(Math.min(SPEED_MAX, Math.max(SPEED_MIN, n)) * 100) / 100;
+      }
+      function speedLit(n) { const s = String(Math.round(n * 100) / 100); return s.includes('.') ? s : s + '.0'; }
+      function capDefaultSpeed() { const el = document.getElementById('cap-speed'); return (el && cleanSpeed(el.value)) || SPEED_DEFAULT; }
+      function setCapDefaultSpeed(v) { const el = document.getElementById('cap-speed'); if (el) el.value = speedLit(cleanSpeed(v) || SPEED_DEFAULT); }
+
+      // ---- student code blocks: kept across GUI saves, anywhere outside a generated statement ----
+      const STUDENT_BEGIN = /^\s*\/\/\s*STUDENT-CODE-BEGIN\b/, STUDENT_END = /^\s*\/\/\s*STUDENT-CODE-END\b/;
+      const CAP_ACTION_RE = /\/\/ CAP:ACTION seq=\d+ button=/, CAP_ACTION_END_RE = /\/\/ CAP:ACTION-END seq=\d+/;
+      const GEN_IMPORTS = [
+        'import com.pedropathing.follower.Follower;',
+        'import com.pedropathing.follower.FollowerConstants;',
+        'import com.pedropathing.control.PIDFCoefficients;',
+        'import com.pedropathing.control.FilteredPIDFCoefficients;',
+        'import com.pedropathing.geometry.BezierLine;',
+        'import com.pedropathing.geometry.Pose;',
+        'import com.pedropathing.paths.PathChain;',
+        '',
+        'import com.qualcomm.robotcore.eventloop.opmode.Autonomous;',
+        'import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;'];
+      const DEFAULT_CONSTANTS = [
+        '        FollowerConstants constants = new FollowerConstants()',
+        '                .translationalPIDFCoefficients(new PIDFCoefficients(0.3, 0, 0.03, 0))',
+        '                .headingPIDFCoefficients(new PIDFCoefficients(2.0, 0, 0.1, 0))',
+        '                .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.02, 0, 0.0005, 0.6, 0))',
+        '                .mass(13.0)',
+        '                .forwardZeroPowerAcceleration(30)',
+        '                .lateralZeroPowerAcceleration(50)',
+        '                .centripetalScaling(0.0005)',
+        '                .holdPointTranslationalScaling(0.45)',
+        '                .holdPointHeadingScaling(0.35);'];
+      const actionPlaceholder = btn => [
+        '        // ── Captured action: Button ' + btn + ' pressed here ──',
+        '        // TODO: call your subsystem here, e.g. robot.intake.forward(); or robot.intake.reverse();',
+        '        // To shoot here, see the lesson "Actions in Autonomous: Make It Shoot".'];
+
+      // Returns { lines, secs }: every line tagged with a STABLE section id (pose/leg/action ids come from the
+      // capture order, not from line numbers), so a line keeps its identity when poses are moved or new ones are
+      // appended. mergeCapturedJava() uses that to put each STUDENT-CODE block back after "the line it followed".
+      function generateJavaLines(className, list, opts) {
         opts = opts || {};
         const autoAim = !!opts.autoAim;   // package has AutoAim.java (Auto-Aim lesson): aim the turret during auto too
-        const initEntry = list.find(e => e.type === 'init');
+        const defSpeed = cleanSpeed(opts.speed) || SPEED_DEFAULT;
         const segments = segmentEntries(list);
-        // the captured start (Pinpoint init pose) becomes the first waypoint of the first chain, so the
-        // robot drives from where it's physically placed, through every captured pose, in one path.
-        if (initEntry && segments.length && segments[0].poses.length) segments[0].poses.unshift(initEntry);
         // stable position numbers for the CAP: markers, independent of where each entry ends up in the
         // generated file (pose declarations are all emitted up front, actions appear later) -- this is
         // what lets parseCapturedJava() reconstruct the original capture order on re-load.
         const seqOf = new Map();
         list.forEach((e, i) => seqOf.set(e, i + 1));
-        const L = [], push = s => L.push(s);
+        const segId = (seg, i) => seg.own.length ? 'p' + seqOf.get(seg.own[0]) : 'a' + (seg.actionEntry ? seqOf.get(seg.actionEntry) : i);
+        const effSpeed = p => cleanSpeed(p.speed) || defSpeed;            // speed of the leg arriving at pose p
+        const speedExpr = s => (s === defSpeed ? 'SPEED' : speedLit(s));
+        let usesSpeedHelper = false;
+        const L = [], S = [];
+        let sec = 'head';
+        const push = s => { L.push(s); S.push(sec); };
+
         push('package org.firstinspires.ftc.teamcode;');
         push('');
-        push('// CAP:FILE version=2');
-        push('import com.pedropathing.follower.Follower;');
-        push('import com.pedropathing.follower.FollowerConstants;');
-        push('import com.pedropathing.control.PIDFCoefficients;');
-        push('import com.pedropathing.control.FilteredPIDFCoefficients;');
-        push('import com.pedropathing.geometry.BezierLine;');
-        push('import com.pedropathing.geometry.Pose;');
-        push('import com.pedropathing.paths.PathChain;');
-        push('');
-        push('import com.qualcomm.robotcore.eventloop.opmode.Autonomous;');
-        push('import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;');
+        push('// CAP:FILE version=3');
+        for (const imp of GEN_IMPORTS) push(imp);
+        for (const imp of (opts.extraImports || [])) push(imp);
         push('');
         push('// Captured with the simulator\'s Path Capture tool (Capture tab). Runs unmodified on the sim or the real robot.');
-        push('// This file can be re-opened there (Capture tab -> Edit existing) IF its "// CAP:..." marker comments');
-        push('// below are left in place: don\'t remove/reorder a "// CAP:POSE" line or a "// CAP:ACTION"/"// CAP:ACTION-END"');
-        push('// pair. You MAY add your own code between a CAP:ACTION line and its matching CAP:ACTION-END -- that\'s');
-        push('// the only region this tool preserves verbatim when the file is loaded back into the capture GUI.');
+        push('//');
+        push('// ======================== KEEPING YOUR OWN CODE ========================');
+        push('// You can re-open this file in the Capture tab (Load Capture), move or add poses, change speeds, and');
+        push('// Save again. Saving REBUILDS this file from the captured path. Your own code survives that ONLY here:');
+        push('//');
+        push('//  1) STUDENT-CODE blocks -- wrap your code in these two marker lines, almost anywhere in the file:');
+        push('//         // STUDENT-CODE-BEGIN');
+        push('//         robot.extractor.deploy();');
+        push('//         robot.update();');
+        push('//         // STUDENT-CODE-END');
+        push('//     WHERE THEY WORK:');
+        push('//       * inside runOpMode(), between any two statements: during INIT (before waitForStart), right after');
+        push('//         START (e.g. a preload shot before the first path), INSIDE a path\'s while-loop (runs every loop');
+        push('//         while that path drives -- e.g. run the intake on the way), between paths, or at the end;');
+        push('//       * at class level, outside runOpMode(): your own fields, constants and helper methods.');
+        push('//     HOW THEY MOVE: a block stays directly after the line it follows now. Moving a pose, changing a');
+        push('//       speed or adding poses/actions at the end does not change that line. If the line is gone (e.g.');
+        push('//       you re-captured the path), the block goes to the nearest earlier line that still exists and');
+        push('//       Save tells you to check it.');
+        push('//     NOT ALLOWED: inside a generated statement (e.g. in the middle of a pathBuilder() chain), a block');
+        push('//       inside another block, or a BEGIN without its END (Save refuses until it is fixed).');
+        push('//  2) CAP:ACTION blocks -- the lines between "// CAP:ACTION seq=N button=X" and "// CAP:ACTION-END seq=N"');
+        push('//     (made where you pressed A/B/X/Y while capturing) are kept too. No extra markers needed there.');
+        push('//  3) Kept automatically: import lines you add, and your tuning in the FollowerConstants block.');
+        push('//');
+        push('// SPEED and per-pose speeds are set in the Capture tab (Load Capture reads them back from this file).');
+        push('// Everything else is regenerated. If Save would throw away or reset anything, the Capture tab first');
+        push('// lists it and lets you Cancel, Save as a new name, or Save anyway.');
+        push('// DON\'T edit, move or delete the "// CAP:..." lines or the numbers in "new Pose(...)" -- move poses');
+        push('// in the Capture tab instead. Without its CAP: lines this file can\'t be re-opened there.');
         push('//');
         push('// Coordinates: inches from the field center, seen from YOUR drivers (red or blue -- the field is the same');
         push('// from both sides): +X = their right, +Y = away from them, heading in degrees counter-clockwise from +X');
         push('// (90 = facing away from the drivers). On blue, place the robot on the mirror-image spot. TeleOp and');
         push('// auto-aim use the same frame, so the pose this auto ends at can be handed straight to TeleOp.');
+        sec = 'class';
         push('@Autonomous(name = "' + className + '", group = "Captured")');
         push('public class ' + className + ' extends LinearOpMode {');
         push('');
-        push('    private static final double SPEED = 0.5;');
+        sec = 'fields';
+        push('    // Default max power (0..1) for every leg without its own speed. Set it in the Capture tab.');
+        push('    private static final double SPEED = ' + speedLit(defSpeed) + ';');
         push('');
+        sec = 'setup';
         push('    @Override');
         push('    public void runOpMode() throws InterruptedException {');
         push('        Robot robot = new Robot(hardwareMap);');
@@ -6867,16 +7021,7 @@
         push('        PinpointLocalizer localizer = new PinpointLocalizer(hardwareMap);');
         push('        MecanumDrivetrainSubsystem drivetrain = new MecanumDrivetrainSubsystem(hardwareMap);');
         push('');
-        push('        FollowerConstants constants = new FollowerConstants()');
-        push('                .translationalPIDFCoefficients(new PIDFCoefficients(0.3, 0, 0.03, 0))');
-        push('                .headingPIDFCoefficients(new PIDFCoefficients(2.0, 0, 0.1, 0))');
-        push('                .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.02, 0, 0.0005, 0.6, 0))');
-        push('                .mass(13.0)');
-        push('                .forwardZeroPowerAcceleration(30)');
-        push('                .lateralZeroPowerAcceleration(50)');
-        push('                .centripetalScaling(0.0005)');
-        push('                .holdPointTranslationalScaling(0.45)');
-        push('                .holdPointHeadingScaling(0.35);');
+        for (const line of (opts.constants && opts.constants.length ? opts.constants : DEFAULT_CONSTANTS)) push(line);
         push('');
         push('        Follower follower = new Follower(constants, localizer, drivetrain);');
         push('');
@@ -6888,26 +7033,39 @@
         }
         for (const [p, name] of poseVarName) {
           const f = toFtc(p.sx, p.sz, p.yaw);
-          push('        // CAP:POSE seq=' + seqOf.get(p) + ' kind=' + (p === initEntry ? 'init' : 'pose'));
+          const sp = p.type === 'pose' ? cleanSpeed(p.speed) : null;
+          sec = 'pose:' + seqOf.get(p);
+          push('        // CAP:POSE seq=' + seqOf.get(p) + ' kind=' + (p.type === 'init' ? 'init' : 'pose') + (sp != null ? ' speed=' + speedLit(sp) : ''));
           push('        Pose ' + name + ' = new Pose(' + f.x.toFixed(2) + ', ' + f.y.toFixed(2)
             + ', Math.toRadians(' + (f.heading * 180 / Math.PI).toFixed(1) + '));');
         }
+        sec = 'poses';
         push('');
 
         segments.forEach((seg, si) => {
           if (seg.poses.length < 2) return;
+          const id = segId(seg, si);
+          sec = 'build:' + id;
           push('        PathChain chain' + (si + 1) + ' = follower.pathBuilder()');
           for (let k = 0; k < seg.poses.length - 1; k++) {
-            const a = poseVarName.get(seg.poses[k]), b = poseVarName.get(seg.poses[k + 1]);
+            const pa = seg.poses[k], pb = seg.poses[k + 1];
+            const a = poseVarName.get(pa), b = poseVarName.get(pb);
+            sec = 'leg:' + seqOf.get(pb);
             push('                .addPath(new BezierLine(' + a + ', ' + b + '))');
             push('                .setLinearHeadingInterpolation(' + a + '.getHeading(), ' + b + '.getHeading())');
+            // the chain's first leg gets its speed from followPath(); later legs only need a change marker
+            if (k > 0 && effSpeed(pb) !== effSpeed(seg.poses[k])) {
+              usesSpeedHelper = true;
+              push('                .addParametricCallback(0, setSpeed(follower, ' + speedExpr(effSpeed(pb)) + '))   // this leg\'s speed');
+            }
           }
+          sec = 'build:' + id;
           push('                .build();');
           push('');
         });
 
-        const firstPoseName = poseVarName.values().next().value;
-        push('        Pose startPose = ' + firstPoseName + ';');
+        sec = 'start';
+        push('        Pose startPose = ' + poseVarName.values().next().value + ';');
         push('        // this is the ONLY absolute position source we have (no AprilTags yet) -- it MUST');
         push('        // match wherever the robot is physically placed on the field before the match starts.');
         push('        follower.setStartingPose(startPose);');
@@ -6944,9 +7102,10 @@
 
         segments.forEach((seg, si) => {
           if (seg.poses.length >= 2) {
+            sec = 'run:' + segId(seg, si);
             const last = seg.poses[seg.poses.length - 1];
             const lf = toFtc(last.sx, last.sz, last.yaw);
-            push('        follower.followPath(chain' + (si + 1) + ', SPEED, true);');
+            push('        follower.followPath(chain' + (si + 1) + ', ' + speedExpr(effSpeed(seg.poses[1])) + ', true);');
             push('        while (opModeIsActive() && follower.isBusy()) {');
             push('            follower.update();');
             if (autoAim) push('            aim.aim(robot.localization, robot.turret);   // keep the turret on the hive while driving');
@@ -6960,24 +7119,21 @@
           }
           if (seg.actionAfter) {
             const seq = seqOf.get(seg.actionEntry);
+            sec = 'act:' + seq;
             if (autoAim) {
               push('        robot.update();');
               push('        aim.aim(robot.localization, robot.turret);   // final aim from where we stopped (the servo holds it)');
               push('        robot.update();');
             }
             push('        // CAP:ACTION seq=' + seq + ' button=' + seg.actionAfter);
-            if (seg.actionEntry && seg.actionEntry.code) {
-              for (const line of seg.actionEntry.code.split('\n')) push(line);
-            } else {
-              push('        // ── Captured action: Button ' + seg.actionAfter + ' pressed here ──');
-              push('        // TODO: call your subsystem here, e.g. robot.intake.forward(); or robot.intake.reverse();');
-              push('        // To shoot here, see the lesson "Actions in Autonomous: Make It Shoot".');
-            }
+            const code = seg.actionEntry && seg.actionEntry.code;
+            for (const line of (code ? code.split('\n') : actionPlaceholder(seg.actionAfter))) push(line);
             push('        // CAP:ACTION-END seq=' + seq);
             push('');
           }
         });
 
+        sec = 'end';
         push('        drivetrain.breakFollowing();');
         push('        robot.intake.off();');
         push('');
@@ -6988,6 +7144,7 @@
         push('        telemetry.update();');
         push('    }');
         push('');
+        sec = 'm:save';
         push('    // Hand the robot\'s position to TeleOp (lesson "Auto -> TeleOp: Keep Your Place"). The SDK\'s blackboard survives from one OpMode');
         push('    // to the next, so TeleOp starts out knowing where auto left the robot. Saved every loop, not just at the');
         push('    // end, because the match timer can stop auto partway through a path.');
@@ -6996,6 +7153,7 @@
         push('        blackboard.put("autoPose", new double[] { p.getX(), p.getY(), Math.toDegrees(p.getHeading()) });');
         push('    }');
         push('');
+        sec = 'm:telemetry';
         push('    // shared per-loop telemetry: coordinate legend + tracked pose vs the active target + error');
         push('    private void telemetryPose(Follower follower, double tx, double ty, double thDeg) {');
         push('        Pose p = follower.getPose();');
@@ -7007,25 +7165,205 @@
         push('        telemetry.addData("Busy", follower.isBusy());');
         push('        telemetry.update();');
         push('    }');
+        if (usesSpeedHelper) {
+          sec = 'm:speed';
+          push('');
+          push('    // Per-leg speed (set on each pose in the Capture tab): Pedro runs this as that leg starts (t = 0)');
+          push('    // and changes the max power mid-chain, without stopping.');
+          push('    private static Runnable setSpeed(final Follower follower, final double maxPower) {');
+          push('        return () -> follower.setMaxPower(maxPower);');
+          push('    }');
+        }
+        sec = 'classEnd';
         push('}');
         push('');
-        return L.join('\n');
+        return { lines: L, secs: S };
+      }
+      function generateJava(className, list, opts) { return generateJavaLines(className, list, opts).lines.join('\n'); }
+
+      // identity of each generated line: section + text with numbers blurred + occurrence in that section
+      // (numbers blurred so moving a pose, renumbering pose7 -> pose8, or a new speed keeps the same identity)
+      const normLine = s => s.trim().replace(/\s+/g, ' ').replace(/-?\d+(\.\d+)?/g, '#');
+      function lineKeys(gen) {
+        const seen = new Map();
+        return gen.lines.map((s, i) => {
+          if (!s.trim()) return null;
+          const k = gen.secs[i] + '|' + (gen.secs[i] === 'class' ? 'decl' : normLine(s));
+          const n = seen.get(k) || 0; seen.set(k, n + 1);
+          return k + '|' + n;
+        });
+      }
+      // longest-common-subsequence alignment of two string arrays -> Map(aIndex -> bIndex)
+      function lcsPairs(a, b) {
+        const n = a.length, m = b.length;
+        const dp = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+        for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+          dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+        const map = new Map();
+        let i = 0, j = 0;
+        while (i < n && j < m) {
+          if (a[i] === b[j]) { map.set(i, j); i++; j++; }
+          else if (dp[i + 1][j] >= dp[i][j + 1]) i++; else j++;
+        }
+        return map;
+      }
+      // STUDENT-CODE blocks outside CAP:ACTION blocks (inside one they are simply part of that action's code)
+      function findStudentBlocks(lines) {
+        let inAction = false, open = -1;
+        const blocks = [];
+        for (let i = 0; i < lines.length; i++) {
+          const s = lines[i];
+          if (CAP_ACTION_RE.test(s)) {
+            if (open >= 0) return { error: 'The STUDENT-CODE-BEGIN on line ' + (open + 1) + ' has no STUDENT-CODE-END before the CAP:ACTION on line ' + (i + 1) + '.' };
+            inAction = true; continue;
+          }
+          if (CAP_ACTION_END_RE.test(s)) { inAction = false; continue; }
+          if (inAction) continue;
+          if (STUDENT_BEGIN.test(s)) {
+            if (open >= 0) return { error: 'STUDENT-CODE-BEGIN on line ' + (i + 1) + ' is inside the block that starts on line ' + (open + 1) + ' -- blocks can\'t be nested.' };
+            open = i;
+          } else if (STUDENT_END.test(s)) {
+            if (open < 0) return { error: 'STUDENT-CODE-END on line ' + (i + 1) + ' has no STUDENT-CODE-BEGIN above it.' };
+            blocks.push({ start: open, end: i }); open = -1;
+          }
+        }
+        if (open >= 0) return { error: 'The STUDENT-CODE-BEGIN on line ' + (open + 1) + ' has no matching STUDENT-CODE-END.' };
+        return { blocks };
+      }
+
+      // Rebuild an existing captured file for newEntries while keeping the student's code: STUDENT-CODE blocks go back
+      // after the same generated line, CAP:ACTION code is kept, extra imports and the FollowerConstants block carry
+      // over. Also reports what would NOT survive so the caller can ask before saving.
+      //   opts: { className, autoAim, speed, refreshActions (newEntries were loaded from this file), loadedSpeed }
+      function mergeCapturedJava(oldText, newEntries, opts) {
+        const src = oldText.replace(/\r\n?/g, '\n');
+        const old = parseCapturedJava(src);
+        if (!old.ok) return { ok: false, reason: old.reason };
+        const lines = src.split('\n');
+        const sb = findStudentBlocks(lines);
+        if (sb.error) return { ok: false, reason: sb.error };
+
+        // lift the student blocks out, remembering where each one sat
+        const kept = [], blocks = [];
+        for (let i = 0, bi = 0; i < lines.length; i++) {
+          const b = sb.blocks[bi];
+          if (b && i === b.start) { blocks.push({ text: lines.slice(b.start, b.end + 1), at: kept.length }); i = b.end; bi++; continue; }
+          kept.push(lines[i]);
+        }
+
+        // what the generator itself writes for the file as it stands now -- anything beyond that is the student's.
+        // Imports come from outside the student blocks (a block keeps its own), any form: static, commented, indented.
+        const extraImports = [...new Set(kept.filter(l => /^\s*import\s/.test(l)).map(l => l.trim()))].filter(s => !GEN_IMPORTS.includes(s));
+        const oldGen = generateJavaLines(old.meta.className || opts.className, old.entries,
+          { autoAim: old.meta.autoAim, speed: old.meta.speed, constants: old.meta.constants, extraImports });
+        const oldKeys = lineKeys(oldGen);
+        const A = [], Ai = [], B = [], Bi = [];
+        kept.forEach((s, i) => { if (s.trim()) { A.push(normLine(s)); Ai.push(i); } });
+        oldGen.lines.forEach((s, i) => { if (s.trim()) { B.push(normLine(s)); Bi.push(i); } });
+        const matchOf = new Map();
+        for (const [a, b] of lcsPairs(A, B)) matchOf.set(Ai[a], Bi[b]);
+
+        const clsIdx = kept.findIndex(s => /^\s*public class \w+/.test(s));
+        const lost = [], changed = [];
+        kept.forEach((s, i) => {
+          const t = s.trim();
+          if (!t) return;
+          if (!matchOf.has(i)) {
+            if (/^import\s/.test(t) && (extraImports.includes(t) || GEN_IMPORTS.includes(t))) return;   // carried over
+            if (clsIdx >= 0 && i < clsIdx && t.startsWith('//')) return;   // header prose: rewritten by every tool version
+            lost.push(t);
+          } else if (!/^(Pose \w+ = new Pose\(|telemetryPose\(|\/\/ CAP:(POSE|FILE))/.test(t)) {
+            // same shape as the generated line -- flag it only if a number was actually changed (1 vs 1.0 is fine)
+            const nums = s => (s.match(/-?\d+(\.\d+)?/g) || []).map(Number);
+            const a = nums(t), g = nums(oldGen.lines[matchOf.get(i)]);
+            if (a.length !== g.length || a.some((v, k) => v !== g[k])) changed.push(t);
+          }
+        });
+
+        // CAP:ACTION code: take it from the file (newer than what the GUI loaded) for actions that came from it
+        const oldActions = new Map(old.entries.filter(e => e.type === 'action').map(e => [e.srcSeq, e]));
+        if (opts.refreshActions) {
+          for (const e of newEntries) if (e.type === 'action' && e.srcSeq != null && oldActions.has(e.srcSeq)) e.code = oldActions.get(e.srcSeq).code;
+        }
+        const newCodes = new Set(newEntries.filter(e => e.type === 'action' && e.code).map(e => e.code));
+        for (const a of oldActions.values()) {
+          if (!a.code || newCodes.has(a.code) || a.code === actionPlaceholder(a.action).join('\n')) continue;
+          for (const l of a.code.split('\n')) if (l.trim()) lost.push(l.trim());
+        }
+        if (old.meta.speed != null && old.meta.speed !== cleanSpeed(opts.speed) && old.meta.speed !== opts.loadedSpeed) {
+          changed.push('private static final double SPEED = ' + speedLit(old.meta.speed) + ';   (Capture tab default speed is ' + speedLit(cleanSpeed(opts.speed) || SPEED_DEFAULT) + ')');
+        }
+
+        // where each block goes: after the line it followed, else the nearest earlier line that still exists AND ends a
+        // statement (never a pathBuilder() leg or the @Autonomous line, where the block would break the Java)
+        const keyText = k => k.split('|').slice(1, -1).join('|');
+        const safeFallback = k => !/^leg:/.test(k) && /(;|\{|\})$|^\/\//.test(keyText(k));
+        const anchorChains = blocks.map(b => {
+          const chain = [];
+          for (let i = b.at - 1; i >= 0; i--) {
+            const k = matchOf.has(i) && oldKeys[matchOf.get(i)];
+            if (k && (!chain.length || safeFallback(k))) chain.push(k);
+          }
+          return chain;
+        });
+        const newGen = generateJavaLines(opts.className, newEntries,
+          { autoAim: opts.autoAim, speed: opts.speed, constants: old.meta.constants, extraImports });
+        const keyIdx = new Map();
+        lineKeys(newGen).forEach((k, i) => { if (k) keyIdx.set(k, i); });
+        const classLine = newGen.secs.indexOf('class') + 1;
+        const inserts = new Map(), moved = [];
+        blocks.forEach((b, n) => {
+          const chain = anchorChains[n];
+          let at = classLine, found = -1;
+          for (let c = 0; c < chain.length; c++) if (keyIdx.has(chain[c])) { at = keyIdx.get(chain[c]); found = c; break; }
+          if (found !== 0) moved.push((b.text.slice(1, -1).find(l => l.trim()) || '(empty block)').trim());
+          if (!inserts.has(at)) inserts.set(at, []);
+          inserts.get(at).push(...b.text);
+        });
+        const out = [];
+        newGen.lines.forEach((s, i) => { out.push(s); if (inserts.has(i)) out.push(...inserts.get(i)); });
+        return { ok: true, text: out.join('\n'), lost, changed, moved, blocks: blocks.length };
+      }
+
+      // ---- save-time questions: Cancel / Save as new name / Save anyway ----
+      const escHtml = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      function askCapWarn(title, html) {
+        const ov = document.getElementById('cap-warn');
+        if (!ov) return Promise.resolve(confirm(title) ? 'overwrite' : 'cancel');
+        document.getElementById('cap-warn-title').textContent = title;
+        document.getElementById('cap-warn-body').innerHTML = html;
+        ov.hidden = false;
+        return new Promise(resolve => {
+          const onClick = e => {
+            const btn = e.target.closest('[data-choice]');
+            const choice = btn ? btn.dataset.choice : (e.target === ov ? 'cancel' : null);
+            if (!choice) return;
+            ov.hidden = true; ov.removeEventListener('click', onClick); resolve(choice);
+          };
+          ov.addEventListener('click', onClick);
+        });
+      }
+      function warnListHtml(head, items, max) {
+        if (!items.length) return '';
+        const shown = items.slice(0, max || 30);
+        return '<p>' + head + '</p><pre class="cap-warn-pre">' + shown.map(escHtml).join('\n')
+          + (items.length > shown.length ? '\n… and ' + (items.length - shown.length) + ' more' : '') + '</pre>';
       }
 
       // ---- export: ensure support files exist, add the generated auto, switch to it ----
+      let loadedFrom = null, loadedSpeed = null;   // the file the GUI was loaded from (and its SPEED then)
+      const cleanClassName = raw => {
+        let n = (raw || '').trim().replace(/[^A-Za-z0-9_]/g, '');
+        if (/^[0-9]/.test(n)) n = '_' + n;
+        return n;
+      };
       async function exportCapturedAuto() {
-        const poseEntries = entries.filter(e => e.type === 'pose');
         const waypoints = entries.filter(isWaypoint);
         if (waypoints.length < 2) { alert('Capture at least two waypoints (the start plus one pose) before exporting.'); return; }
         const p = curPkg(); if (!p) return;
 
         const nameInput = document.getElementById('cap-name');
-        let name = ((nameInput && nameInput.value.trim()) || 'CapturedAuto').replace(/[^A-Za-z0-9_]/g, '') || 'CapturedAuto';
-        if (/^[0-9]/.test(name)) name = '_' + name;
-        if (p.files[name + '.java']) {
-          const ok = confirm('"' + name + '.java" already exists in package "' + store.current + '". Overwrite it?');
-          if (!ok) return;
-        }
+        let name = cleanClassName(nameInput && nameInput.value) || 'CapturedAuto';
 
         // Templates are only fetched when missing, so a student's robot-specific edits (pod
         // directions/offsets, motor names/directions) survive every export.
@@ -7045,12 +7383,51 @@
           }
         }
 
-        p.files[name + '.java'] = generateJava(name, entries, { autoAim: !!p.files['AutoAim.java'] });
+        const autoAim = !!p.files['AutoAim.java'];
+        const speed = capDefaultSpeed();
+        const build = (cls, existing) => existing && /CAP:FILE version=\d/.test(existing)
+          ? mergeCapturedJava(existing, entries, { className: cls, autoAim, speed, refreshActions: loadedFrom === name + '.java', loadedSpeed })
+          : { ok: true, text: generateJava(cls, entries, { autoAim, speed }), lost: [], changed: [], moved: [], fresh: true };
+
+        const existing = p.files[name + '.java'];
+        let result = build(name, existing);
+        if (typeof existing === 'string' && existing.trim()) {
+          const captured = /CAP:FILE version=\d/.test(existing);
+          let html = '';
+          if (!captured) html = '<p><code>' + escHtml(name) + '.java</code> was not made by Path Capture. Saving <b>replaces the whole file</b>.</p>';
+          else if (!result.ok) html = '<p>Your code in <code>' + escHtml(name) + '.java</code> can\'t be kept automatically:</p><p class="cap-warn-why">' + escHtml(result.reason)
+            + '</p><p>Fix that in the editor and Save again, or choose an option below (<b>Save anyway</b> replaces the whole file).</p>';
+          else {
+            html = warnListHtml('These lines are <b>outside any STUDENT-CODE block</b> and would be removed:', result.lost)
+              + warnListHtml('These generated lines were <b>edited by hand</b> and would go back to what the tool writes:', result.changed)
+              + warnListHtml('These STUDENT-CODE blocks lost the line they followed and will be placed at the nearest earlier line &mdash; check them after saving:', result.moved);
+            if (html) html += '<p class="cap-warn-tip">To keep code, Cancel and wrap it in <code>// STUDENT-CODE-BEGIN</code> &hellip; <code>// STUDENT-CODE-END</code> (see the top of the file), then Save again.</p>';
+            else if (loadedFrom !== name + '.java') html = '<p><code>' + escHtml(name) + '.java</code> already exists. Its path will be replaced by this capture'
+              + (result.blocks ? '; its ' + result.blocks + ' STUDENT-CODE block(s) are kept.' : '.') + '</p>';
+          }
+          if (html) {
+            const choice = await askCapWarn(captured && result.ok && (result.lost.length || result.changed.length || result.moved.length)
+              ? 'Save would change your code' : 'Save "' + name + '.java"?', html);
+            if (choice === 'cancel') return;
+            if (choice === 'saveas') {
+              const newName = cleanClassName(prompt('Save the capture as a new file (the current one is left unchanged). New name:', name + '_v2'));
+              if (!newName) return;
+              if (p.files[newName + '.java']) { alert('"' + newName + '.java" already exists. Pick a different name.'); return; }
+              name = newName;
+              if (nameInput) nameInput.value = name;
+              result = build(name, captured ? existing : null);
+            }
+            if (!result.ok) result = build(name, null);   // Save anyway on a file that can't be merged: replace it
+          }
+        }
+
+        p.files[name + '.java'] = result.text;
         p.active = name + '.java';
+        loadedFrom = name + '.java'; loadedSpeed = speed;
         saveStore();
         renderAll();
         refreshCapLoadOptions();
-        alert('Exported "' + name + '.java" to package "' + store.current + '".');
+        alert('Saved "' + name + '.java" to package "' + store.current + '".');
       }
       const exportBtn = document.getElementById('cap-export');
       if (exportBtn) exportBtn.addEventListener('click', exportCapturedAuto);
@@ -7059,17 +7436,19 @@
       // Fails CLOSED (returns {ok:false, reason}) rather than guessing, whenever the file's shape
       // doesn't match what this tool itself would have emitted -- see the banner comment in generateJava.
       function parseCapturedJava(source) {
+        source = source.replace(/\r\n?/g, '\n');
         const ver = (source.match(/\/\/ CAP:FILE version=(\d+)\b/) || [])[1];
-        if (ver !== '1' && ver !== '2') {
+        if (ver !== '1' && ver !== '2' && ver !== '3') {
           return { ok: false, reason: 'No "// CAP:FILE version=..." marker found -- this file wasn\'t generated by the Path Capture tool (or that line was removed), so it can\'t be re-opened here.' };
         }
         const poseFromFtc = ver === '1' ? fromFtcV1 : fromFtc;
 
-        const poseRe = /\/\/ CAP:POSE seq=(\d+) kind=(init|pose)\s*\n\s*Pose\s+\w+\s*=\s*new Pose\(\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*Math\.toRadians\(\s*(-?[\d.]+)\s*\)\s*\)\s*;/g;
+        const poseRe = /\/\/ CAP:POSE seq=(\d+) kind=(init|pose)([^\n]*)\n\s*Pose\s+\w+\s*=\s*new Pose\(\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*Math\.toRadians\(\s*(-?[\d.]+)\s*\)\s*\)\s*;/g;
         const poseItems = [];
         let m;
         while ((m = poseRe.exec(source))) {
-          poseItems.push({ seq: parseInt(m[1], 10), kind: m[2], fx: parseFloat(m[3]), fy: parseFloat(m[4]), fh: parseFloat(m[5]) });
+          const sp = (m[3].match(/\bspeed=([\d.]+)/) || [])[1];
+          poseItems.push({ seq: parseInt(m[1], 10), kind: m[2], speed: cleanSpeed(sp), fx: parseFloat(m[4]), fy: parseFloat(m[5]), fh: parseFloat(m[6]) });
         }
         const poseMarkerCount = (source.match(/\/\/ CAP:POSE seq=/g) || []).length;
         if (poseItems.length !== poseMarkerCount) {
@@ -7081,10 +7460,11 @@
 
         const actionStartCount = (source.match(/\/\/ CAP:ACTION seq=\d+ button=/g) || []).length;
         const actionEndCount = (source.match(/\/\/ CAP:ACTION-END seq=\d+/g) || []).length;
-        const actionRe = /\/\/ CAP:ACTION seq=(\d+) button=([ABXY])\r?\n([\s\S]*?)\/\/ CAP:ACTION-END seq=\1\b/g;
+        const actionRe = /\/\/ CAP:ACTION seq=(\d+) button=([ABXY])[ \t]*\n([\s\S]*?)\/\/ CAP:ACTION-END seq=\1\b/g;
         const actionItems = [];
         while ((m = actionRe.exec(source))) {
-          actionItems.push({ seq: parseInt(m[1], 10), button: m[2], code: m[3].replace(/\n$/, '') });
+          // drop the END line's own indentation (and the newline before it) so a save doesn't add a blank line each time
+          actionItems.push({ seq: parseInt(m[1], 10), button: m[2], code: m[3].replace(/[ \t]*$/, '').replace(/\n$/, '') });
         }
         if (actionItems.length !== actionStartCount || actionItems.length !== actionEndCount) {
           return { ok: false, reason: 'Found ' + actionStartCount + ' "CAP:ACTION" marker(s) and ' + actionEndCount + ' "CAP:ACTION-END" marker(s), but only ' + actionItems.length + ' matched pair(s) -- an action\'s start/end markers may be missing, reordered, or nested inside another one.' };
@@ -7106,13 +7486,22 @@
           if (node.isPose) {
             const conv = poseFromFtc(node.it.fx, node.it.fy, node.it.fh * Math.PI / 180);
             const id = idc++;
-            newEntries.push({ id, type: node.it.kind, sx: conv.sx, sz: conv.sz, yaw: conv.yaw });
+            const e = { id, type: node.it.kind, sx: conv.sx, sz: conv.sz, yaw: conv.yaw };
+            if (node.it.kind === 'pose' && node.it.speed != null) e.speed = node.it.speed;
+            newEntries.push(e);
             lastPoseId = id;
           } else {
-            newEntries.push({ id: idc++, type: 'action', action: node.it.button, anchorId: lastPoseId, code: node.it.code });
+            newEntries.push({ id: idc++, type: 'action', action: node.it.button, anchorId: lastPoseId, code: node.it.code, srcSeq: node.it.seq });
           }
         }
-        return { ok: true, entries: newEntries, nextId: idc };
+        const constants = source.match(/^[ \t]*FollowerConstants constants = new FollowerConstants\(\)[^;]*;[ \t]*$/m);
+        const meta = {
+          className: (source.match(/^\s*public class (\w+)/m) || [])[1] || null,
+          speed: cleanSpeed((source.match(/\bprivate static final double SPEED\s*=\s*([\d.]+)\s*;/) || [])[1]),
+          autoAim: /\bnew AutoAim\(\)/.test(source),
+          constants: constants ? constants[0].split('\n') : null,
+        };
+        return { ok: true, entries: newEntries, nextId: idc, meta };
       }
 
       // swap the live entries/visuals for a freshly parsed set (used by the "Load Capture" button)
@@ -7138,7 +7527,7 @@
         sel.innerHTML = '<option value="">-- pick a captured auto --</option>';
         if (p) {
           for (const fname of Object.keys(p.files)) {
-            if (typeof p.files[fname] === 'string' && /CAP:FILE version=[12]\b/.test(p.files[fname])) {
+            if (typeof p.files[fname] === 'string' && /CAP:FILE version=[123]\b/.test(p.files[fname])) {
               const opt = document.createElement('option');
               opt.value = fname; opt.textContent = fname.replace(/\.java$/, '');
               sel.appendChild(opt);
@@ -7159,6 +7548,8 @@
         const result = parseCapturedJava(p.files[fname]);
         if (!result.ok) { alert('Can\'t open "' + fname + '" for editing:\n\n' + result.reason); return; }
         loadEntries(result.entries, result.nextId);
+        setCapDefaultSpeed(result.meta.speed);
+        loadedFrom = fname; loadedSpeed = cleanSpeed(result.meta.speed) || SPEED_DEFAULT;
         setCapturing(true);
         const nameInput = document.getElementById('cap-name');
         if (nameInput) nameInput.value = fname.replace(/\.java$/, '');
