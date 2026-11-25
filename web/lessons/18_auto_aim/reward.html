@@ -162,6 +162,13 @@ public class AutoAim {
             turretAngle = otherWay;
         }
 
+        // 6. Still out of reach? The cell is behind us, past the turret's limits in BOTH directions.
+        //    Hold where we are -- otherwise a tiny wiggle flips +179 / -179 and the turret slams
+        //    from one limit to the other. It picks the cell back up as soon as it's in range.
+        if (Math.abs(turretAngle) &gt; Turret.MAX_ANGLE) {
+            turretAngle = turret.getAngle();   // "aim" at where we already are = don't move
+        }
+
         status = String.format("%s cell, turret %.0f deg", aimingRight ? "RIGHT" : "LEFT", turretAngle);
         turret.setAngle(turretAngle);
     }

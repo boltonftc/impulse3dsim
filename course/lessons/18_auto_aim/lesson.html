@@ -511,7 +511,23 @@ if (Math.abs(otherWay) &lt;= Turret.MAX_ANGLE
 <p>Same direction either way &mdash; the rule just picks the one that gets there fastest. And when the twin is past
 200&deg;, the first check fails, the turret has to take the only way left, and that's the unwind.</p>
 
-<h3>Step 6: aim!</h3>
+<h3>Step 6: out of reach? hold still</h3>
+
+<pre><code>if (Math.abs(turretAngle) &gt; Turret.MAX_ANGLE) {
+    turretAngle = turret.getAngle();   // "aim" at where we already are = don't move
+}</code></pre>
+
+<p>With a 200&deg; turret every direction is reachable one way or the other, so this never fires. But many real
+turrets can't go that far &mdash; the wires only stretch so far &mdash; and a team may lower <code>MAX_ANGLE</code> to,
+say, 120&deg;. Then a cell <strong>behind</strong> the robot is out of reach <em>both</em> ways.</p>
+<p>Without this step, here's what goes wrong. The <code>Turret</code> clamps every angle to its limit, so +179&deg;
+becomes +120&deg; and &minus;179&deg; becomes &minus;120&deg;. With the cell right behind you, the tiniest wiggle of the
+robot flips the answer between +179 and &minus;179, and the turret <strong>slams 240&deg; from one side to the
+other</strong>, over and over. It looks (and feels, to the driver) like the robot has gone crazy. Holding still is
+calmer: the turret waits at the edge it already reached, and picks the cell back up the moment it comes into
+range.</p>
+
+<h3>Step 7: aim!</h3>
 
 <pre><code>turret.setAngle(turretAngle);</code></pre>
 
@@ -543,7 +559,10 @@ if (Math.abs(otherWay) &lt;= Turret.MAX_ANGLE
         &amp;&amp; Math.abs(otherWay - now) &lt; Math.abs(turretAngle - now)) {
     turretAngle = otherWay;                                       //    reachable AND a shorter swing
 }
-turret.setAngle(turretAngle);                                     // 6. aim!</code></pre>
+if (Math.abs(turretAngle) &gt; Turret.MAX_ANGLE) {                   // 6. out of reach both ways?
+    turretAngle = turret.getAngle();                              //    hold still
+}
+turret.setAngle(turretAngle);                                     // 7. aim!</code></pre>
 
 <p><code>wrapDegrees()</code> isn't in this block because it's a separate little method. In Java you can't write one
 method inside another, so it lives just below <code>aim()</code> in <code>AutoAim.java</code>, and <code>aim()</code>

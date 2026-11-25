@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.46';
+    window.APP_VERSION = '2.8.47';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -9993,7 +9993,10 @@
           // same rule as AutoAim: the other way around, if reachable AND a shorter swing from the commanded angle
           const other = this._wrapped > 0 ? this._wrapped - 360 : this._wrapped + 360, now = this._turret;
           this._useOther = Math.abs(other) <= LIMIT && Math.abs(other - now) < Math.abs(this._wrapped - now);
-          const next = this._useOther ? other : this._wrapped;
+          const next0 = this._useOther ? other : this._wrapped;
+          // same rule as AutoAim step 6: out of reach both ways -> hold where we are
+          this._holding = Math.abs(next0) > LIMIT;
+          const next = this._holding ? now : next0;
           if (Math.abs(next - now) > 180) this._unwinding = true;
           this._turret = next;
         }
@@ -10039,7 +10042,8 @@
           const t = this._turret, side = t > 0.5 ? 'left' : t < -0.5 ? 'right' : 'straight ahead';
           const swinging = Math.abs(this._turret - this._shown) > 1;
           let status;
-          if (this._unwinding && swinging) status = '<span class="status no">UNWINDING \u2014 out of turret, swinging around the other way</span>';
+          if (this._holding) status = '<span class="status no">OUT OF REACH \u2014 holding until the cell comes back into range</span>';
+          else if (this._unwinding && swinging) status = '<span class="status no">UNWINDING \u2014 out of turret, swinging around the other way</span>';
           else if (Math.abs(t) > 180) status = '<span class="status two">ON TARGET \u2014 past 180\u00b0, in the overlap</span>';
           else status = '<span class="status ok">ON TARGET \u2014 turret ' + side + '</span>';
           this._el('hdgV').textContent = Math.round(this._hdg) + '\u00b0';
