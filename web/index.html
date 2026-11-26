@@ -21,7 +21,7 @@
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <script>
     // Single source of truth for the app version (shown in the top bar, used for the SW cache name).
-    window.APP_VERSION = '2.8.47';
+    window.APP_VERSION = '2.8.48';
     // Capture the browser's install prompt as early as possible so the top-bar button can trigger it.
     window.__installPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -333,13 +333,19 @@
     #pkgbar label,#ghbar label{color:#94a3b8;font-size:12px}
     #ghbar input{background:#0b1220;border:1px solid #263244;color:#e2e8f0;border-radius:6px;padding:3px 6px;font-size:12px}
     #ghstat{font-size:12px}
-    #ghpick{position:fixed;inset:0;z-index:500;background:#00000088;display:none;align-items:center;justify-content:center}
-    #ghpick.show{display:flex}
-    #ghpick .card{background:#0d1526;border:1px solid #334155;border-radius:8px;padding:16px 18px;min-width:280px;box-shadow:0 10px 40px #000a}
-    #ghpick h3{margin:0 0 4px;font-size:14px;color:#e2e8f0}
-    #ghpick p{margin:0 0 10px;font-size:12px;color:#94a3b8}
+    #ghpick,#ghwarn{position:fixed;inset:0;z-index:500;background:#00000088;display:none;align-items:center;justify-content:center}
+    #ghpick.show,#ghwarn.show{display:flex}
+    #ghpick .card,#ghwarn .card{background:#0d1526;border:1px solid #334155;border-radius:8px;padding:16px 18px;min-width:280px;box-shadow:0 10px 40px #000a}
+    #ghpick h3,#ghwarn h3{margin:0 0 4px;font-size:14px;color:#e2e8f0}
+    #ghpick p,#ghwarn p{margin:0 0 10px;font-size:12px;color:#94a3b8}
     #ghpick select{width:100%;background:#0b1220;border:1px solid #263244;color:#e2e8f0;border-radius:6px;padding:5px 6px;font-size:13px}
-    #ghpick .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+    #ghpick .btns,#ghwarn .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+    #ghwarn .card{max-width:520px;border-color:#f59e0b}
+    #ghwarn h3{color:#fbbf24}
+    #ghwarn ul{margin:0 0 10px;padding-left:18px;font-size:12px;max-height:180px;overflow:auto}
+    #ghwarn a{color:#60a5fa}
+    #ghwarn .last{font-size:11px;color:#94a3b8;border-left:2px solid #334155;padding-left:8px;margin:0 0 10px}
+    #ghwarn #ghwarn-push{background:#7f1d1d;border-color:#b91c1c;color:#fee2e2}
     /* Pit test-stand viewport (M6c) — bench now lives inside the drawer */
     #bench-wrap{flex:1 1 0;display:flex;flex-direction:column;min-width:260px;min-height:0;height:100%;align-self:flex-start}
     #bench-head{font-size:11px;color:#94a3b8;margin-bottom:4px}
@@ -670,6 +676,21 @@
       <div class="btns">
         <button id="ghpick-cancel">Cancel</button>
         <button id="ghpick-ok">⤓ Pull</button>
+      </div>
+    </div>
+  </div>
+  <div id="ghwarn">
+    <div class="card">
+      <h3>⚠ GitHub has changes you don't have</h3>
+      <p id="ghwarn-sub"></p>
+      <ul id="ghwarn-list"></ul>
+      <div class="last" id="ghwarn-last"></div>
+      <p>Pushing now <b>replaces these files with your copy</b> and undoes those changes. Open the links above and
+      review the code on GitHub first. Copy anything you want to keep into your package (or Pull the branch under a
+      new package name to compare), then push.</p>
+      <div class="btns">
+        <button id="ghwarn-cancel">Cancel</button>
+        <button id="ghwarn-push">Push anyway (overwrite)</button>
       </div>
     </div>
   </div>
@@ -4960,8 +4981,9 @@
     // ---- GitHub package sync: pull (read public or private) + push (Git Data API) ----
     // Package name == branch name (kept in sync). Repo persists in localStorage; the token lives
     // ONLY in this tab's sessionStorage and is never written into a package or an exported zip.
-    // No merge/conflict handling here — a student's own branch is force-pushed; team merges happen
-    // outside this tool. The competition_code / starter / course packages are protected (read-only
+    // No merge here — a student's own branch is force-pushed; team merges happen outside this tool.
+    // But the push first checks for commits it doesn't have (ghCheckRemote) and warns, with links,
+    // before it would overwrite someone else's changes. The competition_code / starter / course packages are protected (read-only
     // to git): they can't be pushed or renamed, and a pull can't overwrite them.
     const GH_KEY = 'impulse.gh', GH_TOK = 'impulse.gh.token';
     const ghEl = id => document.getElementById(id);
@@ -5027,6 +5049,68 @@
         box.classList.add('show'); sel.focus();
       });
     }
+    // ---- overwrite guard: the push force-updates the branch, so warn before it silently undoes
+    // someone else's commits. p.ghBase = { repo, branch, commit, blobs:{file: blobSha} } records what
+    // this package last pulled/pushed; anything that changed on GitHub since then is "theirs".
+    async function gitBlobSha(text){   // the same id GitHub gives a file: sha1("blob <bytes>\0" + bytes)
+      const body = new TextEncoder().encode(text);
+      const head = new TextEncoder().encode('blob ' + body.length + '\0');
+      const all = new Uint8Array(head.length + body.length); all.set(head); all.set(body, head.length);
+      const h = new Uint8Array(await crypto.subtle.digest('SHA-1', all));
+      return Array.from(h, b => b.toString(16).padStart(2, '0')).join('');
+    }
+    function ghRemoteFiles(tree){   // file name -> { sha, path }, flattened the same way ghPull does
+      const out = {};
+      for (const e of (tree.tree || [])) if (e.type === 'blob' && e.path.endsWith('.java')) out[e.path.split('/').pop()] = { sha: e.sha, path: e.path };
+      return out;
+    }
+    function ghConfirmOverwrite(repo, branch, known, risky, head){
+      return new Promise(resolve => {
+        const box = ghEl('ghwarn'), list = ghEl('ghwarn-list'), web = 'https://github.com/' + repo;
+        ghEl('ghwarn-sub').textContent = known
+          ? 'Someone pushed to "' + branch + '" since you last pulled or pushed it. These files changed on GitHub, and your push would replace them:'
+          : 'This package doesn\'t remember what it last pulled, so the sim can\'t tell who changed what. These files are different on GitHub than in your package:';
+        list.innerHTML = '';
+        for (const r of risky){
+          const li = document.createElement('li'), a = document.createElement('a');
+          a.href = web + '/blob/' + encodeURIComponent(branch) + '/' + r.path.split('/').map(encodeURIComponent).join('/');
+          a.target = '_blank'; a.rel = 'noopener'; a.textContent = r.name;
+          li.appendChild(a); list.appendChild(li);
+        }
+        const li = document.createElement('li'), a = document.createElement('a');
+        a.href = known ? web + '/compare/' + known.commit + '...' + head.sha : web + '/commits/' + encodeURIComponent(branch);
+        a.target = '_blank'; a.rel = 'noopener';
+        a.textContent = known ? 'See every change on GitHub since your copy' : 'See the branch history on GitHub';
+        li.appendChild(a); list.appendChild(li);
+        const au = (head && head.author) || {};
+        ghEl('ghwarn-last').textContent = head ? 'Latest on GitHub: "' + (head.message || '').split('\n')[0] + '" by ' + (au.name || '?') + (au.date ? ', ' + new Date(au.date).toLocaleString() : '') : '';
+        let done = false;
+        const push = ghEl('ghwarn-push'), cancel = ghEl('ghwarn-cancel');
+        const close = val => { if (done) return; done = true; box.classList.remove('show'); push.removeEventListener('click', onPush); cancel.removeEventListener('click', onCancel); box.removeEventListener('click', onBackdrop); document.removeEventListener('keydown', onKey); resolve(val); };
+        const onPush = () => close(true), onCancel = () => close(false);
+        const onBackdrop = e => { if (e.target === box) close(false); };
+        const onKey = e => { if (e.key === 'Escape') close(false); };
+        push.addEventListener('click', onPush); cancel.addEventListener('click', onCancel);
+        box.addEventListener('click', onBackdrop); document.addEventListener('keydown', onKey);
+        box.classList.add('show'); cancel.focus();
+      });
+    }
+    // true = safe to push (or the student chose to overwrite); false = cancelled
+    async function ghCheckRemote(repo, branch, p, head, token){
+      const known = (p.ghBase && p.ghBase.repo === repo && p.ghBase.branch === branch) ? p.ghBase : null;
+      if (known && known.commit === head.sha) return true;   // nobody else pushed since our last sync
+      const remote = ghRemoteFiles(await ghApi('/repos/' + repo + '/git/trees/' + head.tree.sha + '?recursive=1', {}, token));
+      const risky = [];
+      for (const name of Object.keys(p.files)){
+        const r = remote[name];
+        if (!r) continue;                                          // not on GitHub: nothing to undo
+        if (await gitBlobSha(p.files[name]) === r.sha) continue;   // already identical
+        if (known && known.blobs && known.blobs[name] === r.sha) continue;   // unchanged on GitHub: the difference is ours
+        risky.push({ name, path: r.path });
+      }
+      if (!risky.length) return true;
+      return ghConfirmOverwrite(repo, branch, known, risky, head);
+    }
     // pick a local package name for a pulled branch, prompting to rename on a collision or a
     // protected name. Returns { name, overwrite } or null if the student cancels.
     function ghResolveName(desired){
@@ -5067,13 +5151,17 @@
       }
       ghStat('pulling ' + branch + '…');
       try {
-        const tree = await ghApi('/repos/' + repo + '/git/trees/' + encodeURIComponent(branch) + '?recursive=1', {}, token);
+        const ref = await ghApi('/repos/' + repo + '/git/ref/heads/' + encodeURIComponent(branch), {}, token);
+        const headSha = ref.object.sha;
+        const tree = await ghApi('/repos/' + repo + '/git/trees/' + headSha + '?recursive=1', {}, token);
         const blobs = (tree.tree || []).filter(e => e.type === 'blob' && e.path.endsWith('.java'));
         if (!blobs.length){ ghStat('no .java files on ' + branch, true); return; }
-        const files = {};
+        const files = {}, shas = {};
         for (const e of blobs){
           const blob = await ghApi('/repos/' + repo + '/git/blobs/' + e.sha, {}, token);
-          files[e.path.split('/').pop()] = blob.encoding === 'base64' ? ghDecodeB64(blob.content) : (blob.content || '');
+          const name = e.path.split('/').pop();
+          files[name] = blob.encoding === 'base64' ? ghDecodeB64(blob.content) : (blob.content || '');
+          shas[name] = e.sha;
         }
         let progress = null;
         const progEntry = (tree.tree || []).find(e => e.type === 'blob' && e.path === PROGRESS_FILE);
@@ -5084,7 +5172,8 @@
         const choice = ghResolveName(branch);   // package name == branch (renamed on collision/protected)
         if (!choice){ ghStat('cancelled'); return; }
         // a branch pushed before progress sync keeps the overwritten package's results
-        store.packages[choice.name] = { files, active: Object.keys(files)[0], progress: progress || (store.packages[choice.name] || {}).progress };
+        store.packages[choice.name] = { files, active: Object.keys(files)[0], progress: progress || (store.packages[choice.name] || {}).progress,
+          ghBase: { repo, branch, commit: headSha, blobs: shas } };   // what we pulled, for the overwrite guard on push
         store.current = choice.name; selectedFqn = ''; saveStore(); renderAll();
         ghStat('pulled ' + Object.keys(files).length + ' file(s) → "' + choice.name + '"');
       } catch (err){ ghStat(String(err.message || err), true); }
@@ -5109,7 +5198,13 @@
         let baseCommit = null, baseTree = null, refExists = true;
         try { const ref = await ghApi('/repos/' + repo + '/git/ref/heads/' + encodeURIComponent(branch), {}, token); baseCommit = ref.object.sha; }
         catch(e){ refExists = false; }
-        if (refExists){ const c = await ghApi('/repos/' + repo + '/git/commits/' + baseCommit, {}, token); baseTree = c.tree.sha; }
+        if (refExists){
+          const c = await ghApi('/repos/' + repo + '/git/commits/' + baseCommit, {}, token);
+          baseTree = c.tree.sha;
+          ghStat('checking GitHub for changes you don\'t have…');
+          if (!await ghCheckRemote(repo, branch, p, c, token)){ ghStat('push cancelled — review the changes on GitHub first'); return; }
+          ghStat('pushing ' + branch + '…');
+        }
         else {
           try {
             const info = await ghApi('/repos/' + repo, {}, token);
@@ -5132,6 +5227,10 @@
         // force-update the student's own branch (no fast-forward/merge required); create it if new
         if (refExists) await ghApi('/repos/' + repo + '/git/refs/heads/' + encodeURIComponent(branch), { method:'PATCH', body: JSON.stringify({ sha: newCommit.sha, force: true }) }, token);
         else           await ghApi('/repos/' + repo + '/git/refs', { method:'POST', body: JSON.stringify({ ref:'refs/heads/' + branch, sha: newCommit.sha }) }, token);
+        const pushed = {};
+        for (const t of tree) if (t.path.endsWith('.java')) pushed[t.path] = t.sha;
+        p.ghBase = { repo, branch, commit: newCommit.sha, blobs: pushed };   // GitHub now matches this package
+        saveStore();
         ghStat('pushed "' + branch + '" → ' + repo + '@' + branch);
       } catch (err){ ghStat(String(err.message || err), true); }
     }
@@ -5455,7 +5554,7 @@
       openSheet({
         ic: push ? '⬆️' : '⬇️',
         title: push ? 'Deploy → GitHub' : 'Import ← GitHub',
-        sub: push ? 'Force-push this package to its branch' : 'Pull a branch into a code package',
+        sub: push ? 'Push this package to its branch (warns first if GitHub has changes you don\'t)' : 'Pull a branch into a code package',
         go: push ? 'Push ▸' : 'Pull ▸',
         body: '<div class="pit-field"><label>Repository (owner/repo)</label><input id="sheet-ghrepo" placeholder="owner/repo"></div>'
             + '<div class="pit-field"><label>Token — Contents: write (kept only in this tab)</label><input id="sheet-ghtoken" type="password" placeholder="ghp_\u2026"></div>'
